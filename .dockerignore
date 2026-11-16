@@ -1,0 +1,17 @@
+**/node_modules
+**/dist
+**/.output
+**/.nuxt
+**/.nitro
+**/.git
+**/logs
+**/*.log
+ormlogs.log
+apps/server/upload
+apps/server/openApi.json
+apps/server/src/config/env/dev.yml
+apps/server/src/config/env/test.yml
+.env
+.env.*
+docs/
+coverage/

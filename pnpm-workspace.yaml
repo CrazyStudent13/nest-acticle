@@ -1,0 +1,12 @@
+packages:
+  - apps/*
+
+# pnpm 10 默认不执行依赖的构建脚本，这里放行已知需要的包
+onlyBuiltDependencies:
+  - '@parcel/watcher'
+  - core-js
+  - esbuild
+  - sharp
+  - simple-git-hooks
+  - unrs-resolver
+  - vue-demi

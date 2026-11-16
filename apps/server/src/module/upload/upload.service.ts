@@ -1,0 +1,521 @@
+import { Injectable, Inject } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Repository } from 'typeorm';
+import { Like, In, Between, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import { ResultData } from 'src/common/utils/result';
+import { SysUploadEntity } from './entities/upload.entity';
+import { ChunkFileDto, ChunkMergeFileDto } from './dto/index';
+import { GenerateUUID } from 'src/common/utils/index';
+import { UPLOAD_DEFAULT_ALLOWED_EXTS } from 'src/common/constant/index';
+import fs from 'fs';
+import path from 'path';
+import iconv from 'iconv-lite';
+import COS from 'cos-nodejs-sdk-v5';
+import Mime from 'mime-types';
+import { FileStorageFactory } from '../common/file-storage/file-storage.factory';
+import { UploadResult } from '../common/file-storage/interfaces/file-storage.interface';
+
+@Injectable()
+export class UploadService {
+  private thunkDir: string;
+  private cos = new COS({
+    // 必选参数
+    SecretId: this.config.get('cos.secretId'),
+    SecretKey: this.config.get('cos.secretKey'),
+    //可选参数
+    FileParallelLimit: 3, // 控制文件上传并发数
+    ChunkParallelLimit: 8, // 控制单个文件下分片上传并发数，在同园区上传可以设置较大的并发数
+    ChunkSize: 1024 * 1024 * 8, // 控制分片大小，单位 B，在同园区上传可以设置较大的分片大小
+  });
+  private isLocal: boolean;
+  private storageType: string;
+  constructor(
+    @InjectRepository(SysUploadEntity)
+    private readonly sysUploadEntityRep: Repository<SysUploadEntity>,
+    @Inject(ConfigService)
+    private config: ConfigService,
+    private readonly fileStorageFactory: FileStorageFactory,
+  ) {
+    this.thunkDir = 'thunk';
+    this.isLocal = this.config.get('app.file.isLocal');
+    this.storageType = this.config.get('app.file.storageType') || 'local';
+  }
+
+  /**
+   * 读取 yml 扩展名白名单（app.file.allowedExts，逗号分隔字符串或数组），未配置时回退默认名单
+   */
+  private getAllowedUploadExts(): string[] {
+    const raw = this.config.get('app.file.allowedExts');
+    const list = Array.isArray(raw) ? raw : typeof raw === 'string' && raw.trim() ? raw.split(',') : [];
+    const normalized = list
+      .map((ext) => String(ext).trim().toLowerCase())
+      .filter(Boolean)
+      .map((ext) => (ext.startsWith('.') ? ext : `.${ext}`));
+    return normalized.length ? normalized : UPLOAD_DEFAULT_ALLOWED_EXTS;
+  }
+
+  /**
+   * 域名与 key 拼接为 URL（不能用 path.join/posix.join，其会把 scheme 的 // 折叠成 /）
+   */
+  private joinUrl(domain: string, key: string): string {
+    const base = (domain || '').replace(/\/+$/, '');
+    return `${base}${key.startsWith('/') ? '' : '/'}${key}`;
+  }
+
+  /**
+   * 扩展名白名单校验：不通过时返回失败信封，通过返回 null
+   */
+  private checkUploadExt(fileName: string): ResultData | null {
+    const ext = path.extname(fileName || '').toLowerCase();
+    if (!ext) {
+      return ResultData.fail(500, '文件缺少扩展名，已拒绝上传');
+    }
+    if (!this.getAllowedUploadExts().includes(ext)) {
+      return ResultData.fail(500, `不支持的文件类型 '${ext}'，允许的类型：${this.getAllowedUploadExts().join(' ')}`);
+    }
+    return null;
+  }
+
+  /**
+   * 单文件上传
+   * @param file
+   * @param customPath 自定义存储路径
+   * @param authorName 作者名称（可选，用于生成文件名）
+   * @returns
+   */
+  async singleFileUpload(file: Express.Multer.File, customPath?: string, authorName?: string): Promise<UploadResult | any> {
+    const fileSize = (file.size / 1024 / 1024).toFixed(2);
+    if (fileSize > this.config.get('app.file.maxSize')) {
+      return ResultData.fail(500, `文件大小不能超过${this.config.get('app.file.maxSize')}MB`);
+    }
+
+    // 扩展名白名单：拒绝 .html/.svg 等可内联执行类型，防止经静态服务造成存储型 XSS（头像上传复用此方法一并生效）
+    const extFail = this.checkUploadExt(file?.originalname);
+    if (extFail) return extFail;
+
+    // 使用默认路径或自定义路径
+    const storagePath = customPath || 'uploads';
+
+    // 使用文件存储工厂统一处理上传，传递作者名
+    const res = await this.fileStorageFactory.uploadFile(file.buffer, file.originalname, file.mimetype, storagePath, authorName);
+
+    const uploadId = GenerateUUID();
+    await this.sysUploadEntityRep.save({ uploadId, ...res, ext: path.extname(res.newFileName), size: file.size });
+    return res;
+  }
+
+  async findAll(query: { pageNum?: number; pageSize?: number; fileName?: string; ext?: string; beginTime?: string; endTime?: string; orderByColumn?: string; isAsc?: string }) {
+    const pageNum = Math.max(Number(query.pageNum) || 1, 1);
+    const pageSize = Math.min(Math.max(Number(query.pageSize) || 10, 1), 100);
+    const where: any = { delFlag: '0' };
+    if (query.fileName) where.newFileName = Like(`%${query.fileName}%`);
+    if (query.ext) where.ext = query.ext.startsWith('.') ? query.ext : `.${query.ext}`;
+    // 时间区间支持单边查询
+    if (query.beginTime && query.endTime) where.createTime = Between(query.beginTime, query.endTime);
+    else if (query.beginTime) where.createTime = MoreThanOrEqual(query.beginTime);
+    else if (query.endTime) where.createTime = LessThanOrEqual(query.endTime);
+    // 排序字段走白名单，防止 orderBy 拼接注入；默认按上传时间倒序
+    let order: any = { createTime: 'DESC' };
+    if (query.orderByColumn && query.isAsc && ['size', 'createTime'].includes(query.orderByColumn)) {
+      order = { [query.orderByColumn]: query.isAsc === 'ascending' ? 'ASC' : 'DESC' };
+    }
+    const [list, total] = await this.sysUploadEntityRep.findAndCount({ where, order, skip: (pageNum - 1) * pageSize, take: pageSize });
+    return ResultData.ok({ list, total, pageNum, pageSize });
+  }
+
+  /**
+   * 扩展名下拉选项：库内实际存在的扩展名去重
+   */
+  async findExts() {
+    const rows = await this.sysUploadEntityRep
+      .createQueryBuilder('upload')
+      .select('DISTINCT upload.ext', 'ext')
+      .where('upload.delFlag = :delFlag', { delFlag: '0' })
+      .orderBy('ext', 'ASC')
+      .getRawMany();
+    return ResultData.ok(rows.map((row) => row.ext).filter(Boolean));
+  }
+
+  async remove(ids: string[]) {
+    const records = await this.sysUploadEntityRep.findBy({ uploadId: In(ids) });
+    for (const record of records) {
+      await this.fileStorageFactory.deleteFile(record.fileName).catch(() => undefined);
+      await this.sysUploadEntityRep.update({ uploadId: record.uploadId }, { delFlag: '1' });
+    }
+    return ResultData.ok();
+  }
+
+  /**
+   * 获取上传任务Id
+   * @returns
+   */
+  async getChunkUploadId() {
+    const uploadId = GenerateUUID();
+    return ResultData.ok({
+      uploadId: uploadId,
+    });
+  }
+
+  /**
+   * 文件切片上传
+   */
+  async chunkFileUpload(file: Express.Multer.File, body: ChunkFileDto) {
+    // 单分片大小由 Multer limits（UPLOAD_MAX_SIZE_BYTES）兜底，这里校验目标文件扩展名
+    const extFail = this.checkUploadExt(body?.fileName);
+    if (extFail) return extFail;
+
+    const rootPath = process.cwd();
+    const baseDirPath = path.join(rootPath, this.config.get('app.file.location'));
+    const chunckDirPath = path.join(baseDirPath, this.thunkDir, body.uploadId);
+    if (!fs.existsSync(chunckDirPath)) {
+      this.mkdirsSync(chunckDirPath);
+    }
+    const chunckFilePath = path.join(chunckDirPath, `${body.uploadId}${body.fileName}@${body.index}`);
+    if (fs.existsSync(chunckFilePath)) {
+      return ResultData.ok();
+    } else {
+      fs.writeFileSync(chunckFilePath, file.buffer);
+      return ResultData.ok();
+    }
+  }
+
+  /**
+   * 检查切片是否已上传
+   * @param uploadId
+   * @param index
+   */
+  async checkChunkFile(body) {
+    const rootPath = process.cwd();
+    const baseDirPath = path.join(rootPath, this.config.get('app.file.location'));
+    const chunckDirPath = path.join(baseDirPath, this.thunkDir, body.uploadId);
+    const chunckFilePath = path.join(chunckDirPath, `${body.uploadId}${body.fileName}@${body.index}`);
+    if (!fs.existsSync(chunckFilePath)) {
+      return ResultData.fail(500, '文件不存在');
+    } else {
+      return ResultData.ok();
+    }
+  }
+
+  /**
+   * 递归创建目录 同步方法
+   * @param dirname
+   * @returns
+   */
+  mkdirsSync(dirname) {
+    if (fs.existsSync(dirname)) {
+      return true;
+    } else {
+      if (this.mkdirsSync(path.dirname(dirname))) {
+        fs.mkdirSync(dirname);
+        return true;
+      }
+    }
+  }
+
+  /**
+   * 文件切片合并
+   */
+  async chunkMergeFile(body: ChunkMergeFileDto) {
+    const { uploadId, fileName } = body;
+
+    // 合并落盘前最终校验扩展名（历史分片可能建于规则变更前）
+    const extFail = this.checkUploadExt(fileName);
+    if (extFail) return extFail;
+
+    const rootPath = process.cwd();
+    const baseDirPath = path.join(rootPath, this.config.get('app.file.location'));
+    const sourceFilesDir = path.join(baseDirPath, this.thunkDir, uploadId);
+
+    if (!fs.existsSync(sourceFilesDir)) {
+      return ResultData.fail(500, '文件不存在');
+    }
+
+    //对文件重命名
+    const newFileName = this.getNewFileName(fileName);
+    const targetFile = path.join(baseDirPath, newFileName);
+    await this.thunkStreamMerge(sourceFilesDir, targetFile);
+    //文件相对地址（统一正斜杠，避免 Windows 反斜杠写进 DB/COS key）
+    const relativeFilePath = targetFile.replace(baseDirPath, '').replace(/\\/g, '/');
+    // 修复硬编码 'test' 前缀：key 与单文件上传对齐，使用 serveRoot（默认 /profile）
+    const serveRoot = this.config.get('app.file.serveRoot') || '/profile';
+    const key = path.posix.join(serveRoot, relativeFilePath);
+    const data = {
+      fileName: key,
+      newFileName: newFileName,
+      url: this.joinUrl(this.config.get('app.file.domain'), key),
+    };
+    const stats = fs.statSync(targetFile);
+
+    if (!this.isLocal) {
+      this.uploadLargeFileCos(targetFile, key);
+      data.url = this.joinUrl(this.config.get('cos.domain'), key);
+      // 写入上传记录
+      await this.sysUploadEntityRep.save({ uploadId, ...data, ext: path.extname(data.newFileName), size: stats.size, status: '0' });
+      return ResultData.ok(data);
+    }
+    await this.sysUploadEntityRep.save({ uploadId, ...data, ext: path.extname(data.newFileName), size: stats.size });
+    return ResultData.ok(data);
+  }
+
+  /**
+   * 文件合并
+   * @param {string} sourceFiles 源文件目录
+   * @param {string} targetFile 目标文件路径
+   */
+  async thunkStreamMerge(sourceFilesDir, targetFile) {
+    const fileList = fs
+      .readdirSync(sourceFilesDir)
+      .filter((file) => fs.lstatSync(path.join(sourceFilesDir, file)).isFile())
+      .sort((a, b) => parseInt(a.split('@')[1]) - parseInt(b.split('@')[1]))
+      .map((name) => ({
+        name,
+        filePath: path.join(sourceFilesDir, name),
+      }));
+
+    const fileWriteStream = fs.createWriteStream(targetFile);
+    let onResolve: (value) => void;
+    const callbackPromise = new Promise((resolve) => {
+      onResolve = resolve;
+    });
+    this.thunkStreamMergeProgress(fileList, fileWriteStream, sourceFilesDir, onResolve);
+    return callbackPromise;
+  }
+
+  /**
+   * 合并每一个切片
+   * @param {Array} fileList 文件数据列表
+   * @param {WritableStream} fileWriteStream 最终的写入结果流
+   * @param {string} sourceFilesDir 源文件目录
+   */
+  thunkStreamMergeProgress(fileList, fileWriteStream, sourceFilesDir, onResolve) {
+    if (!fileList.length) {
+      // 删除临时目录
+      this.removeChunkDirSafely(sourceFilesDir);
+      onResolve();
+      return;
+    }
+
+    const { filePath: chunkFilePath } = fileList.shift();
+    const currentReadStream = fs.createReadStream(chunkFilePath);
+
+    // 把结果往最终的生成文件上进行拼接
+    currentReadStream.pipe(fileWriteStream, { end: false });
+
+    currentReadStream.on('end', () => {
+      // 拼接完之后进入下一次循环
+      this.thunkStreamMergeProgress(fileList, fileWriteStream, sourceFilesDir, onResolve);
+    });
+  }
+
+  /**
+   * 安全清理分片临时目录
+   * Windows 下最后一片的文件句柄释放存在时序竞态，同步删除可能 ENOTEMPTY；
+   * 清理发生在流事件回调中，异常会绕过请求生命周期直接炸掉进程，故重试后仍失败则保留现场仅告警
+   */
+  private removeChunkDirSafely(dir: string, retries = 3) {
+    try {
+      fs.rmSync(dir, { recursive: true, force: true });
+    } catch (error) {
+      if (retries > 0) {
+        setTimeout(() => this.removeChunkDirSafely(dir, retries - 1), 100);
+      } else {
+        console.warn(`[上传] 分片临时目录清理失败，已保留（clearTemp 定时任务会兜底清理）: ${dir}`, error?.message);
+      }
+    }
+  }
+
+  /**
+   * 保存文件到本地
+   * @param file
+   */
+  async saveFileLocal(file: Express.Multer.File) {
+    const rootPath = process.cwd();
+    //文件根目录
+    const baseDirPath = path.join(rootPath, this.config.get('app.file.location'));
+
+    //对文件名转码
+    const originalname = iconv.decode(Buffer.from(file.originalname, 'binary'), 'utf8');
+    const ext = Mime.extension(file.mimetype);
+    //重新生成文件名加上时间戳
+    const newFileName = this.getNewFileName(originalname) + '.' + ext;
+    //文件路径
+    const targetFile = path.join(baseDirPath, newFileName);
+    //文件目录
+    const sourceFilesDir = path.dirname(targetFile);
+
+    if (!fs.existsSync(sourceFilesDir)) {
+      this.mkdirsSync(sourceFilesDir);
+    }
+    fs.writeFileSync(targetFile, file.buffer);
+
+    //文件服务完整路径 - 使用正斜杠拼接 URL
+    const serveRoot = this.config.get('app.file.serveRoot');
+    const relativeFilePath = targetFile.replace(baseDirPath, '').replace(/\\/g, '/');
+    const fileName = serveRoot + relativeFilePath;
+
+    // 构建 URL（只返回相对路径，前端会自动拼接域名）
+    const url = fileName; // 返回 /profile/blob_xxx.png 格式
+
+    return {
+      fileName: fileName,
+      newFileName: newFileName,
+      url: url, // 返回 /profile/blob_xxx.png 格式
+    };
+  }
+
+  /**
+   * 生成新的文件名
+   * @param originalname 原始文件名
+   * @returns 带时间戳的新文件名
+   */
+  getNewFileName(originalname: string): string {
+    if (!originalname) {
+      return originalname;
+    }
+    // 先剥离任何目录成分，再把白名单外字符（含空格、控制符等）替换为下划线，阻断恶意文件名穿越落盘
+    const baseName = path.basename(originalname).replace(/[^\w\u4e00-\u9fa5.-]+/g, '_');
+    // 只取文件名部分，不包含扩展名
+    const nameParts = baseName.split('.');
+    if (nameParts.length > 1) {
+      nameParts.pop(); // 移除扩展名
+    }
+    let fileName = nameParts.join('.');
+
+    // 检查文件名是否已经包含时间戳（格式：name_1234567890123）
+    // 避免前端已经加了时间戳，后端又加一次导致重复
+    const timestampRegex = /_\d{13}$/;
+    if (!timestampRegex.test(fileName)) {
+      fileName = `${fileName}_${new Date().getTime()}`;
+    }
+
+    return fileName;
+  }
+
+  /**
+   *
+   * @param targetFile
+   * @param file
+   * @returns
+   */
+  async saveFileCos(targetDir: string, file: Express.Multer.File) {
+    //对文件名转码
+    const originalname = iconv.decode(Buffer.from(file.originalname, 'binary'), 'utf8');
+    //重新生成文件名加上时间戳
+    const newFileName = this.getNewFileName(originalname);
+    const targetFile = path.join(targetDir, newFileName);
+    await this.uploadCos(targetFile, file.buffer);
+    const url = path.join(this.config.get('cos.domain'), targetFile);
+    return {
+      fileName: targetFile,
+      newFileName: newFileName,
+      url: url,
+    };
+  }
+
+  /**
+   * 普通文件上传cos
+   * @param targetFile
+   * @param uploadBody
+   * @returns
+   */
+  async uploadCos(targetFile: string, buffer: COS.UploadBody) {
+    const { statusCode } = await this.cosHeadObject(targetFile);
+    if (statusCode !== 200) {
+      //不存在
+      const data = await this.cos.putObject({
+        Bucket: this.config.get('cos.bucket'),
+        Region: this.config.get('cos.region'),
+        Key: targetFile,
+        Body: buffer,
+      });
+      return path.dirname(data.Location);
+    }
+    return targetFile;
+  }
+
+  /**
+   * 获取分片上传结果
+   * @param uploadId
+   * @returns
+   */
+  async getChunkUploadResult(uploadId: string) {
+    const data = await this.sysUploadEntityRep.findOne({
+      where: { uploadId },
+      select: ['status', 'fileName', 'newFileName', 'url'],
+    });
+
+    if (data) {
+      return ResultData.ok({
+        data: data,
+        msg: data.status === '0' ? '上传成功' : '上传中',
+      });
+    } else {
+      return ResultData.fail(500, '文件不存在');
+    }
+  }
+
+  /**
+   *  大文件上传cos
+   * @param sourceFile
+   * @param targetFile
+   * @returns
+   */
+  async uploadLargeFileCos(sourceFile: string, targetFile: string) {
+    const { statusCode } = await this.cosHeadObject(targetFile);
+    if (statusCode !== 200) {
+      //不存在
+      await this.cos.uploadFile({
+        Bucket: this.config.get('cos.bucket'),
+        Region: this.config.get('cos.region'),
+        Key: targetFile,
+        FilePath: sourceFile,
+        SliceSize: 1024 * 1024 * 5 /* 触发分块上传的阈值，超过5MB使用分块上传，非必须 */,
+        onProgress: function (progressData) {
+          /* 非必须 */
+          if (progressData.percent === 1) {
+            this.sysUploadEntityRep.update({ filName: targetFile }, { status: 0 });
+          }
+        },
+      });
+    }
+    //删除本地文件
+    fs.unlinkSync(sourceFile);
+    return targetFile;
+  }
+
+  /**
+   * 检查cos资源是否存在
+   * @param directory
+   * @param key
+   * @returns
+   */
+  async cosHeadObject(targetFile: string) {
+    try {
+      return await this.cos.headObject({
+        Bucket: this.config.get('cos.bucket'),
+        Region: this.config.get('cos.region'),
+        Key: targetFile,
+      });
+    } catch (error) {
+      return error;
+    }
+  }
+
+  /**
+   * 获取cos授权
+   * @returns
+   */
+  async getAuthorization(Key: string) {
+    const authorization = COS.getAuthorization({
+      SecretId: this.config.get('cos.secretId'),
+      SecretKey: this.config.get('cos.secretKey'),
+      Method: 'post',
+      Key: Key,
+      Expires: 60,
+    });
+    return ResultData.ok({
+      sign: authorization,
+    });
+  }
+}
