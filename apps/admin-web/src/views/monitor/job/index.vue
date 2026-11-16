@@ -1,0 +1,325 @@
+<template>
+  <div class="app-container">
+    <div class="main-card">
+      <el-form v-show="job.showSearch" ref="queryRef" v-no-enter :inline="true" :model="job.queryParams">
+        <el-form-item label="任务名称" prop="jobName">
+          <el-input v-model="job.queryParams.jobName" clearable placeholder="请输入任务名称" style="width: 200px" @keyup.enter="job.handleQuery" />
+        </el-form-item>
+        <el-form-item label="任务组名" prop="jobGroup">
+          <el-select v-model="job.queryParams.jobGroup" clearable placeholder="请选择任务组名" style="width: 200px">
+            <el-option v-for="dict in sys_job_group" :key="dict.value" :label="dict.label" :value="dict.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item label="任务状态" prop="status">
+          <el-select v-model="job.queryParams.status" clearable placeholder="请选择任务状态" style="width: 200px">
+            <el-option v-for="dict in sys_job_status" :key="dict.value" :label="dict.label" :value="dict.value" />
+          </el-select>
+        </el-form-item>
+        <el-form-item>
+          <el-button :icon="Search" type="primary" @click="job.handleQuery">搜索</el-button>
+          <el-button :icon="Refresh" @click="job.resetQuery">重置</el-button>
+        </el-form-item>
+      </el-form>
+
+      <el-row class="mb8" :gutter="10">
+        <el-col :span="1.5">
+          <el-button v-hasPermi="['monitor:job:add']" :icon="Plus" plain type="primary" @click="job.handleAdd">新增</el-button>
+        </el-col>
+        <el-col :span="1.5">
+          <el-button v-hasPermi="['monitor:job:remove']" :disabled="job.multiple" :icon="Delete" plain type="danger" @click="job.handleDelete">删除</el-button>
+        </el-col>
+        <el-col :span="1.5">
+          <el-button v-hasPermi="['monitor:job:export']" :icon="Download" plain type="warning" @click="job.handleExport">导出</el-button>
+        </el-col>
+        <el-col :span="1.5">
+          <el-button v-hasPermi="['monitor:job:query']" :icon="Operation" plain type="info" @click="handleJobLog">日志</el-button>
+        </el-col>
+        <right-toolbar v-model:show-search="job.showSearch" @query-table="job.getList" />
+      </el-row>
+
+      <el-table v-loading="job.loading" :data="job.list" @selection-change="job.handleSelectionChange">
+        <el-table-column align="center" type="selection" width="55" />
+        <el-table-column align="center" label="任务编号" prop="jobId" width="100" />
+        <el-table-column align="center" label="任务名称" prop="jobName" :show-overflow-tooltip="true" />
+        <el-table-column align="center" label="任务组名" prop="jobGroup">
+          <template #default="scope">
+            <dict-tag type="sys_job_group" :value="scope.row.jobGroup" />
+          </template>
+        </el-table-column>
+        <el-table-column align="center" label="调用目标字符串" prop="invokeTarget" :show-overflow-tooltip="true" />
+        <el-table-column align="center" label="cron执行表达式" prop="cronExpression" :show-overflow-tooltip="true" />
+        <el-table-column align="center" label="状态">
+          <template #default="scope">
+            <el-tag :type="scope.row.status === '0' ? 'success' : 'danger'" style="cursor: pointer" @click="handleStatusClick(scope.row)">
+              {{ scope.row.status === '0' ? '正常' : '暂停' }}
+            </el-tag>
+          </template>
+        </el-table-column>
+        <el-table-column align="center" class-name="small-padding" label="操作" width="200">
+          <template #default="scope">
+            <el-tooltip content="修改" placement="top">
+              <el-button v-hasPermi="['monitor:job:edit']" :icon="Edit" link type="primary" @click="job.handleUpdate(scope.row)" />
+            </el-tooltip>
+            <el-tooltip content="删除" placement="top">
+              <el-button v-hasPermi="['monitor:job:remove']" :icon="Delete" link type="primary" @click="job.handleDelete(scope.row)" />
+            </el-tooltip>
+            <el-tooltip content="执行一次" placement="top">
+              <el-button v-hasPermi="['monitor:job:changeStatus']" :icon="CaretRight" link type="primary" @click="handleRun(scope.row)" />
+            </el-tooltip>
+            <el-tooltip content="任务详细" placement="top">
+              <el-button v-hasPermi="['monitor:job:query']" :icon="View" link type="primary" @click="handleView(scope.row)" />
+            </el-tooltip>
+            <el-tooltip content="调度日志" placement="top">
+              <el-button v-hasPermi="['monitor:job:query']" :icon="Operation" link type="primary" @click="handleJobLog(scope.row)" />
+            </el-tooltip>
+          </template>
+        </el-table-column>
+      </el-table>
+
+      <pagination v-show="job.total > 0" v-model:limit="job.queryParams.pageSize" v-model:page="job.queryParams.pageNum" :total="job.total" @pagination="job.getList" />
+
+      <!-- 添加或修改定时任务对话框 -->
+      <el-dialog v-model="job.open" append-to-body :title="job.title" width="820px">
+        <el-form ref="jobRef" v-no-enter label-width="120px" :model="job.form" :rules="rules">
+          <el-row>
+            <el-col :span="12">
+              <el-form-item label="任务名称" prop="jobName">
+                <el-input v-model="job.form.jobName" placeholder="请输入任务名称" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="任务分组" prop="jobGroup">
+                <el-select v-model="job.form.jobGroup" placeholder="请选择">
+                  <el-option v-for="dict in sys_job_group" :key="dict.value" :label="dict.label" :value="dict.value" />
+                </el-select>
+              </el-form-item>
+            </el-col>
+            <el-col :span="24">
+              <el-form-item prop="invokeTarget">
+                <template #label>
+                  <span>
+                    调用方法
+                    <el-tooltip placement="top">
+                      <template #content>
+                        <div>
+                          Bean调用示例：ryTask.ryParams('ry')
+                          <br />
+                          Class类调用示例：com.ruoyi.quartz.task.RyTask.ryParams('ry')
+                          <br />
+                          参数说明：支持字符串，布尔类型，长整型，浮点型，整型
+                        </div>
+                      </template>
+                      <el-icon><question-filled /></el-icon>
+                    </el-tooltip>
+                  </span>
+                </template>
+                <el-input v-model="job.form.invokeTarget" placeholder="请输入调用目标字符串" />
+              </el-form-item>
+            </el-col>
+            <el-col :span="24">
+              <el-form-item label="cron表达式" prop="cronExpression">
+                <el-input v-model="job.form.cronExpression" placeholder="请输入cron执行表达式">
+                  <template #append>
+                    <el-button type="primary" @click="handleShowCron">
+                      生成表达式
+                      <i class="el-icon-time el-icon--right"></i>
+                    </el-button>
+                  </template>
+                </el-input>
+              </el-form-item>
+            </el-col>
+            <el-col v-if="job.form.jobId !== undefined" :span="24">
+              <el-form-item label="状态">
+                <el-radio-group v-model="job.form.status">
+                  <el-radio v-for="dict in sys_job_status" :key="dict.value" :label="dict.value">{{ dict.label }}</el-radio>
+                </el-radio-group>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="执行策略" prop="misfirePolicy">
+                <el-radio-group v-model="job.form.misfirePolicy">
+                  <el-radio-button label="1">立即执行</el-radio-button>
+                  <el-radio-button label="2">执行一次</el-radio-button>
+                  <el-radio-button label="3">放弃执行</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="是否并发" prop="concurrent">
+                <el-radio-group v-model="job.form.concurrent">
+                  <el-radio-button label="0">允许</el-radio-button>
+                  <el-radio-button label="1">禁止</el-radio-button>
+                </el-radio-group>
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </el-form>
+        <template #footer>
+          <div class="dialog-footer">
+            <el-button type="primary" @click="job.submitForm">确 定</el-button>
+            <el-button @click="job.cancel">取 消</el-button>
+          </div>
+        </template>
+      </el-dialog>
+
+      <el-dialog v-model="openCron" append-to-body destroy-on-close title="Cron表达式生成器">
+        <crontab ref="crontabRef" :expression="expression" @fill="crontabFill" @hide="openCron = false" />
+      </el-dialog>
+
+      <!-- 任务日志详细 -->
+      <el-dialog v-model="openView" append-to-body title="任务详细" width="700px">
+        <el-form label-width="120px" :model="job.form">
+          <el-row>
+            <el-col :span="12">
+              <el-form-item label="任务编号：">{{ job.form.jobId }}</el-form-item>
+              <el-form-item label="任务名称：">{{ job.form.jobName }}</el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="任务分组："><dict-tag type="sys_job_group" :value="job.form.jobGroup" /></el-form-item>
+              <el-form-item label="创建时间：">{{ job.form.createTime }}</el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="cron表达式：">{{ job.form.cronExpression }}</el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="下次执行时间：">{{ job.form.nextValidTime ? dayjs(job.form.nextValidTime).format('YYYY-MM-DD HH:mm:ss') : '' }}</el-form-item>
+            </el-col>
+            <el-col :span="24">
+              <el-form-item label="调用目标方法：">{{ job.form.invokeTarget }}</el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="任务状态：">
+                <div v-if="form.status == 0">正常</div>
+                <div v-else-if="form.status == 1">暂停</div>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="是否并发：">
+                <div v-if="form.concurrent == 0">允许</div>
+                <div v-else-if="form.concurrent == 1">禁止</div>
+              </el-form-item>
+            </el-col>
+            <el-col :span="12">
+              <el-form-item label="执行策略：">
+                <div v-if="form.misfirePolicy == 0">默认策略</div>
+                <div v-else-if="form.misfirePolicy == 1">立即执行</div>
+                <div v-else-if="form.misfirePolicy == 2">执行一次</div>
+                <div v-else-if="form.misfirePolicy == 3">放弃执行</div>
+              </el-form-item>
+            </el-col>
+          </el-row>
+        </el-form>
+        <template #footer>
+          <div class="dialog-footer">
+            <el-button @click="openView = false">关 闭</el-button>
+          </div>
+        </template>
+      </el-dialog>
+    </div>
+  </div>
+</template>
+
+<script setup name="Job">
+import { CaretRight, Delete, Download, Edit, Operation, Plus, QuestionFilled, Refresh, Search, View } from '@element-plus/icons-vue';
+
+import { listJob, getJob, delJob, addJob, updateJob, runJob, changeJobStatus } from '@/api/monitor/job';
+import Crontab from '@/components/Crontab';
+import { useCrud } from '@/composables/useCrud';
+const router = useRouter();
+import { useDict } from '@/composables/useDict';
+
+const { sys_job_group, sys_job_status } = useDict('sys_job_group', 'sys_job_status');
+
+// 表单 ref 与页面弹窗状态
+const jobRef = ref();
+const queryRef = ref();
+const openView = ref(false);
+const openCron = ref(false);
+const expression = ref('');
+const crontabRef = ref();
+
+// 表单校验规则
+const rules = {
+  jobName: [{ required: true, message: '任务名称不能为空', trigger: 'blur' }],
+  invokeTarget: [{ required: true, message: '调用目标字符串不能为空', trigger: 'blur' }],
+  cronExpression: [{ required: true, message: 'cron执行表达式不能为空', trigger: 'change' }]
+};
+
+// 定时任务管理
+const job = useCrud({
+  api: { list: listJob, get: getJob, add: addJob, update: updateJob, del: delJob },
+  idKey: 'jobId',
+  name: '任务',
+  query: { jobName: undefined, jobGroup: undefined, status: undefined },
+  form: { jobId: undefined, jobName: undefined, jobGroup: undefined, invokeTarget: undefined, cronExpression: undefined, misfirePolicy: 1, concurrent: 1, status: '0' },
+  exportUrl: 'monitor/job/export',
+  queryRef,
+  formRef: jobRef
+});
+
+// 点击状态标签切换状态
+const handleStatusClick = (row) => {
+  const currentStatus = row.status;
+  const newStatus = currentStatus === '0' ? '1' : '0';
+  const text = newStatus === '0' ? '启用' : '停用';
+  ElMessageBox.confirm(`确认要"${text}" "${row.jobName}"任务吗?`, '系统提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  })
+    .then(() => {
+      return changeJobStatus(row.jobId, newStatus);
+    })
+    .then(() => {
+      ElMessage.success(`${text}成功`);
+      row.status = newStatus;
+    })
+    .catch(() => {
+      console.error('状态修改失败');
+    });
+};
+
+/* 立即执行一次 */
+const handleRun = (row) => {
+  ElMessageBox.confirm(`确认要立即执行一次"${row.jobName}"任务吗?`, '系统提示', {
+    confirmButtonText: '确定',
+    cancelButtonText: '取消',
+    type: 'warning'
+  })
+    .then(() => {
+      return runJob(row.jobId, row.jobGroup);
+    })
+    .then(() => {
+      ElMessage.success('执行成功');
+    })
+    .catch(() => {});
+};
+
+/** 任务详细信息 */
+const handleView = (row) => {
+  getJob(row.jobId).then((response) => {
+    job.form = response.data;
+    openView.value = true;
+  });
+};
+
+/** cron表达式按钮操作 */
+const handleShowCron = () => {
+  expression.value = job.form.cronExpression;
+  openCron.value = true;
+};
+
+/** 确定后回传值 */
+const crontabFill = (value) => {
+  job.form.cronExpression = value;
+};
+
+/** 任务日志列表查询 */
+const handleJobLog = (row) => {
+  const jobId = row.jobId || 0;
+  router.push(`/monitor/job-log/index/${jobId}`);
+};
+
+// 初始化加载
+job.getList();
+</script>

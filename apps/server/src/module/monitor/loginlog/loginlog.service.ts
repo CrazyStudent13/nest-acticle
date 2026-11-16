@@ -1,0 +1,142 @@
+import { Injectable } from '@nestjs/common';
+import { InjectRepository } from '@nestjs/typeorm';
+import { Response } from 'express';
+import { Repository, In, Not, IsNull } from 'typeorm';
+import { ResultData } from 'src/common/utils/result';
+import { ExportTable } from 'src/common/utils/export';
+import { MonitorLoginlogEntity } from './entities/loginlog.entity';
+import { CreateLoginlogDto, ListLoginlogDto } from './dto/index';
+
+@Injectable()
+export class LoginlogService {
+  constructor(
+    @InjectRepository(MonitorLoginlogEntity)
+    private readonly monitorLoginlogEntityRep: Repository<MonitorLoginlogEntity>,
+  ) {}
+
+  /**
+   * 创建用户登录日志
+   * @param createLoginlogDto
+   * @returns
+   */
+  async create(createLoginlogDto: CreateLoginlogDto) {
+    return await this.monitorLoginlogEntityRep.save(createLoginlogDto);
+  }
+
+  /**
+   * 日志列表 - 分页
+   * @param query
+   * @returns
+   */
+  async findAll(query: ListLoginlogDto) {
+    const entity = this.monitorLoginlogEntityRep.createQueryBuilder('entity');
+    entity.where('entity.delFlag = :delFlag', { delFlag: '0' });
+
+    if (query.ipaddr) {
+      entity.andWhere('entity.ipaddr LIKE :ipaddr', { ipaddr: `%${query.ipaddr}%` });
+    }
+
+    if (query.userName) {
+      entity.andWhere('entity.userName LIKE :userName', { userName: `%${query.userName}%` });
+    }
+
+    if (query.status) {
+      entity.andWhere('entity.status = :status', { status: query.status });
+    }
+
+    if (query.params?.beginTime && query.params?.endTime) {
+      entity.andWhere('entity.loginTime BETWEEN :start AND :end', { start: query.params.beginTime, end: query.params.endTime });
+    }
+
+    // 排序处理 - 默认按登录时间倒序排列
+    if (query.orderByColumn && query.isAsc && this.isLoginlogField(query.orderByColumn)) {
+      const key = query.isAsc === 'ascending' ? 'ASC' : 'DESC';
+      entity.orderBy(`entity.${query.orderByColumn}`, key);
+    } else {
+      // 默认按登录时间倒序
+      entity.orderBy('entity.loginTime', 'DESC');
+    }
+
+    // 分页处理 - 确保总是执行分页
+    if (query.pageSize && query.pageNum) {
+      entity.skip((query.pageNum - 1) * query.pageSize).take(query.pageSize);
+    } else {
+      // 如果没有分页参数，使用默认值
+      entity.skip(0).take(10);
+    }
+
+    const [list, total] = await entity.getManyAndCount();
+
+    return ResultData.ok({
+      list,
+      total,
+    });
+  }
+
+  /**
+   * 删除日志
+   * @returns
+   */
+  async remove(ids: string[]) {
+    const data = await this.monitorLoginlogEntityRep.update(
+      { infoId: In(ids) },
+      {
+        delFlag: '1',
+      },
+    );
+    return ResultData.ok(data);
+  }
+
+  /**
+   * 删除全部日志
+   * @returns
+   */
+  async removeAll() {
+    await this.monitorLoginlogEntityRep.update(
+      { infoId: Not(IsNull()) },
+      {
+        delFlag: '1',
+      },
+    );
+    return ResultData.ok();
+  }
+
+  /**
+   * 导出登录日志数据为xlsx
+   * @param res
+   */
+  async export(res: Response, body: ListLoginlogDto) {
+    delete body.pageNum;
+    delete body.pageSize;
+    const list = await this.findAll(body);
+    const options = {
+      sheetName: '登录日志',
+      data: list.data.list,
+      header: [
+        { title: '序号', dataIndex: 'infoId' },
+        { title: '用户账号', dataIndex: 'userName' },
+        { title: '登录状态', dataIndex: 'status' },
+        { title: '登录地址', dataIndex: 'ipaddr' },
+        { title: '登录地点', dataIndex: 'loginLocation' },
+        { title: '浏览器', dataIndex: 'browser' },
+        { title: '操作系统', dataIndex: 'os' },
+        { title: '提示消息', dataIndex: 'msg' },
+        { title: '访问时间', dataIndex: 'loginTime' },
+      ],
+      dictMap: {
+        status: {
+          '0': '成功',
+          '1': '失败',
+        },
+      },
+    };
+    ExportTable(options, res);
+  }
+
+  /**
+   * 校验排序字段是否为实体真实列，防止 orderByColumn 拼接注入
+   */
+  private isLoginlogField(field: string): boolean {
+    return this.monitorLoginlogEntityRep.metadata.columns.some((column) => column.propertyName === field);
+  }
+}

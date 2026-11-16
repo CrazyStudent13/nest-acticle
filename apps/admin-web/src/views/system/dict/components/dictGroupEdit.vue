@@ -1,0 +1,104 @@
+<template>
+  <!-- 添加或修改数据字典项配置 -->
+  <el-dialog v-model="dialogTableVisible" append-to-body :title="form.title" width="600px">
+    <el-form ref="formRef" v-no-enter label-width="100px" :model="form.model" :rules="form.rules">
+      <el-form-item label="字典名称" prop="dictName">
+        <el-input v-model="form.model.dictName" placeholder="请输入字典名称" />
+      </el-form-item>
+      <el-form-item label="字典类型" prop="dictType">
+        <el-input v-model="form.model.dictType" placeholder="请输入字典类型" />
+      </el-form-item>
+      <el-form-item label="状态" prop="status">
+        <el-radio-group v-model="form.model.status">
+          <el-radio v-for="dict in sys_normal_disable" :key="dict.value" :label="dict.value">{{ dict.label }}</el-radio>
+        </el-radio-group>
+      </el-form-item>
+      <el-form-item label="备注" prop="remark">
+        <el-input v-model="form.model.remark" placeholder="请输入内容" type="textarea" />
+      </el-form-item>
+    </el-form>
+    <template #footer>
+      <div class="dialog-footer">
+        <el-button :loading="form.loading" type="primary" @click="form.submit">确 定</el-button>
+        <el-button type="warning" @click="form.reset">重置</el-button>
+        <el-button @click="form.cancel">取 消</el-button>
+      </div>
+    </template>
+  </el-dialog>
+</template>
+
+<script setup lang="ts">
+import { addType, updateType } from '@/api/system/dict/type';
+import { useDict } from '@/composables/useDict';
+import { resetForm } from '@/composables/useForm';
+
+const { sys_normal_disable } = useDict('sys_normal_disable') as any;
+
+const dialogTableVisible = ref(false);
+const formRef = ref();
+const emit = defineEmits(['refresh']);
+
+const form = reactive({
+  loading: false,
+  title: '',
+  model: {
+    dictId: undefined as number | undefined,
+    dictName: '',
+    dictType: '',
+    status: '0',
+    remark: ''
+  },
+  rules: {
+    dictName: [{ required: true, message: '字典名称不能为空', trigger: 'blur' }],
+    dictType: [{ required: true, message: '字典类型不能为空', trigger: 'blur' }]
+  },
+  reset: () => {
+    form.loading = false;
+    nextTick(() => {
+      resetForm(formRef.value);
+    });
+  },
+  submit: () => {
+    formRef.value.validate((valid) => {
+      if (valid) {
+        form.loading = true;
+        if (form.model.dictId != undefined) {
+          updateType(form.model).then(() => {
+            ElMessage.success('修改成功');
+            form.reset();
+            dialogTableVisible.value = false;
+            emit('refresh');
+          });
+        } else {
+          addType(form.model).then(() => {
+            ElMessage.success('新增成功');
+            form.reset();
+            dialogTableVisible.value = false;
+            emit('refresh');
+          });
+        }
+      }
+    });
+  },
+  cancel: () => {
+    form.reset();
+    dialogTableVisible.value = false;
+  }
+});
+
+const handleDialogOpen = (type, row) => {
+  form.title = type === 'add' ? '新增字典类型' : '修改字典类型';
+  dialogTableVisible.value = true;
+  if (type === 'edit') {
+    form.model = { ...row };
+  } else {
+    nextTick(() => {
+      form.reset();
+    });
+  }
+};
+
+defineExpose({
+  handleDialogOpen
+});
+</script>

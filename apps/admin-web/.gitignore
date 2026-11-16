@@ -1,0 +1,35 @@
+.DS_Store
+node_modules/
+dist/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+**/*.log
+
+tests/**/coverage/
+tests/e2e/reports
+selenium-debug.log
+
+# Editor directories and files
+.idea
+.vscode
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.local
+
+# monorepo：.env.development / .env.production 入库（仅含接口前缀等非敏感配置，
+# 上游亦为跟踪文件；凭据一律走环境变量）
+.env
+!.env.development
+!.env.production
+.env.staging
+
+# 自动生成的类型声明文件
+components.d.ts
+auto-imports.d.ts
+
+# 本项目用 pnpm，pnpm-lock.yaml 必须入库；其他包管理器的锁留在本地
+package-lock.json
+yarn.lock

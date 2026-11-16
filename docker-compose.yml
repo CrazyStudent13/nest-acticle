@@ -1,0 +1,108 @@
+name: nest-acticle
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: blog-mysql
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-nest-db}
+      TZ: Asia/Shanghai
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    ports:
+      - '127.0.0.1:3306:3306'
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./apps/server/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    healthcheck:
+      test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-uroot', '-p${MYSQL_ROOT_PASSWORD:-root123}']
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: blog-redis
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:6379:6379'
+    volumes:
+      - redis_data:/data
+
+  server:
+    build:
+      context: .
+      dockerfile: apps/server/Dockerfile
+    image: blog-server
+    container_name: blog-server
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      SERVER_PORT: ${SERVER_PORT:-8080}
+      MYSQL_HOST: mysql
+      MYSQL_PORT: 3306
+      MYSQL_USERNAME: ${MYSQL_USERNAME:-root}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-root123}
+      MYSQL_DATABASE: ${MYSQL_DATABASE:-nest-db}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      REDIS_DB: 0
+      JWT_SECRETKEY: ${JWT_SECRETKEY:-please-change-me-to-a-random-secret}
+      MAIL_ENABLED: ${MAIL_ENABLED:-false}
+      MAIL_HOST: ${MAIL_HOST:-}
+      MAIL_PORT: ${MAIL_PORT:-465}
+      MAIL_SECURE: ${MAIL_SECURE:-true}
+      MAIL_USER: ${MAIL_USER:-}
+      MAIL_PASS: ${MAIL_PASS:-}
+      MAIL_FROM: ${MAIL_FROM:-}
+    volumes:
+      - server_upload:/app/apps/server/upload
+    depends_on:
+      mysql:
+        condition: service_healthy
+      redis:
+        condition: service_started
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    image: blog-web
+    container_name: blog-web
+    restart: unless-stopped
+    environment:
+      NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-http://localhost:8888}
+      HOST: 0.0.0.0
+      PORT: 3000
+    depends_on:
+      - server
+
+  blog-nginx:
+    image: nginx:alpine
+    container_name: blog-nginx
+    restart: unless-stopped
+    ports:
+      - '${BLOG_PORT:-8888}:80'
+    volumes:
+      - ./deploy/nginx/blog.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - web
+      - server
+
+  admin:
+    build:
+      context: .
+      dockerfile: apps/admin-web/Dockerfile
+    image: blog-admin
+    container_name: blog-admin
+    restart: unless-stopped
+    ports:
+      - '${ADMIN_PORT:-8081}:80'
+    depends_on:
+      - server
+
+volumes:
+  mysql_data:
+  redis_data:
+  server_upload:

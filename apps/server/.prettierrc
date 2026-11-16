@@ -1,0 +1,14 @@
+{
+  "singleQuote": true,
+  "trailingComma": "all",
+  "printWidth": 200,
+  "endOfLine": "auto",
+  "overrides": [
+    {
+      "files": "*.sql",
+      "options": {
+        "parser": "sql"
+      }
+    }
+  ]
+}
