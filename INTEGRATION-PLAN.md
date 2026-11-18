@@ -135,3 +135,23 @@ F:\githubPro\nest-acticle\
 4. **顺带修复 v2.2 改名遗漏**:admin/client Dockerfile 残留的 `WORKDIR /app/apps/admin-web`、`/app/apps/web` 错误路径(此前靠 pnpm 向上回溯根 package.json 侥幸可用),统一改为根目录显式构建。
 5. **Nuxt 类型注意点**:useFetch 泛型喂完整信封类型(必需的 code/msg)会触发 Nuxt `PickFrom` 重载解析失败,useFetch 调用点保留历史上可行的"部分信封"形状(`{ data?: { list?: T[]; total?: number } }`)仅收紧条目类型;client 对 shared 目前全部为 `import type`(编译期擦除,零运行时代码进 bundle),故 nuxt.config 暂无需 transpile/inline 配置,client 引入运行时常量时再评估。
 6. **验证**:`pnpm build` 四端全绿;`pnpm --filter client typecheck` 零错误;server dist 运行时 require shared 链路实证(枚举取值正确);docker compose build 三镜像通过。
+
+## 十一、v2.4 实施记录(2026-11-19 第二轮:阶段二 utils 包 + 阶段三工程配置统一)
+
+### 阶段二:packages/utils(@nest-acticle/utils)
+
+1. **新建纯函数包**(tsup 双格式,唯一运行时依赖 dayjs):`validate.ts`(16 个纯正则校验,来自 client validate.ts 全量迁入 + admin useValidator 正则等价部分)、`tree.ts`(`buildTree`,来自 admin handleTree)、`date.ts`(`formatDateTime/formatDate/nowDateTime/formatObjectDate`,Invalid Date 回退空串,收敛 client 6 处重复模式)、`query-string.ts`(`serializeQuery`,来自 admin paramsToQueryString)、`url.ts`(`isExternalUrl/joinFileUrl`,admin image.ts + client cover.ts 核心)。每个文件标注来源与"明确不迁"清单。
+2. **admin 接入**:useValidator 瘦身为 re-export(isExternal/isHttp)+ isValidBlob 留本地——原 zod 校验器(urlSchema/validURL/validEmail 等)经排查**零消费者,连 zod 依赖一并移除**;useCommon.handleTree 改为 buildTree 包装;useRequest.paramsToQueryString 改导 serializeQuery;image.ts 的 isExternalUrl 改 re-export。
+3. **client 接入**:删除**全死码** utils/validate.ts + utils/tools.ts(逐函数 grep 零引用);cover.ts 改 joinFileUrl;6 处「dayjs + Invalid Date 回退」模式改 formatDateTime/formatDate;重复的 uploadImage(editor/new.vue 与 ColumnEditModal 各一份)提取为 `composables/useUpload.ts`;**nuxt.config 加 `build.transpile`**(utils 进运行时 bundle,验证过 nitro 产物 chunks 已内联、无外部 @nest-acticle 导入,standalone 自包含)。
+4. **明确不迁**:server `ListToTree`(输出新 `{id,label,children}` 节点的映射语义,与 buildTree 不同)、server `FormatDate/GetNowDate/FormatObjectDate`(耦合 server 的 dayjs 时区插件设置 Asia/Beijing)——均保留 server 本地。
+5. **死配置清理**:admin 死 husky/lint-staged(无 .husky 目录、无 prepare 脚本,勾子从未接线)+ package.json 残留 lint-staged 配置块 + 不生效的 `pnpm.onlyBuiltDependencies`(workspace 下必须配在根);根 onlyBuiltDependencies 移除 vestigial simple-git-hooks;client 死 .eslintrc.js/.eslintignore/.prettierignore(eslint/prettier 未安装),.prettierrc 保留供编辑器使用;server 不生效的 npm 式 `resolutions`。
+
+### 阶段三:工程配置统一
+
+6. **root tsconfig.base.json**:只收敛三端真正共同的 `esModuleInterop/allowSyntheticDefaultImports/skipLibCheck`——server 曾显式关 `forceConsistentCasingInFileNames`(上游 Windows 妥协)而 admin 开启,这类有意分歧保留应用本地;shared/utils/server/admin 四个 tsconfig 均 extends(base 不含 module/target/strict,不改任何端行为)。
+7. **版本对齐**:typescript ^5.9.3(server 5.1.3/admin 5.8.3 起步)、prettier ^3.10.1、@types/node ^22.20.5(注意 **@types/node 版本号不严格跟随 node**,22.22.2 不存在,装包会失败)、client vue 3.5.13 → ^3.5.45、admin vue-router 4.1.4 → ^4.5.0——**vue/vue-router/typescript 现为全仓单一副本**(pnpm list -r 实证),清除了共享 Vue 代码的版本分叉障碍;三端构建全绿。
+8. **eslint 统一**:新建 `packages/eslint-config`(@nest-acticle/eslint-config,flat config 预设:`tsPreset`=typescript-eslint v8 recommended + node/jest globals + prettier 让位,`vuePreset`=vue essential + vue-ts recommended + perfectionist,规则面自 admin 原配置原样迁移);server 从 .eslintrc.js(eslint 8 + @typescript-eslint v6)**迁移至 eslint.config.mjs(eslint 10)**,仅 2 处 v6→v8 规则名适配(captcha.ts 的 no-var-requires→no-require-imports 禁用注释、task.service.ts 的 Function 类型改 rest 签名),lint 全库 0 error;admin eslint.config.js 改为消费 vuePreset,4 个 eslint 插件依赖收进共享包。**prettier 三端 .prettierrc 有意分歧(admin 300 列/server 200 列/client 无分号),统一会引发全量重排,决策:保留各自配置,不设统一格式化关卡。**
+
+### 本轮提交
+
+3eb01e0 feat(utils)→ 212d798 refactor(client)→ 95fde3e refactor(client uploadImage)→ 45f0d81 chore(死配置)→ 7b6626d build(config 版本对齐)→ 5543d90 build(lint)→ c58e819 chore(client 死 lint 配置)

@@ -8,6 +8,14 @@
 | `admin` | `apps/admin` | Vue 3 + Element Plus + Vite 8 | 后台管理系统（内容审核、RBAC、文件管理、监控等） |
 | `client` | `apps/client` | Nuxt 4 + 自绘 Less 设计系统 | 面向用户的博客前台（SSR/SEO、创作者中心、通知中心） |
 
+共享包（各应用经 `workspace:*` 引用）：
+
+| 包 | 目录 | 内容 |
+|---|---|---|
+| `@nest-acticle/shared` | `packages/shared` | 契约层：响应信封/分页/状态枚举/文章·专栏类型/业务码/权限字面量，零运行时依赖 |
+| `@nest-acticle/utils` | `packages/utils` | 纯函数：validation/tree/date/query-string/url（仅 dayjs 依赖） |
+| `@nest-acticle/eslint-config` | `packages/eslint-config` | ESLint flat config 预设：`tsPreset`（server）/`vuePreset`（admin） |
+
 > 整合方案与全部决策细节见 [INTEGRATION-PLAN.md](./INTEGRATION-PLAN.md)。
 > 上游来源：`nest-admin`（v1.2.0）与 `nuxt3-article`（2026-11-17 快照）。
 
