@@ -1,4 +1,4 @@
-<!-- 信息流文章条目卡（首页/专栏详情/个人空间共用）：文字为主+右侧缩略图（无封面不渲染）；字段名做后端多命名兼容（remark/desc/content、read/readNum、publishTime/date/createTime） -->
+<!-- 信息流文章条目卡（首页/专栏详情/个人空间共用）：文字为主+右侧缩略图（无封面不渲染）；行数据契约见 @nest-acticle/shared 的 Article -->
 <template>
   <article class="article-item" :title="title">
     <div class="body">
@@ -19,24 +19,11 @@
 
 <script setup lang="ts">
 import dayjs from 'dayjs'
-
-type CardInfo = {
-  title?: string
-  cover?: string
-  remark?: string
-  desc?: string
-  content?: string
-  author?: string
-  publishTime?: string
-  date?: string
-  createTime?: string
-  read?: number | string
-  readNum?: number | string
-}
+import type { Article } from '@nest-acticle/shared'
 
 const props = withDefaults(
   defineProps<{
-    cardInfo?: CardInfo
+    cardInfo?: Article
   }>(),
   {
     cardInfo: () => ({})
@@ -48,17 +35,16 @@ const config = useRuntimeConfig()
 const title = computed(() => props.cardInfo?.title || '无标题')
 const cover = computed(() => props.cardInfo?.cover || '')
 const coverUrl = computed(() => toCoverUrl(config.public.apiBase, cover.value))
-const remark = computed(
-  () => props.cardInfo?.remark || props.cardInfo?.desc || props.cardInfo?.content || ''
-)
+const remark = computed(() => props.cardInfo?.desc || '')
 const author = computed(() => props.cardInfo?.author || '')
 const readLabel = computed(() => {
-  const read = props.cardInfo?.read ?? props.cardInfo?.readNum
+  const read = props.cardInfo?.readNum
   return read ? `${read} 阅读` : ''
 })
 
 const publishTime = computed(() => {
-  const value = props.cardInfo?.publishTime || props.cardInfo?.date || props.cardInfo?.createTime
+  // 已发布文章优先发布时间，未发布回退创建时间
+  const value = props.cardInfo?.publishTime || props.cardInfo?.createTime
   if (!value) {
     return ''
   }

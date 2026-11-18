@@ -4,6 +4,7 @@
  */
 
 import useUserStore from '@/store/modules/user';
+import { ALL_PERMISSION } from '@nest-acticle/shared';
 
 import type { Directive, DirectiveBinding } from 'vue';
 
@@ -18,14 +19,13 @@ interface HasPermiDirectiveBinding extends Omit<DirectiveBinding, 'value'> {
 const hasPermi: Directive<HTMLElement, string | string[]> = {
   mounted(el: HTMLElement, binding: HasPermiDirectiveBinding) {
     const { value } = binding;
-    const allPermission = '*:*:*';
     const permissions = useUserStore().permissions;
 
     if (value && Array.isArray(value) && value.length > 0) {
       const permissionFlag = value;
 
       const hasPermissions = permissions.some((permission: string) => {
-        return allPermission === permission || permissionFlag.includes(permission);
+        return ALL_PERMISSION === permission || permissionFlag.includes(permission);
       });
 
       if (!hasPermissions) {

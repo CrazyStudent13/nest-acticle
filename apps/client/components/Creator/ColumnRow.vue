@@ -28,19 +28,10 @@
 
 <script setup lang="ts">
 import dayjs from 'dayjs'
-
-// 行数据：管理端专栏列表返回字段（articleCount 为该专栏下文章数）
-type ColumnRowData = {
-  id: number
-  title?: string
-  desc?: string
-  cover?: string
-  createTime?: string
-  articleCount?: number
-}
+import type { Subject } from '@nest-acticle/shared'
 
 const props = defineProps<{
-  columnInfo: ColumnRowData
+  columnInfo: Subject
 }>()
 
 const emit = defineEmits<{

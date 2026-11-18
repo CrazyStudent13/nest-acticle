@@ -44,25 +44,13 @@
 </template>
 
 <script setup lang="ts">
+import type { ApiResponse, Article, PageResult } from '@nest-acticle/shared'
+
 definePageMeta({
   layout: 'creator'
 })
 
-// 管理端列表返回的实体字段（publishStatus：0 草稿 / 1 待发布 / 2 已发布 / 3 已下架；
-// auditStatus：0 未提交 / 1 审核中 / 2 审核通过 / 3 审核拒绝）
-type ArticleRowData = {
-  id: number
-  title?: string
-  subjectId?: number
-  publishStatus?: string
-  auditStatus?: string
-  auditRemark?: string
-  readNum?: number
-  likeNum?: number
-  commentNum?: number
-  createTime?: string
-  publishTime?: string | null
-}
+// 行数据契约见 @nest-acticle/shared 的 Article（publishStatus/auditStatus 取值注释也在包内）
 
 const { user, isLoggedIn } = useUser()
 
@@ -83,7 +71,7 @@ type TabKey = (typeof tabs)[number]['key']
 const activeTab = ref<TabKey>('all')
 const keyword = ref('')
 const searchKeyword = ref('')
-const rows = ref<ArticleRowData[]>([])
+const rows = ref<Article[]>([])
 const total = ref(0)
 const pageNum = ref(1)
 const loading = ref(false)
@@ -102,7 +90,7 @@ const loadCounts = async () => {
   try {
     const base = { userId: user.value.userId, pageNum: 1, pageSize: 1 }
     const countQuery = (overrides: Record<string, any>) =>
-      apiFetch<{ list?: ArticleRowData[]; total?: number }>('/api/post/article/list', {
+      apiFetch<{ list?: Article[]; total?: number }>('/api/post/article/list', {
         query: { ...base, ...overrides }
       }).then((res) => res.data?.total ?? 0)
     const [all, published, draft, offline, auditing, rejected] = await Promise.all([
@@ -149,10 +137,10 @@ const loadList = async () => {
         ...(searchKeyword.value ? { title: searchKeyword.value } : {})
       }
       const [auditing, rejected] = await Promise.all([
-        apiFetch<{ list?: ArticleRowData[]; total?: number }>('/api/post/article/list', {
+        apiFetch<{ list?: Article[]; total?: number }>('/api/post/article/list', {
           query: { ...base, auditStatus: '1' }
         }),
-        apiFetch<{ list?: ArticleRowData[]; total?: number }>('/api/post/article/list', {
+        apiFetch<{ list?: Article[]; total?: number }>('/api/post/article/list', {
           query: { ...base, auditStatus: '3' }
         })
       ])
@@ -162,7 +150,7 @@ const loadList = async () => {
       total.value = merged.length
       rows.value = merged.slice((pageNum.value - 1) * PAGE_SIZE, pageNum.value * PAGE_SIZE)
     } else {
-      const res = await apiFetch<{ list?: ArticleRowData[]; total?: number }>('/api/post/article/list', {
+      const res = await apiFetch<{ list?: Article[]; total?: number }>('/api/post/article/list', {
         query: buildQuery(activeTab.value === 'all' ? {} : { publishStatus: activeTab.value })
       })
       rows.value = res.data?.list || []
@@ -269,12 +257,12 @@ const emptyText = computed(() => {
 })
 
 // 编辑：进编辑器载入（guest 详情只开放已发布文章，编辑入口由行卡控制）
-const goEdit = (row: ArticleRowData) => {
+const goEdit = (row: Article) => {
   return navigateTo({ path: '/editor/new', query: { id: String(row.id) } })
 }
 
 // 下架 / 重新发布：后端 PUT 为补丁式更新，只传状态字段（title/subjectId 为 DTO 必填）不影响内容
-const togglePublish = async (row: ArticleRowData) => {
+const togglePublish = async (row: Article) => {
   const target = row.publishStatus === '2' ? '3' : '2'
   try {
     await apiFetch('/api/post/article', {
@@ -289,7 +277,7 @@ const togglePublish = async (row: ArticleRowData) => {
 }
 
 // 删除：软删除，确认弹窗后刷新当前页
-const removeRow = async (row: ArticleRowData) => {
+const removeRow = async (row: Article) => {
   const ok = await confirmAction({
     title: '删除文章',
     message: `确定删除文章「${row.title}」吗？删除后不可恢复。`,

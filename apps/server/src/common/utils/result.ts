@@ -1,6 +1,8 @@
 import { ApiProperty } from '@nestjs/swagger';
+import { SUCCESS_CODE } from '@nest-acticle/shared';
 
-export const SUCCESS_CODE = 200;
+// 业务码取值收敛到共享契约包（200/401/403/404/500/601），这里保持原导出名不变
+export { SUCCESS_CODE };
 
 /**
  * 响应结构

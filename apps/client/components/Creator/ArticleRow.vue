@@ -25,25 +25,20 @@
 
 <script setup lang="ts">
 import dayjs from 'dayjs'
+import type { Article } from '@nest-acticle/shared'
 
-// 行数据：管理端列表返回的实体字段（publishStatus：0 草稿 / 1 待发布 / 2 已发布 / 3 已下架；
+// 状态徽标文案（展示层职责，取值契约见 shared 的 PublishStatusEnum/AuditStatusEnum：
+// publishStatus：0 草稿 / 1 待发布 / 2 已发布 / 3 已下架；
 // auditStatus：0 未提交 / 1 审核中 / 2 审核通过 / 3 审核拒绝）
-type ArticleRowData = {
-  id: number
-  title?: string
-  subjectId?: number
-  publishStatus?: string
-  auditStatus?: string
-  auditRemark?: string
-  readNum?: number
-  likeNum?: number
-  commentNum?: number
-  createTime?: string
-  publishTime?: string | null
+const STATUS_MAP: Record<string, string> = {
+  '0': '草稿',
+  '1': '待发布',
+  '2': '已发布',
+  '3': '已下架'
 }
 
 const props = defineProps<{
-  article: ArticleRowData
+  article: Article
   subjectName?: string
 }>()
 
@@ -54,13 +49,6 @@ const emit = defineEmits<{
 }>()
 
 const status = computed(() => props.article.publishStatus || '0')
-
-const STATUS_MAP: Record<string, string> = {
-  '0': '草稿',
-  '1': '待发布',
-  '2': '已发布',
-  '3': '已下架'
-}
 
 // 徽标：审核状态优先展示（审核中/审核失败），其余按发布状态
 const badge = computed(() => {

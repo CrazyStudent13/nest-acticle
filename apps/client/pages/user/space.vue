@@ -114,6 +114,7 @@
 
 <script setup lang="ts">
 import dayjs from 'dayjs'
+import type { PageResult, Subject } from '@nest-acticle/shared'
 
 const config = useRuntimeConfig()
 const route = useRoute()
@@ -265,7 +266,7 @@ const toggleTimeOrder = () => {
 }
 
 // ---------- 专栏 tab：guest subject list 原生支持 userId 过滤，首次进入 tab 才拉取 ----------
-const subjects = ref<any[]>([])
+const subjects = ref<Subject[]>([])
 const subjectsLoading = ref(false)
 const subjectsLoaded = ref(false)
 
@@ -276,7 +277,7 @@ const loadMySubjects = async () => {
   }
   subjectsLoading.value = true
   try {
-    const res = await apiFetch<{ list?: any[]; total?: number }>('/api/post/subject/guest/list', {
+    const res = await apiFetch<PageResult<Subject>>('/api/post/subject/guest/list', {
       query: { userId, pageNum: 1, pageSize: 50 }
     })
     subjects.value = res.data?.list || []

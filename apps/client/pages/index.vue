@@ -64,17 +64,7 @@
 </template>
 
 <script setup lang="ts">
-type ArticleListItem = {
-  id?: number | string
-  title?: string
-  author?: string
-  cover?: string
-  publishTime?: string
-  read?: number
-  readNum?: number
-  remark?: string
-  desc?: string
-}
+import type { Article } from '@nest-acticle/shared'
 
 const route = useRoute()
 const config = useRuntimeConfig()
@@ -100,7 +90,7 @@ const queryParams = computed(() => ({
   ...(searchTitle.value ? { title: searchTitle.value } : {})
 }))
 
-const { data } = await useFetch<{ data?: { list?: ArticleListItem[]; total?: number } }>(
+const { data } = await useFetch<{ data?: { list?: Article[]; total?: number } }>(
   `${config.public.apiBase}/api/post/article/guest/list`,
   {
     query: queryParams,
@@ -147,7 +137,7 @@ onBeforeUnmount(() => {
   observer = null
 })
 
-const handleRowClick = (item: ArticleListItem) => {
+const handleRowClick = (item: Article) => {
   return navigateTo({
     path: '/article/detail',
     query: {
