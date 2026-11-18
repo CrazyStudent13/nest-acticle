@@ -1,0 +1,53 @@
+/**
+ * 跨端共享的业务枚举
+ *
+ * 契约来源（修改任一侧时必须同步）：
+ * - apps/server/src/module/post/article/dto/index.ts
+ * - apps/server/src/common/enum/index.ts
+ *
+ * 注意：这些枚举描述的是数据库 char(1) 的存值约定，server 实体/DTO 的
+ * 字段类型仍声明为 string（配合 @IsEnum 校验），前端线格式类型同样用
+ * string 承载，枚举仅作为取值常量使用。
+ */
+
+/**
+ * 发布状态：0 草稿 1 待发布 2 已发布 3 已下架
+ */
+export enum PublishStatusEnum {
+  DRAFT = '0',
+  PENDING = '1',
+  PUBLISHED = '2',
+  OFFLINE = '3',
+}
+
+/**
+ * 审核状态：0 未提交 1 审核中 2 审核通过 3 审核拒绝
+ */
+export enum AuditStatusEnum {
+  NOT_SUBMITTED = '0',
+  AUDITING = '1',
+  APPROVED = '2',
+  REJECTED = '3',
+}
+
+/**
+ * 文章来源：0 原创 1 转载 2 投稿 3 翻译 4 整理
+ */
+export enum ArticleSourceEnum {
+  ORIGINAL = '0',
+  REPRINT = '1',
+  CONTRIBUTION = '2',
+  TRANSLATION = '3',
+  COMPILATION = '4',
+}
+
+/**
+ * 排序规则：与 server PagingDto.isAsc 的取值约定一致
+ */
+export enum SortRuleEnum {
+  ASCENDING = 'ascending',
+  DESCENDING = 'descending',
+}
+
+/** 排序规则的字面量类型（前端拼查询参数时直接用字符串，绕开枚举字面量不可互相赋值的限制） */
+export type SortRule = 'ascending' | 'descending';
