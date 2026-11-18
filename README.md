@@ -84,8 +84,9 @@ git push release → Actions 构建三镜像推 ghcr.io → 服务器 git pull +
 
 注意事项：
 
-- MySQL 已瘦身（`--performance-schema=OFF --innodb-buffer-pool-size=128M`），全套运行约 1.2~1.3G 内存
-- ghcr 私有包免费存储仅 500MB：工作流只推 `latest` 并尽力清理 untagged 旧版本；清理步骤失败时去网页端手动删旧版本
+- **实测内存（docker stats，空闲态）**：全套 6 容器合计约 **290MB**（mysql 128M / server 100M / client 29M / nginx 15M / admin 16M / redis 4M），2G 内存 + 2G swap 非常充裕；compose 已为每个容器设 `mem_limit` 上限（合计 ~1.75G）兜底防失控
+- 镜像体积：admin 105MB / client 250MB / server 1.09GB（未压缩）；ghcr 私有包免费存储仅 500MB，三个镜像压缩后可能逼近上限——**建议在 GitHub 网页把三个包设为 public**（公开包不限量），或后续用 `pnpm deploy` 进一步瘦身 server 镜像
+- 工作流只在 **release** 分支触发（master/dev 推送不构建）；发版时：master 合并到 release 并推送 → Actions 构建三镜像推 ghcr → 服务器 `git pull && bash deploy/update.sh`，同时打版本标签、在 PR 说明里写清本版改动
 - compose 挂载了仓库内的 `deploy/nginx/blog.conf` 与 `apps/server/db/init.sql`，所以服务器需要保留仓库目录，不能只拷 compose 文件
 
 ### 构建与检查
