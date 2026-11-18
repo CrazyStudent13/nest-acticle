@@ -154,4 +154,4 @@ F:\githubPro\nest-acticle\
 
 ### 本轮提交
 
-3eb01e0 feat(utils)→ 212d798 refactor(client)→ 95fde3e refactor(client uploadImage)→ 45f0d81 chore(死配置)→ 7b6626d build(config 版本对齐)→ 5543d90 build(lint)→ c58e819 chore(client 死 lint 配置)
+3eb01e0 feat(utils)→ 212d798 refactor(client)→ 95fde3e refactor(client uploadImage)→ 45f0d81 chore(死配置)→ 7b6626d build(config 版本对齐)→ 5543d90 build(lint)→ c58e819 chore(client 死 lint 配置)→ 53e2e99 fix(docker 补拷 tsconfig.base.json,包级 extends 根文件缺失会挂镜像构建)
