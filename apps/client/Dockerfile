@@ -16,14 +16,16 @@ RUN npm install -g pnpm@10.33.0 --registry=$NPM_REGISTRY
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY apps/client/package.json ./apps/client/
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/utils/package.json ./packages/utils/
 
-# 过滤安装需同时选中 shared：--filter 只装被选项目的 devDeps，workspace 依赖包也不例外
-RUN pnpm install --frozen-lockfile --filter client --filter @nest-acticle/shared --registry=$NPM_REGISTRY
+# 过滤安装需同时选中 workspace 包：--filter 只装被选项目的 devDeps，workspace 依赖包也不例外
+RUN pnpm install --frozen-lockfile --filter client --filter @nest-acticle/shared --filter @nest-acticle/utils --registry=$NPM_REGISTRY
 
 # 拷源码并构建（Nuxt 产物 .output）
-# pnpm -r 按拓扑序构建：先 workspace 依赖 @nest-acticle/shared（client 当前仅类型引用，但保持链路完整），再 client 本体
+# pnpm -r 按拓扑序构建：先 workspace 依赖（@nest-acticle/shared、@nest-acticle/utils），再 client 本体
 COPY apps/client ./apps/client
 COPY packages/shared ./packages/shared
+COPY packages/utils ./packages/utils
 WORKDIR /app
 RUN pnpm -r build
 

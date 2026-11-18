@@ -1,4 +1,5 @@
 import defAva from '@/assets/images/avatar.webp';
+import { isExternalUrl } from '@nest-acticle/utils';
 
 /**
  * 图片资源统一处理工具
@@ -10,15 +11,8 @@ const env = import.meta.env as any;
 const VITE_APP_ENV = env?.VITE_APP_ENV;
 const VITE_APP_BASE_API = env?.VITE_APP_BASE_API || '';
 
-/**
- * 判断是否为外部 URL（http:// 或 https:// 开头）
- * @param url 要判断的 URL
- * @returns 是否为外部 URL
- */
-export function isExternalUrl(url: string): boolean {
-  if (!url) return false;
-  return /^https?:\/\//.test(url);
-}
+// 外部 URL 判断收敛到共享工具包，re-export 维持本模块既有导出形状
+export { isExternalUrl };
 
 /**
  * 判断是否为本地相对路径（以 /uploads/ 或 uploads/ 开头）

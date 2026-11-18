@@ -1,0 +1,34 @@
+{
+  "name": "@nest-acticle/utils",
+  "version": "0.1.0",
+  "private": true,
+  "description": "monorepo 纯函数工具包：validation/tree/date/query-string/url（仅 dayjs 一个运行时依赖）",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch"
+  },
+  "dependencies": {
+    "dayjs": "^1.11.13"
+  },
+  "devDependencies": {
+    "tsup": "^8.0.0"
+  }
+}

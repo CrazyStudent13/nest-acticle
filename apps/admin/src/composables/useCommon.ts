@@ -1,52 +1,18 @@
 ﻿import { debounce } from 'radash';
+import { buildTree } from '@nest-acticle/utils';
 
 import { download as _download } from './useRequest';
 
 /**
- * 构造树型结构数据
+ * 构造树型结构数据（逻辑实现在 @nest-acticle/utils 的 buildTree，此处保留
+ * 若依签名习惯的可选参数写法供 auto-import 使用）
  * @param data 数据源
  * @param id id字段 默认 'id'
  * @param parentId 父节点字段 默认 'parentId'
  * @param children 孩子节点字段 默认 'children'
  */
 export function handleTree<T = any>(data: T[], id?: string, parentId?: string, children?: string): T[] {
-  if (!Array.isArray(data)) {
-    return [];
-  }
-
-  const config = {
-    id: id || 'id',
-    parentId: parentId || 'parentId',
-    childrenList: children || 'children'
-  };
-
-  const childrenMap = new Map<string | number, T[]>();
-  const nodeMap = new Map<string | number, T>();
-  const result: T[] = [];
-
-  // 1. 建立映射关系
-  for (const item of data) {
-    const pid = (item as any)[config.parentId];
-    const idVal = (item as any)[config.id];
-
-    if (!childrenMap.has(pid)) childrenMap.set(pid, []);
-    childrenMap.get(pid)!.push(item);
-    nodeMap.set(idVal, item);
-  }
-
-  // 2. 组装树结构
-  for (const item of data) {
-    const pid = (item as any)[config.parentId];
-    if (!nodeMap.has(pid)) {
-      result.push(item);
-    }
-    const children = childrenMap.get((item as any)[config.id]);
-    if (children) {
-      (item as any)[config.childrenList] = children;
-    }
-  }
-
-  return result;
+  return buildTree<T>(data, { idKey: id, parentKey: parentId, childrenKey: children });
 }
 
 /**

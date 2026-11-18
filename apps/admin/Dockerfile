@@ -16,14 +16,16 @@ RUN npm install -g pnpm@10.33.0 --registry=$NPM_REGISTRY
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY apps/admin/package.json ./apps/admin/
 COPY packages/shared/package.json ./packages/shared/
+COPY packages/utils/package.json ./packages/utils/
 
-# 过滤安装需同时选中 shared：--filter 只装被选项目的 devDeps，workspace 依赖包也不例外
-RUN pnpm install --frozen-lockfile --filter admin --filter @nest-acticle/shared --registry=$NPM_REGISTRY
+# 过滤安装需同时选中 workspace 包：--filter 只装被选项目的 devDeps，workspace 依赖包也不例外
+RUN pnpm install --frozen-lockfile --filter admin --filter @nest-acticle/shared --filter @nest-acticle/utils --registry=$NPM_REGISTRY
 
 # 拷源码并构建（读取 apps/admin/.env.production：VITE_APP_BASE_API=/api）
-# pnpm -r 按拓扑序构建：先 workspace 依赖 @nest-acticle/shared，再 admin 本体
+# pnpm -r 按拓扑序构建：先 workspace 依赖（@nest-acticle/shared、@nest-acticle/utils），再 admin 本体
 COPY apps/admin ./apps/admin
 COPY packages/shared ./packages/shared
+COPY packages/utils ./packages/utils
 WORKDIR /app
 RUN pnpm -r build
 
