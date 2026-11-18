@@ -9,7 +9,8 @@ services:
       MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-root123}
       MYSQL_DATABASE: ${MYSQL_DATABASE:-nest-db}
       TZ: Asia/Shanghai
-    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci
+    # performance-schema 关闭 + 小缓冲池：2G 内存机器瘦身，个人博客规模无感知
+    command: --character-set-server=utf8mb4 --collation-server=utf8mb4_unicode_ci --performance-schema=OFF --innodb-buffer-pool-size=128M
     ports:
       - '127.0.0.1:3306:3306'
     volumes:
@@ -34,7 +35,7 @@ services:
     build:
       context: .
       dockerfile: apps/server/Dockerfile
-    image: blog-server
+    image: ${IMAGE_PREFIX:-ghcr.io/crazystudent13/nest-acticle}-server:latest
     container_name: blog-server
     restart: unless-stopped
     environment:
@@ -68,7 +69,7 @@ services:
     build:
       context: .
       dockerfile: apps/web/Dockerfile
-    image: blog-web
+    image: ${IMAGE_PREFIX:-ghcr.io/crazystudent13/nest-acticle}-web:latest
     container_name: blog-web
     restart: unless-stopped
     environment:
@@ -94,7 +95,7 @@ services:
     build:
       context: .
       dockerfile: apps/admin-web/Dockerfile
-    image: blog-admin
+    image: ${IMAGE_PREFIX:-ghcr.io/crazystudent13/nest-acticle}-admin:latest
     container_name: blog-admin
     restart: unless-stopped
     ports:
