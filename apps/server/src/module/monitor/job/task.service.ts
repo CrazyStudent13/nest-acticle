@@ -6,8 +6,7 @@ import { JobLogService } from './job-log.service';
 @Injectable()
 export class TaskService implements OnModuleInit {
   private readonly logger = new Logger(TaskService.name);
-  // eslint-disable-next-line @typescript-eslint/ban-types
-  private readonly taskMap = new Map<string, Function>();
+  private readonly taskMap = new Map<string, (...args: any[]) => any>();
   private serviceInstances = new Map<string, any>();
 
   constructor(
