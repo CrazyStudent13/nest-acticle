@@ -15,13 +15,17 @@ RUN npm install -g pnpm@10.33.0 --registry=$NPM_REGISTRY
 # 先拷依赖清单（利用 Docker 层缓存），再按过滤安装
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY apps/admin/package.json ./apps/admin/
+COPY packages/shared/package.json ./packages/shared/
 
-RUN pnpm install --frozen-lockfile --filter admin --registry=$NPM_REGISTRY
+# 过滤安装需同时选中 shared：--filter 只装被选项目的 devDeps，workspace 依赖包也不例外
+RUN pnpm install --frozen-lockfile --filter admin --filter @nest-acticle/shared --registry=$NPM_REGISTRY
 
-# 拷源码并构建（读取 apps/admin-web/.env.production：VITE_APP_BASE_API=/api）
+# 拷源码并构建（读取 apps/admin/.env.production：VITE_APP_BASE_API=/api）
+# pnpm -r 按拓扑序构建：先 workspace 依赖 @nest-acticle/shared，再 admin 本体
 COPY apps/admin ./apps/admin
-WORKDIR /app/apps/admin-web
-RUN pnpm build
+COPY packages/shared ./packages/shared
+WORKDIR /app
+RUN pnpm -r build
 
 # 第二阶段：使用 Nginx 提供静态文件服务
 FROM nginx:alpine

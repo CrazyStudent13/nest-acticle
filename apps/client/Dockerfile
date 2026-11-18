@@ -15,13 +15,17 @@ RUN npm install -g pnpm@10.33.0 --registry=$NPM_REGISTRY
 # 先拷依赖清单（利用 Docker 层缓存），再按过滤安装
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY apps/client/package.json ./apps/client/
+COPY packages/shared/package.json ./packages/shared/
 
-RUN pnpm install --frozen-lockfile --filter client --registry=$NPM_REGISTRY
+# 过滤安装需同时选中 shared：--filter 只装被选项目的 devDeps，workspace 依赖包也不例外
+RUN pnpm install --frozen-lockfile --filter client --filter @nest-acticle/shared --registry=$NPM_REGISTRY
 
-# 拷源码并构建
+# 拷源码并构建（Nuxt 产物 .output）
+# pnpm -r 按拓扑序构建：先 workspace 依赖 @nest-acticle/shared（client 当前仅类型引用，但保持链路完整），再 client 本体
 COPY apps/client ./apps/client
-WORKDIR /app/apps/web
-RUN pnpm build
+COPY packages/shared ./packages/shared
+WORKDIR /app
+RUN pnpm -r build
 
 # 第二阶段：仅带产物运行（Nitro node server）
 FROM node:22-alpine
