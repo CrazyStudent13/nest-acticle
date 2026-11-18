@@ -56,7 +56,37 @@ pnpm dev                          # 同时起 server(:8080) + admin(:8888) + web
 ```
 
 也可单独启动：`pnpm dev:server` / `pnpm dev:admin` / `pnpm dev:web`。
-后端配置在 `apps/server/src/config/env/dev.yml`（已入库本机默认值，凭据可用环境变量覆盖）。
+后端配置在 `apps/server/src/config/env/dev.yml`——**含真实凭据，不入库**；新环境复制
+`dev.example.yml` 为 `dev.yml` 后填写（本地 compose 起步用模板默认值即可），也可全部用
+环境变量覆盖。注意模板中 `prefix: 'api'` 与带 `/api` 的白名单是 monorepo 约定，勿改。
+
+### 方式 C：服务器部署（GitHub Actions + ghcr，小内存机器专用）
+
+目标机器为 2核/2G 内存（首尔节点）：**镜像全部在 GitHub Actions 上构建，服务器只 pull，绝不在机构建**
+（Nuxt 构建峰值 1G+ 内存，在机 build 会 OOM）。
+
+```
+开发汇总 master / dev（推送不触发构建）
+        │ 合并发布
+        ▼
+git push release → Actions 构建三镜像推 ghcr.io → 服务器 git pull + bash deploy/update.sh
+```
+
+首次部署（服务器上执行）：
+
+1. 加 2G swap（必做，兜底防 OOM）
+2. `git clone` 本仓库并进入目录，`cp .env.example .env`
+3. 改 `.env`：`JWT_SECRETKEY`、MySQL 密码、`NUXT_PUBLIC_API_BASE=http://<服务器IP>:8888`、`IMAGE_PREFIX`（与 GitHub 仓库名一致）
+4. `docker login ghcr.io -u <GitHub用户名>`，密码填 classic PAT（只勾 `read:packages` 权限）——ghcr 包默认私有，拉取需登录；也可在 GitHub 网页把三个包改为 public 免登录
+5. `docker compose up -d --no-build`（MySQL 首次启动自动导入 init.sql）
+
+日常更新：`git pull && bash deploy/update.sh`（拉新镜像 → 重建容器 → 清旧镜像）。
+
+注意事项：
+
+- MySQL 已瘦身（`--performance-schema=OFF --innodb-buffer-pool-size=128M`），全套运行约 1.2~1.3G 内存
+- ghcr 私有包免费存储仅 500MB：工作流只推 `latest` 并尽力清理 untagged 旧版本；清理步骤失败时去网页端手动删旧版本
+- compose 挂载了仓库内的 `deploy/nginx/blog.conf` 与 `apps/server/db/init.sql`，所以服务器需要保留仓库目录，不能只拷 compose 文件
 
 ### 构建与检查
 
@@ -87,7 +117,8 @@ docker compose down               # 停止全部容器
    博客代码本就按 `/api/...` 调用，无需改动。
 2. **博客 `apiBase` 回落值中和**：上游曾硬编码一台服务器 IP，现改为仅从环境变量读取；
    本地默认值在 `apps/web/.env`。
-3. **后端配置开箱即跑**：`dev.yml` 入库（仅含 127.0.0.1 默认值）；`prod.yml` 存储从 rustfs
+3. **后端配置两份分工**：`dev.example.yml`（入库，compose 本地起步模板）+ `dev.yml`
+   （不入库，套用旧项目真实凭据：远程 MySQL/Redis/RustFS/SMTP）；`prod.yml` 存储从 rustfs
    改为 local（docker 全家桶自包含，上传落 `/app/apps/server/upload` 持久卷）。
 4. **工程统一**：Node 22.22.2 / pnpm 10.33.0，根级唯一 lockfile；三应用改名 `server`/`admin-web`/`web`；
    根脚本 `pnpm dev|build|docker:*`；Dockerfile 全部改为 workspace 感知（根目录构建上下文 + `--filter` 安装）。
