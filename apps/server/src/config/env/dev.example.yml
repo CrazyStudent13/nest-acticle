@@ -1,120 +1,127 @@
-# 开发环境配置模板
-# 复制本文件为同目录下的 dev.yml 后填入真实配置；dev.yml 已被 .gitignore 忽略，不会入库
+# 开发环境配置模板（monorepo 版）
+# 复制本文件为同目录下的 dev.yml 后填入真实配置；dev.yml 已被 .gitignore 忽略，不会入库。
+#
+# monorepo 必须保持的两处约定（改了会登录失败/404）：
+#   1. app.prefix 固定为 'api'（博客/管理端均按 /api/... 访问）
+#   2. perm.router.whitelist 中 controller 路由必须带 /api 前缀
+#      （守卫用 req.route.path 匹配，含全局前缀；静态/文档路径除外）
+#
+# 本地快速起步：先 `docker compose up -d mysql redis`，再用下面 db/redis 的默认值即可。
 
 app:
   port: 8080                    # 服务端口
-  prefix: ''                    # API访问前缀
+  prefix: 'api'                 # API访问前缀（monorepo 统一，勿改）
   file:
     storageType: 'local'        # 文件存储类型：minio | rustfs | local
-    location: '../upload'       # 本地存储路径（仅当 storageType=local 时有效）
+    location: './upload'        # 本地存储路径（相对 apps/server 运行目录）
     domain: 'http://localhost:8080'  # 文件访问域名
     serveRoot: '/profile'       # 文件虚拟路径
     maxSize: 10                 # 文件大小限制 (MB)
     # 上传扩展名白名单（逗号分隔；未配置使用内置默认名单，.svg/.html 等可内联类型已刻意排除）
     # allowedExts: '.jpg,.png,.pdf,.docx,.zip'
 
-# MinIO 对象存储配置（保留兼容）
-minio:
-  endPoint: ''                  # MinIO 服务器地址
-  port: 9000                    # MinIO API 端口
-  useSSL: false                 # 是否使用 SSL
-  accessKey: ''                 # MinIO Access Key
-  secretKey: ''                 # MinIO Secret Key
-  bucket: ''                    # 存储桶名称
-  region: 'us-east-1'           # 区域
-  domain: ''                    # MinIO 访问域名
-
-# RustFS 对象存储配置
-rustfs:
-  endPoint: ''                  # RustFS 服务器地址
-  port: 9000                    # RustFS API 端口
-  useSSL: false                 # 是否使用 SSL
-  accessKey: ''                 # RustFS Access Key
-  secretKey: ''                 # RustFS Secret Key
-  bucket: ''                    # 存储桶名称
-  region: 'us-east-1'           # 区域
-  domain: ''                    # RustFS 访问域名（可选）
-
-# 腾讯云cos配置（保留兼容）
-cos:
-  secretId: ''                  # 腾讯云 Secret ID
-  secretKey: ''                 # 腾讯云 Secret Key
-  bucket: ''                    # COS 存储桶名称
-  region: ''                    # COS 区域
-  domain: ''                    # COS 访问域名
-
-# 数据库配置
-db:
-  mysql:
-    host: '127.0.0.1'           # 数据库地址
-    username: ''                # 数据库用户名
-    password: ''                # 数据库密码
-    database: 'nest-db'         # 数据库名称
-    port: 3306                  # 数据库端口
-    charset: 'utf8mb4'          # 字符集
-    logger: 'file'              # 日志类型
-    synchronize: false          # 是否自动同步表结构（生产环境请设为 false）
-    logging: true               # 是否开启 SQL 日志
-    extra:
-      connectionLimit: 20       # 连接池最大连接数
-      connectTimeout: 30000     # 连接超时时间（毫秒）
-      enableKeepAlive: true     # 启用 TCP KeepAlive
-      keepAliveInitialDelay: 0  # KeepAlive 初始延迟
-      maxIdle: 10               # 最大空闲连接数
-      idleTimeout: 60000        # 空闲连接超时时间（毫秒）
-
-# redis 配置
-redis:
-  host: '127.0.0.1'             # Redis 地址
-  password: ''                  # Redis 密码
-  port: 6379                    # Redis 端口
-  db: 2                         # Redis 数据库编号
-  keyPrefix: ''                 # Key 前缀
-  retryStrategy:                # 重连策略
-    maxRetries: 5               # 最大重试次数
-    retryDelay: 3000            # 重试延迟（毫秒）
-  enableOfflineQueue: true      # 启用离线队列
-
-# jwt 配置
-jwt:
-  secretkey: ''                      # JWT 密钥（每个环境都要换成复杂随机值）
-  expiresin: '24h'                   # Token 过期时间
-  refreshExpiresIn: '7d'             # 刷新 Token 过期时间
-
 # 邮件配置（注册邮箱验证码）
 # enabled 为 true 且 host/user/pass 齐全时，注册页启用邮箱验证码；否则保持图片验证码
 mail:
-  enabled: false                # 是否开启邮箱验证码注册
-  host: ''                      # SMTP 服务器地址，如 smtp.qq.com
-  port: 465                     # SMTP 端口，SSL 一般为 465
-  secure: true                  # 465 端口用 SSL 设 true；587 端口用 STARTTLS 设 false
-  user: ''                      # 发件邮箱账号
-  pass: ''                      # SMTP 授权码（QQ/163 等是授权码而非登录密码）
-  from: ''                      # 发件人展示，如 '"nest-admin" <xxx@qq.com>'，留空则用 user
+  enabled: false
+  host: ''
+  port: 465
+  secure: true
+  user: ''
+  pass: ''
+  from: ''
+
+# MinIO 对象存储配置（保留兼容）
+minio:
+  endPoint: ''
+  port: 9000
+  useSSL: false
+  accessKey: ''
+  secretKey: ''
+  bucket: ''
+  region: 'us-east-1'
+  domain: ''
+
+# RustFS 对象存储配置
+rustfs:
+  endPoint: ''
+  port: 9000
+  useSSL: false
+  accessKey: ''
+  secretKey: ''
+  bucket: ''
+  region: 'us-east-1'
+  domain: ''
+
+# 腾讯云cos配置（保留兼容）
+cos:
+  secretId: ''
+  secretKey: ''
+  bucket: ''
+  region: ''
+  domain: ''
+
+# 数据库配置（默认值与根目录 .env.example / docker compose 保持一致）
+db:
+  mysql:
+    host: '127.0.0.1'
+    username: 'root'
+    password: 'root123'
+    database: 'nest-db'
+    port: 3306
+    charset: 'utf8mb4'
+    logger: 'file'
+    synchronize: false          # 表结构统一由 db/init.sql 维护
+    logging: true               # 是否开启 SQL 日志
+    extra:
+      connectionLimit: 20
+      connectTimeout: 30000
+      enableKeepAlive: true
+      keepAliveInitialDelay: 0
+      maxIdle: 10
+      idleTimeout: 60000
+
+# redis 配置
+redis:
+  host: '127.0.0.1'
+  password: ''
+  port: 6379
+  db: 2                         # Redis 数据库编号
+  keyPrefix: ''
+  retryStrategy:
+    maxRetries: 5
+    retryDelay: 3000
+  enableOfflineQueue: true
+
+# jwt 配置（joi 校验：secretkey 非空，否则拒绝启动；生产务必换强随机值）
+jwt:
+  secretkey: 'dev-only-secret-change-me'
+  expiresin: '24h'
+  refreshExpiresIn: '7d'
 
 # 日志配置
 log:
-  dir: 'logs'                   # 日志目录
-  level: 'info'                 # 日志级别
-  maxFiles: '30d'               # 日志保留天数
-  maxSize: '20m'                # 日志文件大小限制
+  dir: 'logs'
+  level: 'info'
+  maxFiles: '30d'
+  maxSize: '20m'
 
 # swagger 配置
 swagger:
-  enable: true                  # 是否开启 Swagger
-  path: 'api-docs'              # Swagger 文档路径
+  enable: true
+  path: 'api-docs'
 
 # 权限配置 - 白名单路由（不需要 token 验证的接口）
 perm:
   router:
     whitelist:
-      - path: '/login'
+      - path: '/api/login'
         method: 'POST'
-      - path: '/register'
+      - path: '/api/register'
         method: 'POST'
-      - path: '/captchaImage'
+      - path: '/api/captchaImage'
         method: 'GET'
-      - path: '/logout'
+      - path: '/api/logout'
         method: 'POST'
       - path: '/swagger-ui(.*)'
       - path: '/docs(.*)'

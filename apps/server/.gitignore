@@ -32,9 +32,8 @@ src/config/env/*.yml
 # prod.yml 例外：config/index.ts 硬读取该文件，且 Docker 构建必须有它才能启动；
 # 文件内凭据一律留空，真实值由 .env / 环境变量注入
 !src/config/env/prod.yml
-# dev.yml 例外（monorepo）：入库一份仅含本机默认值（127.0.0.1）的配置，
-# 使 clone 后无需手工复制即可启动；真实凭据仍走环境变量覆盖
-!src/config/env/dev.yml
+# dev.yml 含真实凭据（远程库/Redis/RustFS/SMTP），严禁入库；
+# 新环境请复制 dev.example.yml 为 dev.yml 后填写
 
 # Upload folder (local test files)
 /upload
