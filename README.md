@@ -52,10 +52,13 @@ docker compose up -d --build      # mysql/redis/server/client/blog-nginx/admin �
 
 ```bash
 docker compose up -d mysql redis  # 只起数据库
-pnpm dev                          # 同时起 server(:8080) + admin(:8888) + web(:3000)
+pnpm dev                          # 同时起 server(:8080) + admin(:8888) + client(:3000) + docs(:6173)
 ```
 
-也可单独启动：`pnpm dev:server` / `pnpm dev:admin` / `pnpm dev:client`。
+也可单独启动：`pnpm dev:server` / `pnpm dev:admin` / `pnpm dev:client` / `pnpm dev:docs`。
+**项目说明文档**（VitePress）随 `pnpm dev` 一起启动：直访 <http://localhost:6173/manual/>，
+或经管理端代理访问 <http://localhost:8888/manual/>。
+> 端口说明：本机 Windows 将 5173 划入 Hyper-V 保留端口段（`netsh interface ipv4 show excludedportrange protocol=tcp` 可查），故文档站改用 6173。
 后端配置在 `apps/server/src/config/env/dev.yml`——**含真实凭据，不入库**；新环境复制
 `dev.example.yml` 为 `dev.yml` 后填写（本地 compose 起步用模板默认值即可），也可全部用
 环境变量覆盖。注意模板中 `prefix: 'api'` 与带 `/api` 的白名单是 monorepo 约定，勿改。
