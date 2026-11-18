@@ -61,7 +61,7 @@ export default defineConfig(({ mode, command }: ConfigEnv): UserConfig => {
         },
         // 项目文档（VitePress，本地 docs 服务提供）
         '/manual': {
-          target: 'http://localhost:5173',
+          target: 'http://localhost:6173',
           changeOrigin: true,
           ws: true
         }
