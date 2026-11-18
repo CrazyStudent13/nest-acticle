@@ -24,7 +24,7 @@
 </template>
 
 <script setup lang="ts">
-import dayjs from 'dayjs'
+import { formatDateTime } from '@nest-acticle/utils'
 import type { Article } from '@nest-acticle/shared'
 
 // 状态徽标文案（展示层职责，取值契约见 shared 的 PublishStatusEnum/AuditStatusEnum：
@@ -78,11 +78,7 @@ const timeLabel = computed(() => (status.value === '2' ? '发布于' : '创建�
 const timeText = computed(() => {
   // 已发布优先展示发布时间（可能为空，退回创建时间），其余状态展示创建时间
   const value = status.value === '2' ? props.article.publishTime || props.article.createTime : props.article.createTime
-  if (!value) {
-    return ''
-  }
-  const formatted = dayjs(value).format('YYYY-MM-DD HH:mm')
-  return formatted === 'Invalid Date' ? '' : formatted
+  return formatDateTime(value, 'YYYY-MM-DD HH:mm')
 })
 </script>
 
