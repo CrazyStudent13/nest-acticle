@@ -18,9 +18,9 @@ ormlogs.log
 .env
 .env.*
 !.env.example
-!apps/web/.env
-!apps/admin-web/.env.development
-!apps/admin-web/.env.production
+!apps/client/.env
+!apps/admin/.env.development
+!apps/admin/.env.production
 
 # uploads（目录本身保留，内容不入库）
 apps/server/upload/*

@@ -5,8 +5,8 @@
 | 应用 | 目录 | 技术 | 说明 |
 |---|---|---|---|
 | `server` | `apps/server` | NestJS 10 + TypeORM + MySQL + Redis | 后端 API（RuoYi 移植版），全局限流/helmet/Swagger |
-| `admin-web` | `apps/admin-web` | Vue 3 + Element Plus + Vite 8 | 后台管理系统（内容审核、RBAC、文件管理、监控等） |
-| `web` | `apps/web` | Nuxt 4 + 自绘 Less 设计系统 | 面向用户的博客前台（SSR/SEO、创作者中心、通知中心） |
+| `admin` | `apps/admin` | Vue 3 + Element Plus + Vite 8 | 后台管理系统（内容审核、RBAC、文件管理、监控等） |
+| `client` | `apps/client` | Nuxt 4 + 自绘 Less 设计系统 | 面向用户的博客前台（SSR/SEO、创作者中心、通知中心） |
 
 > 整合方案与全部决策细节见 [INTEGRATION-PLAN.md](./INTEGRATION-PLAN.md)。
 > 上游来源：`nest-admin`（v1.2.0）与 `nuxt3-article`（2026-11-17 快照）。
@@ -14,7 +14,7 @@
 ## 架构与端口
 
 ```
-浏览器 ──> 博客入口 nginx :8888 ──> /            → web (Nuxt SSR :3000)
+浏览器 ──> 博客入口 nginx :8888 ──> /            → client (Nuxt SSR :3000)
                                 └─> /api /profile → server (:8080)
 浏览器 ──> 管理端 nginx  :8081 ──> /            → admin 静态资源
                                 └─> /api /profile → server (:8080)
@@ -37,7 +37,7 @@ cp .env.example .env              # 按需修改（密码/JWT 密钥/MAIL_*）
 ### 方式 A：docker 全套（一键起完整平台）
 
 ```bash
-docker compose up -d --build      # mysql/redis/server/web/blog-nginx/admin 六个服务
+docker compose up -d --build      # mysql/redis/server/client/blog-nginx/admin 六个服务
 ```
 
 - 博客前台：<http://localhost:8888>　- 管理端：<http://localhost:8081>
@@ -55,7 +55,7 @@ docker compose up -d mysql redis  # 只起数据库
 pnpm dev                          # 同时起 server(:8080) + admin(:8888) + web(:3000)
 ```
 
-也可单独启动：`pnpm dev:server` / `pnpm dev:admin` / `pnpm dev:web`。
+也可单独启动：`pnpm dev:server` / `pnpm dev:admin` / `pnpm dev:client`。
 后端配置在 `apps/server/src/config/env/dev.yml`——**含真实凭据，不入库**；新环境复制
 `dev.example.yml` 为 `dev.yml` 后填写（本地 compose 起步用模板默认值即可），也可全部用
 环境变量覆盖。注意模板中 `prefix: 'api'` 与带 `/api` 的白名单是 monorepo 约定，勿改。
@@ -116,14 +116,14 @@ docker compose down               # 停止全部容器
    （守卫用 `req.route.path` 匹配，含全局前缀）；管理端 vite 代理改写 `/dev-api` → `/api`；
    博客代码本就按 `/api/...` 调用，无需改动。
 2. **博客 `apiBase` 回落值中和**：上游曾硬编码一台服务器 IP，现改为仅从环境变量读取；
-   本地默认值在 `apps/web/.env`。
+   本地默认值在 `apps/client/.env`。
 3. **后端配置两份分工**：`dev.example.yml`（入库，compose 本地起步模板）+ `dev.yml`
    （不入库，套用旧项目真实凭据：远程 MySQL/Redis/RustFS/SMTP）；`prod.yml` 存储从 rustfs
    改为 local（docker 全家桶自包含，上传落 `/app/apps/server/upload` 持久卷）。
-4. **工程统一**：Node 22.22.2 / pnpm 10.33.0，根级唯一 lockfile；三应用改名 `server`/`admin-web`/`web`；
+4. **工程统一**：Node 22.22.2 / pnpm 10.33.0，根级唯一 lockfile；三应用改名 `server`/`admin`/`client`；
    根脚本 `pnpm dev|build|docker:*`；Dockerfile 全部改为 workspace 感知（根目录构建上下文 + `--filter` 安装）。
 5. **清理阻塞干净构建的 2025-05 遗留死代码**（仅删本仓库副本，上游原项目未动）：
-   `apps/web/composables/request.ts`（引未安装的 element-plus、硬编码失效 IP）、
+   `apps/client/composables/request.ts`（引未安装的 element-plus、硬编码失效 IP）、
    `composables/user.ts`（依赖未安装的 pinia）、`api/`、`hooks/useAuthCode.ts`、
    `components/Login/`（无任何引用，现行登录为 `components/Auth/Modal.vue`）、
    `pages/archive/`（调用后端不存在的 `/game/*` 接口且无导航入口）。

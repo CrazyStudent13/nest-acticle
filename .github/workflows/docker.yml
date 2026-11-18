@@ -30,9 +30,9 @@ jobs:
         include:
           - app: server
             suffix: server
-          - app: web
-            suffix: web
-          - app: admin-web
+          - app: client
+            suffix: client
+          - app: admin
             suffix: admin
     steps:
       - uses: actions/checkout@v4
