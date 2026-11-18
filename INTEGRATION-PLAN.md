@@ -50,7 +50,7 @@ F:\githubPro\nest-acticle\
 ### 3. 博客 apiBase 的回落 IP 中和处理(v2 新增)
 
 `nuxt.config.ts` 的 `runtimeConfig.public.apiBase` 上游已改为:
-`process.env.NUXT_PUBLIC_API_BASE || process.env.VITE_BASE_API || 'http://124.222.189.233:8888'`
+`process.env.NUXT_PUBLIC_API_BASE || process.env.VITE_BASE_API || 'http://旧服务器IP:8888'`
 —— 回落值是**硬编码的他人/原线上 IP**。整合副本中改为:
 `process.env.NUXT_PUBLIC_API_BASE || ''`(配置归 env,代码不保留地址);
 `apps/web/.env`(入库):`NUXT_PUBLIC_API_BASE=http://localhost:8080`(dev 用,后端 CORS 全开);生产用平台环境变量注入。`.env.example` 同步改,`.env.dev`(上游遗留,VITE_* 变量)原样保留不删。
@@ -104,7 +104,7 @@ F:\githubPro\nest-acticle\
 | 5 | **文件管理功能**(server 路由挂在既有 upload 模块 + 管理端新页 `views/post/file`,init.sql 加 2 行菜单) | 迁移即自带;验证步骤补一条;无新表 |
 | 6 | **密码哈希泄漏已在服务端收口**(profile/findOne/allocatedList/unallocatedList/getInfo 响应层剥离) | 从「已知问题」中移除 |
 | 7 | **admin-vue3 升级**:Vite 8(rolldown,`codeSplitting.groups`)、eslint 10、vueuse 15、**Node ≥ 22**、`.env.development` 转为已跟踪文件 | Node 统一决策改为 22.22.2;vite rewrite 改动点仍在(行号略移) |
-| 8 | **nuxt apiBase 回落值硬编码为 `http://124.222.189.233:8888`**(新提交 9a3c635) | 新增决策 3:副本中中和回落值,配置归 env |
+| 8 | **nuxt apiBase 回落值硬编码为 `http://旧服务器IP:8888`**(新提交 9a3c635) | 新增决策 3:副本中中和回落值,配置归 env |
 | 9 | 上游各自 Dockerfile 的 pnpm 钉版分裂(9.0.5 / 10.33.0)、server pnpm-lock 转为入库 | Dockerfile 全部重写为 workspace 感知 + 统一 pnpm 9.15.9;成员 lockfile 一律不迁 |
 | 10 | CI(deploy.yml quality-gate)、bin/dev.sh、docs/ 均有更新 | 仍不迁移;README 注明可参考 |
 
