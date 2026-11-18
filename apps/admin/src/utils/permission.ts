@@ -1,4 +1,5 @@
 import useUserStore from '@/store/modules/user';
+import { ALL_PERMISSION, SUPER_ADMIN_ROLE } from '@nest-acticle/shared';
 
 /**
  * 字符权限校验
@@ -8,10 +9,9 @@ import useUserStore from '@/store/modules/user';
 export function checkPermi(value: string[]): boolean {
   if (value && value instanceof Array && value.length > 0) {
     const permissions = useUserStore().permissions;
-    const all_permission = '*:*:*';
 
     const hasPermission = permissions.some((permission) => {
-      return all_permission === permission || value.includes(permission);
+      return ALL_PERMISSION === permission || value.includes(permission);
     });
 
     return hasPermission;
@@ -29,10 +29,9 @@ export function checkPermi(value: string[]): boolean {
 export function checkRole(value: string[]): boolean {
   if (value && value instanceof Array && value.length > 0) {
     const roles = useUserStore().roles;
-    const super_admin = 'admin';
 
     const hasRole = roles.some((role) => {
-      return super_admin === role || value.includes(role);
+      return SUPER_ADMIN_ROLE === role || value.includes(role);
     });
 
     return hasRole;

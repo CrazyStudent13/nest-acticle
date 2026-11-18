@@ -4,6 +4,7 @@
  */
 
 import useUserStore from '@/store/modules/user';
+import { SUPER_ADMIN_ROLE } from '@nest-acticle/shared';
 
 import type { Directive, DirectiveBinding } from 'vue';
 
@@ -18,14 +19,13 @@ interface HasRoleDirectiveBinding extends Omit<DirectiveBinding, 'value'> {
 const hasRole: Directive<HTMLElement, string | string[]> = {
   mounted(el: HTMLElement, binding: HasRoleDirectiveBinding) {
     const { value } = binding;
-    const superAdmin = 'admin';
     const roles = useUserStore().roles;
 
     if (value && Array.isArray(value) && value.length > 0) {
       const roleFlag = value;
 
       const hasRole = roles.some((role: string) => {
-        return superAdmin === role || roleFlag.includes(role);
+        return SUPER_ADMIN_ROLE === role || roleFlag.includes(role);
       });
 
       if (!hasRole) {

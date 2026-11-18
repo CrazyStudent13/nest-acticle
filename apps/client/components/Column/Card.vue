@@ -32,21 +32,11 @@
 
 <script setup lang="ts">
 import dayjs from 'dayjs'
-
-type ColumnInfo = {
-  title?: string
-  name?: string
-  desc?: string
-  content?: string
-  cover?: string
-  createTime?: string
-  articleNum?: number | string
-  articleCount?: number | string
-}
+import type { Subject } from '@nest-acticle/shared'
 
 const props = withDefaults(
   defineProps<{
-    columnInfo?: ColumnInfo
+    columnInfo?: Subject
   }>(),
   {
     columnInfo: () => ({})
@@ -55,9 +45,9 @@ const props = withDefaults(
 
 const config = useRuntimeConfig()
 
-const title = computed(() => props.columnInfo?.title || props.columnInfo?.name || '未命名专栏')
-const desc = computed(() => props.columnInfo?.desc || props.columnInfo?.content || '')
-const articleNum = computed(() => props.columnInfo?.articleCount || props.columnInfo?.articleNum || '')
+const title = computed(() => props.columnInfo?.title || '未命名专栏')
+const desc = computed(() => props.columnInfo?.desc || '')
+const articleNum = computed(() => props.columnInfo?.articleCount || '')
 
 const coverUrl = computed(() => toCoverUrl(config.public.apiBase, props.columnInfo?.cover))
 

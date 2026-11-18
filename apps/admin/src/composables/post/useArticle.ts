@@ -115,7 +115,7 @@ export function useArticle(): UseArticleReturn {
    * 保存文章（智能判断新增或更新）
    *
    * 这是一个统一的方法，会根据数据中是否包含 ID 自动选择操作：
-   * - 如果数据中有 id 或 articleId → 执行更新操作
+   * - 如果数据中有 id → 执行更新操作
    * - 如果数据中没有 ID → 执行创建操作
    *
    * 这样在页面中就不需要写 if-else 判断了，直接调用这个方法即可。
@@ -150,8 +150,8 @@ export function useArticle(): UseArticleReturn {
    * ```
    */
   const saveArticle = async (data: Partial<Article>): Promise<Article> => {
-    // 判断是新增还是更新
-    const hasId = !!(data.id || data.articleId);
+    // 判断是新增还是更新（server 的主键字段是 id）
+    const hasId = data.id !== undefined && data.id !== null;
 
     try {
       if (hasId) {

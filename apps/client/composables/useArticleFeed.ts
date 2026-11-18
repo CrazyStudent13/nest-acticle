@@ -1,20 +1,22 @@
 // 文章信息流「加载更多」：首页、专栏详情页共用
 // 第 1 页由页面的 useFetch SSR 直出，这里负责后续页的客户端追加；
 // filters（标题搜索 / subjectId）变化时清空追加区，展示层回退到 useFetch 拉取的新首页数据
-interface ArticlePageEnvelope {
-  code: number
-  msg: string
-  data?: { list?: any[]; total?: number }
-}
+import type { ApiResponse, Article, PageResult } from '@nest-acticle/shared'
+
+// loadMore 的完整响应形状（$fetch 直接可用完整信封类型）
+type ArticlePage = ApiResponse<PageResult<Article>>
+// useFetch SSR 首页数据的宽松形状：Nuxt 对 useFetch 泛型有 PickFrom 变换，
+// 完整信封类型会导致重载解析失败，这里保持历史上可行的部分信封 + 收紧条目类型
+type FeedInitial = { data?: { list?: Article[]; total?: number } | null }
 
 export const useArticleFeed = (
-  initial: Ref<{ data?: { list?: any[]; total?: number } } | null>,
+  initial: Ref<FeedInitial | null | undefined>,
   filters: ComputedRef<Record<string, any>>,
   pageSize = 10
 ) => {
   const config = useRuntimeConfig()
 
-  const appended = ref<any[]>([])
+  const appended = ref<Article[]>([])
   const lastPage = ref(1)
   const lastPageShort = ref(false)
   const loading = ref(false)
@@ -42,7 +44,7 @@ export const useArticleFeed = (
     loading.value = true
     loadError.value = ''
     try {
-      const res = await $fetch<ArticlePageEnvelope>(`${config.public.apiBase}/api/post/article/guest/list`, {
+      const res = await $fetch<ArticlePage>(`${config.public.apiBase}/api/post/article/guest/list`, {
         query: { ...filters.value, pageNum: lastPage.value + 1, pageSize }
       })
       if (res.code !== 200) {

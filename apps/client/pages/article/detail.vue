@@ -61,30 +61,7 @@
 
 <script setup lang="ts">
 import dayjs from 'dayjs'
-
-type ArticleDetail = {
-  id?: number | string
-  title?: string
-  desc?: string
-  subjectId?: number | string
-  cover?: string
-  readNum?: number
-  likeNum?: number
-  commentNum?: number
-  publishTime?: string | null
-  createTime?: string
-  author?: string
-  content?: string
-  userInfo?: {
-    userId?: number
-    nickName?: string
-    avatar?: string
-  }
-}
-
-type SubjectDetail = {
-  title?: string
-}
+import type { Article, Subject } from '@nest-acticle/shared'
 
 const config = useRuntimeConfig()
 const route = useRoute()
@@ -99,7 +76,7 @@ const formatDateTime = (value?: string | null) => {
   return formatted === 'Invalid Date' ? '' : formatted
 }
 
-const { data } = await useFetch<{ data?: ArticleDetail | null }>(
+const { data } = await useFetch<{ data?: Article | null }>(
   `${config.public.apiBase}/api/post/article/guest/detail`,
   {
     query: {
@@ -124,7 +101,7 @@ const article = computed(() => {
 })
 
 // 专栏信息：文章带 subjectId 时取标题做入口徽标（拿不到标题则不展示）
-const { data: subjectRes } = await useFetch<{ data?: SubjectDetail | null }>(
+const { data: subjectRes } = await useFetch<{ data?: Subject | null }>(
   `${config.public.apiBase}/api/post/subject/guest/detail`,
   {
     query: computed(() => ({ id: String(article.value.subjectId || '') })),

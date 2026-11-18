@@ -2,37 +2,10 @@ import { IsString, IsNumber, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty, OmitType } from '@nestjs/swagger';
 import { PagingDto } from 'src/common/dto/index';
 import { Transform } from 'class-transformer';
+import { ArticleSourceEnum, AuditStatusEnum, PublishStatusEnum } from '@nest-acticle/shared';
 
-/**
- * 发布状态枚举
- */
-export enum PublishStatusEnum {
-  DRAFT = '0', // 草稿
-  PENDING = '1', // 待发布
-  PUBLISHED = '2', // 已发布
-  OFFLINE = '3', // 已下架
-}
-
-/**
- * 审核状态枚举
- */
-export enum AuditStatusEnum {
-  NOT_SUBMITTED = '0', // 未提交
-  AUDITING = '1', // 审核中
-  APPROVED = '2', // 审核通过
-  REJECTED = '3', // 审核拒绝
-}
-
-/**
- * 文章来源枚举
- */
-export enum ArticleSourceEnum {
-  ORIGINAL = '0', // 原创
-  REPRINT = '1', // 转载
-  CONTRIBUTION = '2', // 投稿
-  TRANSLATION = '3', // 翻译
-  COMPILATION = '4', // 整理
-}
+// 发布/审核状态与文章来源枚举收敛到共享契约包，server 与前端共用同一份取值定义
+export { ArticleSourceEnum, AuditStatusEnum, PublishStatusEnum };
 
 /**
  * 创建文章 DTO

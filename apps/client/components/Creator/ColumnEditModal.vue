@@ -69,16 +69,11 @@
 </template>
 
 <script setup lang="ts">
-// 编辑时传入的行数据（预填表单），新建时为 null
-type ColumnRowData = {
-  id: number
-  title?: string
-  desc?: string
-  cover?: string
-}
+import type { Subject } from '@nest-acticle/shared'
 
 const props = defineProps<{
-  column?: ColumnRowData | null
+  // 编辑时传入的行数据（预填表单），新建时为 null
+  column?: Subject | null
 }>()
 
 const emit = defineEmits<{
