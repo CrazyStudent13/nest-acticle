@@ -103,13 +103,7 @@ onMounted(() => {
 const coverPreview = computed(() => toCoverUrl(config.public.apiBase, form.cover))
 
 // 封面上传：裁剪 16:9 后传 common/upload（专栏封面归档到 subject/cover 目录）
-const uploadImage = async (file: File, path: string) => {
-  const uploadForm = new FormData()
-  uploadForm.append('file', file)
-  uploadForm.append('path', path)
-  const res = await apiFetch<{ url: string }>('/api/common/upload', { method: 'POST', body: uploadForm })
-  return res.data?.url || ''
-}
+const { uploadImage } = useUpload()
 
 const handleCoverChange = async (event: Event) => {
   const inputEl = event.target as HTMLInputElement

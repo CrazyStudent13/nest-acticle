@@ -138,6 +138,9 @@ importers:
       '@nest-acticle/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      '@nest-acticle/utils':
+        specifier: workspace:*
+        version: link:../../packages/utils
       '@types/markdown-it':
         specifier: ^14.2.0
         version: 14.2.0

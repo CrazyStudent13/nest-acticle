@@ -449,13 +449,7 @@ const handleShortcut = (event: KeyboardEvent) => {
 const imgInput = ref<HTMLInputElement | null>(null)
 const imgUploading = ref(false)
 
-const uploadImage = async (file: File, path: string) => {
-  const form = new FormData()
-  form.append('file', file)
-  form.append('path', path)
-  const res = await apiFetch<{ url: string }>('/api/common/upload', { method: 'POST', body: form })
-  return res.data?.url || ''
-}
+const { uploadImage } = useUpload()
 
 const insertImage = (file: File) => {
   const el = taRef.value
