@@ -65,12 +65,12 @@ services:
       redis:
         condition: service_started
 
-  web:
+  client:
     build:
       context: .
-      dockerfile: apps/web/Dockerfile
-    image: ${IMAGE_PREFIX:-ghcr.io/crazystudent13/nest-acticle}-web:latest
-    container_name: blog-web
+      dockerfile: apps/client/Dockerfile
+    image: ${IMAGE_PREFIX:-ghcr.io/crazystudent13/nest-acticle}-client:latest
+    container_name: blog-client
     restart: unless-stopped
     environment:
       NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-http://localhost:8888}
@@ -88,13 +88,13 @@ services:
     volumes:
       - ./deploy/nginx/blog.conf:/etc/nginx/conf.d/default.conf:ro
     depends_on:
-      - web
+      - client
       - server
 
   admin:
     build:
       context: .
-      dockerfile: apps/admin-web/Dockerfile
+      dockerfile: apps/admin/Dockerfile
     image: ${IMAGE_PREFIX:-ghcr.io/crazystudent13/nest-acticle}-admin:latest
     container_name: blog-admin
     restart: unless-stopped

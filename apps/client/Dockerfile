@@ -14,12 +14,12 @@ RUN npm install -g pnpm@10.33.0 --registry=$NPM_REGISTRY
 
 # 先拷依赖清单（利用 Docker 层缓存），再按过滤安装
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
-COPY apps/web/package.json ./apps/web/
+COPY apps/client/package.json ./apps/web/
 
-RUN pnpm install --frozen-lockfile --filter web --registry=$NPM_REGISTRY
+RUN pnpm install --frozen-lockfile --filter client --registry=$NPM_REGISTRY
 
 # 拷源码并构建
-COPY apps/web ./apps/web
+COPY apps/client ./apps/client
 WORKDIR /app/apps/web
 RUN pnpm build
 
@@ -31,7 +31,7 @@ ENV NODE_ENV=production
 ENV HOST=0.0.0.0
 ENV PORT=3000
 
-COPY --from=builder /app/apps/web/.output ./.output
+COPY --from=builder /app/apps/client/.output ./.output
 
 EXPOSE 3000
 

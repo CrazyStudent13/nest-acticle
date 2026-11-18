@@ -14,12 +14,12 @@ RUN npm install -g pnpm@10.33.0 --registry=$NPM_REGISTRY
 
 # 先拷依赖清单（利用 Docker 层缓存），再按过滤安装
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
-COPY apps/admin-web/package.json ./apps/admin-web/
+COPY apps/admin/package.json ./apps/admin-web/
 
-RUN pnpm install --frozen-lockfile --filter admin-web --registry=$NPM_REGISTRY
+RUN pnpm install --frozen-lockfile --filter admin --registry=$NPM_REGISTRY
 
 # 拷源码并构建（读取 apps/admin-web/.env.production：VITE_APP_BASE_API=/api）
-COPY apps/admin-web ./apps/admin-web
+COPY apps/admin ./apps/admin
 WORKDIR /app/apps/admin-web
 RUN pnpm build
 
@@ -27,8 +27,8 @@ RUN pnpm build
 FROM nginx:alpine
 
 # 静态资源 + 反代配置（/api、/profile、/uploads → server 容器；配置内不含环境变量，直接落位）
-COPY apps/admin-web/nginx.conf /etc/nginx/conf.d/default.conf
-COPY --from=builder /app/apps/admin-web/dist /usr/share/nginx/html
+COPY apps/admin/nginx.conf /etc/nginx/conf.d/default.conf
+COPY --from=builder /app/apps/admin/dist /usr/share/nginx/html
 
 EXPOSE 80
 
