@@ -31,7 +31,7 @@
 </template>
 
 <script setup lang="ts">
-import dayjs from 'dayjs'
+import { formatDateTime } from '@nest-acticle/utils'
 import type { Subject } from '@nest-acticle/shared'
 
 const props = withDefaults(
@@ -51,15 +51,7 @@ const articleNum = computed(() => props.columnInfo?.articleCount || '')
 
 const coverUrl = computed(() => toCoverUrl(config.public.apiBase, props.columnInfo?.cover))
 
-const createTime = computed(() => {
-  const value = props.columnInfo?.createTime
-  if (!value) {
-    return ''
-  }
-
-  const formatted = dayjs(value).format('YYYY-MM-DD HH:mm')
-  return formatted === 'Invalid Date' ? '' : formatted
-})
+const createTime = computed(() => formatDateTime(props.columnInfo?.createTime, 'YYYY-MM-DD HH:mm'))
 
 // 订阅占位反馈：按钮文字短暂切换，2 秒还原
 const subTip = ref('')

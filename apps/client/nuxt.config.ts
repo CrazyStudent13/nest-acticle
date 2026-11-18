@@ -24,6 +24,11 @@ export default defineNuxtConfig({
     }
   },
   css: ['/assets/style/tokens.less', '/assets/style/base.less'],
+  // workspace 共享包进入运行时 bundle（utils 的 formatDateTime/joinFileUrl 被组件实际调用；
+  // shared 目前仅类型引用，提前登记以便将来引入运行时常量时不踩 nitro standalone 缺依赖的坑）
+  build: {
+    transpile: ['@nest-acticle/utils', '@nest-acticle/shared']
+  },
   routeRules: {
     // 首页即文章列表，旧列表地址重定向过去
     '/article/list': { redirect: { to: '/', statusCode: 301 } },

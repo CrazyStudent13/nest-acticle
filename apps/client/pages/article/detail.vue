@@ -60,21 +60,12 @@
 </template>
 
 <script setup lang="ts">
-import dayjs from 'dayjs'
+import { formatDateTime } from '@nest-acticle/utils'
 import type { Article, Subject } from '@nest-acticle/shared'
 
 const config = useRuntimeConfig()
 const route = useRoute()
 const articleId = computed(() => (route.query.id as string) || '')
-
-const formatDateTime = (value?: string | null) => {
-  if (!value) {
-    return ''
-  }
-
-  const formatted = dayjs(value).format('YYYY-MM-DD HH:mm')
-  return formatted === 'Invalid Date' ? '' : formatted
-}
 
 const { data } = await useFetch<{ data?: Article | null }>(
   `${config.public.apiBase}/api/post/article/guest/detail`,
@@ -93,8 +84,8 @@ const article = computed(() => {
     ...model,
     title: model.title || '',
     content: model.content || '',
-    publishTime: formatDateTime(model.publishTime),
-    createTime: formatDateTime(model.createTime),
+    publishTime: formatDateTime(model.publishTime, 'YYYY-MM-DD HH:mm'),
+    createTime: formatDateTime(model.createTime, 'YYYY-MM-DD HH:mm'),
     // ISO 时间留给结构化数据与 og 元信息用
     isoTime: (model.publishTime || model.createTime) || undefined
   }

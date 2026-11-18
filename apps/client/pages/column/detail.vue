@@ -48,7 +48,7 @@
 </template>
 
 <script setup lang="ts">
-import dayjs from 'dayjs'
+import { formatDate } from '@nest-acticle/utils'
 import type { Article, Subject } from '@nest-acticle/shared'
 
 const route = useRoute()
@@ -72,15 +72,7 @@ useSeoMeta({
   ogTitle: () => subject.value.title || '专栏详情',
   description: () => subject.value.desc || '游戏速递的专栏详情页。'
 })
-const createTime = computed(() => {
-  const value = subject.value.createTime
-  if (!value) {
-    return ''
-  }
-
-  const formatted = dayjs(value).format('YYYY-MM-DD')
-  return formatted === 'Invalid Date' ? '' : formatted
-})
+const createTime = computed(() => formatDate(subject.value.createTime))
 const coverUrl = computed(() => toCoverUrl(config.public.apiBase, subject.value.cover))
 
 const { data: articleRes } = await useFetch<{ data?: { list?: Article[]; total?: number } }>(

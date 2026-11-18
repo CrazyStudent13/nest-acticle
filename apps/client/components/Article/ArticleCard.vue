@@ -18,7 +18,7 @@
 </template>
 
 <script setup lang="ts">
-import dayjs from 'dayjs'
+import { formatDateTime } from '@nest-acticle/utils'
 import type { Article } from '@nest-acticle/shared'
 
 const props = withDefaults(
@@ -44,13 +44,7 @@ const readLabel = computed(() => {
 
 const publishTime = computed(() => {
   // 已发布文章优先发布时间，未发布回退创建时间
-  const value = props.cardInfo?.publishTime || props.cardInfo?.createTime
-  if (!value) {
-    return ''
-  }
-
-  const formatted = dayjs(value).format('YYYY-MM-DD HH:mm')
-  return formatted === 'Invalid Date' ? '' : formatted
+  return formatDateTime(props.cardInfo?.publishTime || props.cardInfo?.createTime, 'YYYY-MM-DD HH:mm')
 })
 </script>
 

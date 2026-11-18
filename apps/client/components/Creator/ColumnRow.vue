@@ -27,7 +27,7 @@
 </template>
 
 <script setup lang="ts">
-import dayjs from 'dayjs'
+import { formatDateTime } from '@nest-acticle/utils'
 import type { Subject } from '@nest-acticle/shared'
 
 const props = defineProps<{
@@ -48,14 +48,7 @@ const articleCount = computed(() => props.columnInfo.articleCount ?? 0)
 
 const coverUrl = computed(() => toCoverUrl(config.public.apiBase, props.columnInfo.cover))
 
-const createTime = computed(() => {
-  const value = props.columnInfo.createTime
-  if (!value) {
-    return ''
-  }
-  const formatted = dayjs(value).format('YYYY-MM-DD HH:mm')
-  return formatted === 'Invalid Date' ? '' : formatted
-})
+const createTime = computed(() => formatDateTime(props.columnInfo.createTime, 'YYYY-MM-DD HH:mm'))
 </script>
 
 <style lang="less" scoped>
