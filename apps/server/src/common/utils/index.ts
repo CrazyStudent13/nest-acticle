@@ -13,7 +13,6 @@ dayjs.extend(isLeapYear); // 使用插件
 dayjs.locale('zh-cn'); // 使用本地化语言
 dayjs.tz.setDefault('Asia/Beijing');
 
-import { DataScopeEnum } from '../enum/index';
 
 /**
  * 数组转树结构
@@ -162,29 +161,6 @@ export function Paginate(data: { list: Array<any>; pageSize: number; pageNum: nu
   const pageData = arrayData.slice((data.pageNum - 1) * data.pageSize, data.pageNum * data.pageSize);
 
   return pageData;
-}
-
-/**
- * 数据范围过滤
- *
- * @param joinPoint 切点
- * @param user 用户
- * @param deptAlias 部门别名
- * @param userAlias 用户别名
- * @param permission 权限字符
- */
-export async function DataScopeFilter<T>(entity: any, dataScope: DataScopeEnum): Promise<T> {
-  switch (dataScope) {
-    case DataScopeEnum.DATA_SCOPE_CUSTOM:
-      // entity.andWhere((qb) => {
-      //   const subQuery = qb.subQuery().select('user.deptId').from(User, 'user').where('user.userId = :userId').getQuery();
-      //   return 'post.title IN ' + subQuery;
-      // });
-      break;
-    default:
-      break;
-  }
-  return entity;
 }
 
 /**

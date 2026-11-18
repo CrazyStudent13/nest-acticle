@@ -3,17 +3,13 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, FindManyOptions, DataSource } from 'typeorm';
 import { Response } from 'express';
 import { ResultData } from 'src/common/utils/result';
-import { ListToTree } from 'src/common/utils/index';
 import { ExportTable } from 'src/common/utils/export';
 import { RedisService } from 'src/module/common/redis/redis.service';
 import { CacheEnum } from 'src/common/enum/index';
 import { SysUserWithRoleEntity } from '../user/entities/user-width-role.entity';
 
-import { DataScopeEnum } from 'src/common/enum/index';
 import { SysRoleEntity } from './entities/role.entity';
 import { SysRoleWithMenuEntity } from './entities/role-width-menu.entity';
-import { SysRoleWithDeptEntity } from './entities/role-width-dept.entity';
-import { SysDeptEntity } from '../dept/entities/dept.entity';
 import { MenuService } from '../menu/menu.service';
 import { CreateRoleDto, UpdateRoleDto, ListRoleDto, ChangeStatusDto } from './dto/index';
 
@@ -24,10 +20,6 @@ export class RoleService {
     private readonly sysRoleEntityRep: Repository<SysRoleEntity>,
     @InjectRepository(SysRoleWithMenuEntity)
     private readonly sysRoleWithMenuEntityRep: Repository<SysRoleWithMenuEntity>,
-    @InjectRepository(SysRoleWithDeptEntity)
-    private readonly sysRoleWithDeptEntityRep: Repository<SysRoleWithDeptEntity>,
-    @InjectRepository(SysDeptEntity)
-    private readonly sysDeptEntityRep: Repository<SysDeptEntity>,
     private readonly menuService: MenuService,
     private readonly redisService: RedisService,
     private readonly dataSource: DataSource,
@@ -98,7 +90,6 @@ export class RoleService {
     });
     const dto = { ...updateRoleDto };
     delete (dto as any).menuIds;
-    delete (dto as any).deptIds;
 
     // 菜单关联"先删后插"与角色信息更新打包为事务，任一步失败整体回滚
     const res = await this.dataSource.transaction(async (manager) => {
@@ -115,40 +106,6 @@ export class RoleService {
     // 清除拥有该角色的所有用户的菜单缓存
     await this.clearRoleMenuCache(updateRoleDto.roleId);
 
-    return ResultData.ok(res);
-  }
-
-  async dataScope(updateRoleDto: UpdateRoleDto) {
-    const hasId = await this.sysRoleWithDeptEntityRep.findOne({
-      where: {
-        roleId: updateRoleDto.roleId,
-      },
-      select: ['roleId'],
-    });
-
-    const values = (updateRoleDto.deptIds ?? []).map((id) => {
-      return {
-        roleId: updateRoleDto.roleId,
-        deptId: id,
-      };
-    });
-    const dto = { ...updateRoleDto };
-    delete (dto as any).deptIds;
-    delete (dto as any).menuIds;
-
-    // 部门关联"先删后插"与角色信息更新打包为事务，任一步失败整体回滚
-    const res = await this.dataSource.transaction(async (manager) => {
-      //角色已有权限 或者 非自定义权限 先删除权限关联
-      if (hasId || dto.dataScope !== DataScopeEnum.DATA_SCOPE_CUSTOM) {
-        await manager.delete(SysRoleWithDeptEntity, {
-          roleId: updateRoleDto.roleId,
-        });
-      }
-      if (values.length) {
-        await manager.insert(SysRoleWithDeptEntity, values);
-      }
-      return await manager.update(SysRoleEntity, { roleId: updateRoleDto.roleId }, dto);
-    });
     return ResultData.ok(res);
   }
 
@@ -172,30 +129,6 @@ export class RoleService {
     return ResultData.ok(data);
   }
 
-  async deptTree(roleId: number) {
-    const res = await this.sysDeptEntityRep.find({
-      where: {
-        delFlag: '0',
-      },
-    });
-    const tree = ListToTree(
-      res,
-      (m) => +m.deptId,
-      (m) => m.deptName,
-    );
-    const deptIds = await this.sysRoleWithDeptEntityRep.find({
-      where: { roleId: roleId },
-      select: ['deptId'],
-    });
-    const checkedKeys = deptIds.map((item) => {
-      return item.deptId;
-    });
-    return ResultData.ok({
-      depts: tree,
-      checkedKeys: checkedKeys,
-    });
-  }
-
   async findRoles(where: FindManyOptions<SysRoleEntity>) {
     return await this.sysRoleEntityRep.find(where);
   }
@@ -215,24 +148,6 @@ export class RoleService {
       where: { delFlag: '0', status: '0', menuId: In(menuIds) },
     });
     return permission;
-  }
-
-  /**
-   * 根据角色ID异步查找与之关联的部门ID列表。
-   *
-   * @param roleId - 角色的ID，用于查询与该角色关联的部门。
-   * @returns 返回一个Promise，该Promise解析为一个部门ID的数组。
-   */
-  async findRoleWithDeptIds(roleId: number) {
-    // 使用TypeORM的实体仓库查询方法，异步查找与指定角色ID相关联的部门ID。
-    const res = await this.sysRoleWithDeptEntityRep.find({
-      select: ['deptId'],
-      where: {
-        roleId: roleId,
-      },
-    });
-    // 将查询结果映射为仅包含部门ID的数组并返回。
-    return res.map((item) => item.deptId);
   }
 
   /**

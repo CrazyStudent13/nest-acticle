@@ -5,19 +5,15 @@ import { RedisService } from 'src/module/common/redis/redis.service';
 import * as bcrypt from 'bcryptjs';
 import { Uniq } from 'src/common/utils/index';
 
-import { CacheEnum, DelFlagEnum, StatusEnum, DataScopeEnum } from 'src/common/enum/index';
+import { CacheEnum, DelFlagEnum, StatusEnum } from 'src/common/enum/index';
 import { SYS_USER_TYPE } from 'src/common/constant/index';
 import { ResultData } from 'src/common/utils/result';
 import { CreateUserDto, UpdateUserDto, ListUserDto, ChangeStatusDto, ResetPwdDto, AllocatedListDto, UpdateProfileDto, UpdatePwdDto } from './dto/index';
 import { AuthUserCancelDto, AuthUserCancelAllDto, AuthUserSelectAllDto } from '../role/dto/index';
 
 import { UserEntity } from './entities/sys-user.entity';
-import { SysUserWithPostEntity } from './entities/user-width-post.entity';
 import { SysUserWithRoleEntity } from './entities/user-width-role.entity';
-import { SysPostEntity } from '../post/entities/post.entity';
-import { SysDeptEntity } from '../dept/entities/dept.entity';
 import { RoleService } from '../role/role.service';
-import { DeptService } from '../dept/dept.service';
 
 import { SysRoleEntity } from '../role/entities/role.entity';
 import { SysMenuEntity } from '../menu/entities/menu.entity';
@@ -29,16 +25,9 @@ export class UserService {
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
-    @InjectRepository(SysDeptEntity)
-    private readonly sysDeptEntityRep: Repository<SysDeptEntity>,
-    @InjectRepository(SysPostEntity)
-    private readonly sysPostEntityRep: Repository<SysPostEntity>,
-    @InjectRepository(SysUserWithPostEntity)
-    private readonly sysUserWithPostEntityRep: Repository<SysUserWithPostEntity>,
     @InjectRepository(SysUserWithRoleEntity)
     private readonly sysUserWithRoleEntityRep: Repository<SysUserWithRoleEntity>,
     private readonly roleService: RoleService,
-    private readonly deptService: DeptService,
     private readonly redisService: RedisService,
     private readonly dataSource: DataSource,
   ) {}
@@ -67,12 +56,9 @@ export class UserService {
 
     let res;
     try {
-      // 用户与岗位/角色关联写入打包为事务，任一步失败整体回滚
+      // 用户与角色关联写入打包为事务，任一步失败整体回滚
       res = await this.dataSource.transaction(async (manager) => {
         const user = await manager.save(UserEntity, { ...createUserDto, userType: SYS_USER_TYPE.CUSTOM });
-        if (createUserDto.postIds?.length) {
-          await manager.insert(SysUserWithPostEntity, createUserDto.postIds.map((id) => ({ userId: user.userId, postId: id })));
-        }
         if (createUserDto.roleIds?.length) {
           await manager.insert(SysUserWithRoleEntity, createUserDto.roleIds.map((id) => ({ userId: user.userId, roleId: id })));
         }
@@ -94,45 +80,9 @@ export class UserService {
    * @param query
    * @returns
    */
-  async findAll(query: ListUserDto, user: UserType['user']) {
+  async findAll(query: ListUserDto) {
     const entity = this.userRepo.createQueryBuilder('user');
     entity.where('user.delFlag = :delFlag', { delFlag: '0' });
-
-    //数据权限过滤
-    if (user) {
-      const roles = user.roles;
-      const deptIds = [];
-      let dataScopeAll = false;
-      let dataScopeSelf = false;
-      for (let index = 0; index < roles.length; index++) {
-        const role = roles[index];
-        if (role.dataScope === DataScopeEnum.DATA_SCOPE_ALL) {
-          dataScopeAll = true;
-          break;
-        } else if (role.dataScope === DataScopeEnum.DATA_SCOPE_CUSTOM) {
-          const roleWithDeptIds = await this.roleService.findRoleWithDeptIds(role.roleId);
-          deptIds.push(...roleWithDeptIds);
-        } else if (role.dataScope === DataScopeEnum.DATA_SCOPE_DEPT || role.dataScope === DataScopeEnum.DATA_SCOPE_DEPT_AND_CHILD) {
-          const dataScopeWidthDeptIds = await this.deptService.findDeptIdsByDataScope(user.deptId, role.dataScope);
-          deptIds.push(...dataScopeWidthDeptIds);
-        } else if (role.dataScope === DataScopeEnum.DATA_SCOPE_SELF) {
-          dataScopeSelf = true;
-        }
-      }
-
-      if (!dataScopeAll) {
-        if (deptIds.length > 0) {
-          entity.where('user.deptId IN (:...deptIds)', { deptIds: deptIds });
-        } else if (dataScopeSelf) {
-          entity.where('user.userId = :userId', { userId: user.userId });
-        }
-      }
-    }
-
-    if (query.deptId) {
-      const deptIds = await this.deptService.findDeptIdsByDataScope(+query.deptId, DataScopeEnum.DATA_SCOPE_DEPT_AND_CHILD);
-      entity.andWhere('user.deptId IN (:...deptIds)', { deptIds: deptIds });
-    }
 
     if (query.userName) {
       entity.andWhere('user.userName LIKE :userName', { userName: `%${query.userName}%` });
@@ -153,8 +103,6 @@ export class UserService {
     if (query.pageSize && query.pageNum) {
       entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
     }
-    //联查部门详情
-    entity.leftJoinAndMapOne('user.dept', SysDeptEntity, 'dept', 'dept.deptId = user.deptId');
 
     const [list, total] = await entity.getManyAndCount();
 
@@ -167,15 +115,10 @@ export class UserService {
   }
 
   /**
-   * 用户角色+岗位信息
+   * 用户角色信息
    * @returns
    */
-  async findPostAndRoleAll() {
-    const posts = await this.sysPostEntityRep.find({
-      where: {
-        delFlag: '0',
-      },
-    });
+  async findRoleAll() {
     const roles = await this.roleService.findRoles({
       where: {
         delFlag: '0',
@@ -183,7 +126,6 @@ export class UserService {
     });
 
     return ResultData.ok({
-      posts,
       roles,
     });
   }
@@ -198,26 +140,6 @@ export class UserService {
     });
     if (!data) throw new BadRequestException('用户不存在');
 
-    const dept = await this.sysDeptEntityRep.findOne({
-      where: {
-        delFlag: '0',
-        deptId: data.deptId,
-      },
-    });
-    data['dept'] = dept;
-
-    const postList = await this.sysUserWithPostEntityRep.find({
-      where: {
-        userId: userId,
-      },
-    });
-    const postIds = postList.map((item) => item.postId);
-    const allPosts = await this.sysPostEntityRep.find({
-      where: {
-        delFlag: '0',
-      },
-    });
-
     const roleIds = await this.getRoleIds([userId]);
     const allRoles = await this.roleService.findRoles({
       where: {
@@ -231,8 +153,6 @@ export class UserService {
     const { password: _password, ...safeData } = data;
     return ResultData.ok({
       data: safeData,
-      postIds,
-      posts: allPosts,
       roles: allRoles,
       roleIds,
     });
@@ -258,23 +178,9 @@ export class UserService {
       delete updateUserDto.status;
     }
 
-    // 岗位/角色关联的"先删后插"与用户信息更新打包为事务，任一步失败整体回滚
+    // 角色关联的"先删后插"与用户信息更新打包为事务，任一步失败整体回滚
     // （原实现散装多表写入且插入漏 await，中断时会留下删了旧关联但没插新关联的半成品）
     const data = await this.dataSource.transaction(async (manager) => {
-      if (updateUserDto?.postIds !== undefined) {
-        //用户已有岗位，先删除所有关联岗位
-        await manager.delete(SysUserWithPostEntity, {
-          userId: updateUserDto.userId,
-        });
-        // 只有当 postIds 不为空时才插入新记录
-        if (updateUserDto.postIds && updateUserDto.postIds.length > 0) {
-          await manager.insert(
-            SysUserWithPostEntity,
-            updateUserDto.postIds.map((id) => ({ userId: updateUserDto.userId, postId: id })),
-          );
-        }
-      }
-
       if (updateUserDto?.roleIds !== undefined) {
         //用户已有角色，先删除所有关联角色
         await manager.delete(SysUserWithRoleEntity, {
@@ -294,7 +200,6 @@ export class UserService {
       delete (dto as any).dept;
       delete (dto as any).roles;
       delete (dto as any).roleIds;
-      delete (dto as any).postIds;
 
       //更新用户信息
       return await manager.update(UserEntity, { userId: updateUserDto.userId }, dto);
@@ -353,14 +258,7 @@ export class UserService {
   /**
    * 获取用户信息
    */
-  async getUserinfo(userId: number): Promise<{ dept: SysDeptEntity; roles: Array<SysRoleEntity>; posts: Array<SysPostEntity> } & UserEntity> {
-    const entity = this.userRepo.createQueryBuilder('user');
-    entity.where({
-      userId: userId,
-      delFlag: DelFlagEnum.NORMAL,
-    });
-    //联查部门详情
-    entity.leftJoinAndMapOne('user.dept', SysDeptEntity, 'dept', 'dept.deptId = user.deptId');
+  async getUserinfo(userId: number): Promise<{ roles: Array<SysRoleEntity> } & UserEntity> {
     const roleIds = await this.getRoleIds([userId]);
 
     const roles = await this.roleService.findRoles({
@@ -370,30 +268,17 @@ export class UserService {
       },
     });
 
-    const postIds = (
-      await this.sysUserWithPostEntityRep.find({
-        where: {
-          userId: userId,
-        },
-        select: ['postId'],
-      })
-    ).map((item) => item.postId);
-
-    const posts = await this.sysPostEntityRep.find({
+    const data = await this.userRepo.findOne({
       where: {
-        delFlag: '0',
-        postId: In(postIds),
+        userId: userId,
+        delFlag: DelFlagEnum.NORMAL,
       },
     });
-
-    const data = await entity.getOne();
     if (!data) throw new BadRequestException('用户不存在');
 
     const result = {
       ...data,
       roles,
-      posts,
-      dept: (data as any).dept,
     };
 
     return result;
@@ -488,14 +373,6 @@ export class UserService {
       },
     });
 
-    const dept = await this.sysDeptEntityRep.findOne({
-      where: {
-        delFlag: '0',
-        deptId: user.deptId,
-      },
-    });
-    user['dept'] = dept;
-
     const roleIds = await this.getRoleIds([userId]);
     //TODO flag用来给前端表格标记选中状态，后续优化
     user['roles'] = allRoles.filter((item) => {
@@ -572,15 +449,6 @@ export class UserService {
   }
 
   /**
-   * 部门树
-   * @returns
-   */
-  async deptTree() {
-    const tree = await this.deptService.deptTree();
-    return ResultData.ok(tree);
-  }
-
-  /**
    * 获取角色已分配用户
    * @param query
    * @returns
@@ -611,8 +479,6 @@ export class UserService {
       entity.andWhere('user.phonenumber LIKE :phonenumber', { phonenumber: `%${query.phonenumber}%` });
     }
     entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    //联查部门详情
-    entity.leftJoinAndMapOne('user.dept', SysDeptEntity, 'dept', 'dept.deptId = user.deptId');
     const [list, total] = await entity.getManyAndCount();
     const safeList = list.map(({ password: _password, ...user }) => user);
     return ResultData.ok({
@@ -649,8 +515,6 @@ export class UserService {
       entity.andWhere('user.phonenumber LIKE :phonenumber', { phonenumber: `%${query.phonenumber}%` });
     }
     entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    //联查部门详情
-    entity.leftJoinAndMapOne('user.dept', SysDeptEntity, 'dept', 'dept.deptId = user.deptId');
     const [list, total] = await entity.getManyAndCount();
     const safeList = list.map(({ password: _password, ...user }) => user);
     return ResultData.ok({

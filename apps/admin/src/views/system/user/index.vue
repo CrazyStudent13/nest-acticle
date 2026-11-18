@@ -2,17 +2,8 @@
   <div class="app-container">
     <div class="main-card">
       <el-row :gutter="20">
-        <!--部门数据-->
-        <el-col :span="4" :xs="24">
-          <div class="head-container">
-            <el-input v-model.trim="deptName" clearable placeholder="请输入部门名称" :prefix-icon="Search" style="margin-bottom: 20px" />
-          </div>
-          <div class="head-container">
-            <el-tree ref="deptTreeRef" :data="deptOptions" default-expand-all :expand-on-click-node="false" :filter-node-method="filterNode" highlight-current node-key="id" :props="{ label: 'label', children: 'children' }" @node-click="handleNodeClick" />
-          </div>
-        </el-col>
         <!--用户数据-->
-        <el-col :span="20" :xs="24">
+        <el-col :span="24" :xs="24">
           <el-form v-show="user.showSearch" ref="queryRef" v-no-enter :inline="true" label-width="68px" :model="user.queryParams">
             <el-form-item label="用户账号" prop="userName">
               <el-input v-model.trim="user.queryParams.userName" clearable placeholder="请输入用户账号" style="width: 240px" @keyup.enter="user.handleQuery" />
@@ -55,16 +46,15 @@
             <el-table-column v-if="columns[0].visible" key="userId" align="center" label="用户编号" prop="userId" />
             <el-table-column v-if="columns[1].visible" key="userName" align="center" label="用户账号" prop="userName" :show-overflow-tooltip="true" />
             <el-table-column v-if="columns[2].visible" key="nickName" align="center" label="用户昵称" prop="nickName" :show-overflow-tooltip="true" />
-            <el-table-column v-if="columns[3].visible" key="deptName" align="center" label="部门" prop="dept.deptName" :show-overflow-tooltip="true" />
-            <el-table-column v-if="columns[4].visible" key="phonenumber" align="center" label="手机号码" prop="phonenumber" width="120" />
-            <el-table-column v-if="columns[5].visible" key="status" align="center" label="状态">
+            <el-table-column v-if="columns[3].visible" key="phonenumber" align="center" label="手机号码" prop="phonenumber" width="120" />
+            <el-table-column v-if="columns[4].visible" key="status" align="center" label="状态">
               <template #default="scope">
                 <el-tag :type="scope.row.status === '0' ? 'success' : 'danger'" style="cursor: pointer" @click="handleStatusClick(scope.row)">
                   {{ scope.row.status === '0' ? '启用' : '停用' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column v-if="columns[6].visible" align="center" label="创建时间" prop="createTime" width="160">
+            <el-table-column v-if="columns[5].visible" align="center" label="创建时间" prop="createTime" width="160">
               <template #default="scope">
                 <span>{{ scope.row.createTime ? dayjs(scope.row.createTime).format('YYYY-MM-DD HH:mm:ss') : '' }}</span>
               </template>
@@ -112,25 +102,17 @@
               </el-form-item>
             </el-col>
             <el-col :span="12">
-              <el-form-item label="归属部门" prop="deptId">
-                <el-tree-select v-model="user.form.deptId" check-strictly :data="deptOptions" placeholder="请选择归属部门" :props="{ value: 'id', label: 'label', children: 'children' }" value-key="id" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-row>
-            <el-col :span="12">
               <el-form-item label="手机号码" prop="phonenumber">
                 <el-input v-model.trim="user.form.phonenumber" maxlength="11" placeholder="请输入手机号码" />
               </el-form-item>
             </el-col>
+          </el-row>
+          <el-row>
             <el-col :span="12">
               <el-form-item label="邮箱" prop="email">
                 <el-input v-model.trim="user.form.email" maxlength="50" placeholder="请输入邮箱" />
               </el-form-item>
             </el-col>
-          </el-row>
-
-          <el-row>
             <el-col :span="12">
               <el-form-item label="用户性别">
                 <el-select v-model="user.form.sex" placeholder="请选择">
@@ -138,6 +120,8 @@
                 </el-select>
               </el-form-item>
             </el-col>
+          </el-row>
+          <el-row>
             <el-col :span="12">
               <el-form-item label="状态">
                 <el-radio-group v-model="user.form.status">
@@ -145,15 +129,6 @@
                     {{ dict.label }}
                   </el-radio>
                 </el-radio-group>
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-row>
-            <el-col :span="12">
-              <el-form-item label="岗位">
-                <el-select v-model="user.form.postIds" multiple placeholder="请选择">
-                  <el-option v-for="item in postOptions" :key="item.postId" :disabled="item.status == 1" :label="item.postName" :value="item.postId" />
-                </el-select>
               </el-form-item>
             </el-col>
             <el-col :span="12">
@@ -288,7 +263,7 @@
 
 import { CircleCheck, Delete, Download, Edit, Key, Plus, Refresh, Search, Upload, UploadFilled } from '@element-plus/icons-vue';
 
-import { changeUserStatus, listUser, resetUserPwd, delUser, getUser, deptTreeSelect, getAuthRole, updateAuthRole, importData, addUser, updateUser } from '@/api/system/user';
+import { changeUserStatus, listUser, resetUserPwd, delUser, getUser, getAuthRole, updateAuthRole, importData, addUser, updateUser } from '@/api/system/user';
 import { addDateRange } from '@/composables/useCommon';
 import { useCrud } from '@/composables/useCrud';
 import { useDict } from '@/composables/useDict';
@@ -301,7 +276,6 @@ const { sys_normal_disable, sys_user_sex } = useDict('sys_normal_disable', 'sys_
 
 // ==================== 表单引用 ====================
 const userRef = ref(null);
-const deptTreeRef = ref(null);
 const uploadRef = ref(null);
 const queryRef = ref(null);
 
@@ -316,7 +290,6 @@ const rules = {
     { required: true, message: '用户密码不能为空', trigger: 'blur' },
     { min: 5, max: 20, message: '用户密码长度必须介于 5 和 20 之间', trigger: 'blur' }
   ],
-  deptId: [{ required: true, message: '归属部门不能为空', trigger: 'blur' }],
   email: [{ type: 'email', message: '请输入正确的邮箱地址', trigger: ['blur', 'change'] }],
   phonenumber: [{ pattern: /^1[3|4|5|6|7|8|9][0-9]\d{8}$/, message: '请输入正确的手机号码', trigger: 'blur' }]
 };
@@ -326,17 +299,16 @@ const user = useCrud({
   api: {
     // 列表查询注入日期范围参数
     list: (params) => listUser(addDateRange(params, dateRange.value)),
-    // 新增/修改走 useCrud 通用提交（postIds/roleIds 已在 form 内，页面只覆写对话框打开逻辑取岗位/角色选项）
+    // 新增/修改走 useCrud 通用提交（roleIds 已在 form 内，页面只覆写对话框打开逻辑取角色选项）
     add: addUser,
     update: updateUser,
     del: delUser
   },
   idKey: 'userId',
   name: '用户',
-  query: { userName: undefined, phonenumber: undefined, status: undefined, deptId: undefined },
+  query: { userName: undefined, phonenumber: undefined, status: undefined },
   form: {
     userId: undefined,
-    deptId: undefined,
     userName: undefined,
     nickName: undefined,
     password: undefined,
@@ -345,7 +317,6 @@ const user = useCrud({
     sex: undefined,
     status: '0',
     remark: undefined,
-    postIds: [],
     roleIds: []
   },
   exportUrl: 'system/user/export',
@@ -355,10 +326,7 @@ const user = useCrud({
 
 // ==================== 页面特有状态 ====================
 const dateRange = ref([]);
-const deptName = ref('');
-const deptOptions = ref();
 const initPassword = ref(undefined);
-const postOptions = ref([]);
 const roleOptions = ref([]);
 
 // 列显隐信息
@@ -366,10 +334,9 @@ const columns = reactive([
   { key: 0, label: `用户编号`, visible: true },
   { key: 1, label: `用户账号`, visible: true },
   { key: 2, label: `用户昵称`, visible: true },
-  { key: 3, label: `部门`, visible: true },
-  { key: 4, label: `手机号码`, visible: true },
-  { key: 5, label: `状态`, visible: true },
-  { key: 6, label: `创建时间`, visible: true }
+  { key: 3, label: `手机号码`, visible: true },
+  { key: 4, label: `状态`, visible: true },
+  { key: 5, label: `创建时间`, visible: true }
 ]);
 
 // 用户导入参数
@@ -413,45 +380,12 @@ const authRoleForm = reactive({
   roleIds: []
 });
 
-// ==================== 部门树 ====================
-
-// 通过条件过滤节点
-const filterNode = (value, data) => {
-  if (!value) return true;
-  return data.label.indexOf(value) !== -1;
-};
-
-// 根据名称筛选部门树
-watch(
-  () => deptName.value,
-  (val) => {
-    deptTreeRef.value.filter(val);
-  }
-);
-
-// 查询部门下拉树结构
-const getDeptTree = async () => {
-  try {
-    const response = await deptTreeSelect();
-    deptOptions.value = response.data;
-  } catch (e) {
-    console.error('查询部门树失败:', e);
-  }
-};
-
-// 节点单击事件
-const handleNodeClick = (data) => {
-  user.queryParams.deptId = data.id;
-  user.handleQuery();
-};
-
 // ==================== 查询与导出 ====================
 
-// 重置按钮操作：在 useCrud 重置基础上额外清空日期范围与部门树选中
+// 重置按钮操作：在 useCrud 重置基础上额外清空日期范围
 const baseResetQuery = user.resetQuery;
 const resetQuery = () => {
   dateRange.value = [];
-  deptTreeRef.value.setCurrentKey(null);
   baseResetQuery();
 };
 
@@ -723,7 +657,6 @@ const handleAdd = async () => {
   user.reset();
   try {
     const response = await getUser();
-    postOptions.value = response.data.posts;
     roleOptions.value = response.data.roles;
     user.open = true;
     user.title = '添加用户';
@@ -737,23 +670,20 @@ const handleAdd = async () => {
 const handleUpdate = async (row) => {
   const userId = row.userId || user.ids;
   try {
-    // 获取用户详情（包含 posts 和 roles）
+    // 获取用户详情（包含 roles）
     const userResponse = await getUser(userId);
 
     // 适配后端返回的数据结构（多包了一层 data）
     const res = userResponse.data?.data;
 
-    // 从 res 中提取用户信息、岗位列表、角色列表
+    // 从 res 中提取用户信息、角色列表
     const userData = res.data || res; // 用户信息可能在 data 字段或直接在根节点
-    const postsData = userResponse.data.posts || []; // 岗位列表
     const rolesData = userResponse.data.roles || []; // 角色列表
     const roleIds = userResponse.data.roleIds || []; // 已选角色 ID
-    const postIds = userResponse.data.postIds || []; // 已选岗位 ID
 
     // 使用 JSON 序列化进行深拷贝，避免引用问题
     user.form = {
       userId: userData.userId,
-      deptId: userData.deptId,
       userName: userData.userName,
       nickName: userData.nickName,
       password: '',
@@ -762,12 +692,10 @@ const handleUpdate = async (row) => {
       sex: userData.sex,
       status: userData.status,
       remark: userData.remark,
-      postIds: postIds.length > 0 ? structuredClone(postIds) : [],
       roleIds: roleIds.length > 0 ? structuredClone(roleIds) : []
     };
 
-    // 更新岗位/角色下拉选项
-    postOptions.value = postsData.length > 0 ? postsData : [];
+    // 更新角色下拉选项
     roleOptions.value = rolesData.length > 0 ? rolesData : [];
 
     user.open = true;
@@ -782,7 +710,6 @@ const handleUpdate = async (row) => {
 };
 
 // ==================== 初始化加载 ====================
-getDeptTree();
 user.getList();
 </script>
 

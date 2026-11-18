@@ -27,7 +27,6 @@ import { recordLoginFailure, clearLoginFailure } from 'src/common/utils/login-ca
 import { UserType } from '../user/dto/user';
 import { UserDto } from '../user/user.decorator';
 import { UserEntity } from '../user/entities/sys-user.entity';
-import { SysDeptEntity } from '../dept/entities/dept.entity';
 import { UserService } from '../user/user.service';
 import { MenuService } from '../menu/menu.service';
 import { ConfigService } from '../config/config.service';
@@ -42,8 +41,6 @@ export class AuthService {
   constructor(
     @InjectRepository(UserEntity)
     private readonly userRepo: Repository<UserEntity>,
-    @InjectRepository(SysDeptEntity)
-    private readonly sysDeptEntityRep: Repository<SysDeptEntity>,
     private readonly jwtService: JwtService,
     private readonly redisService: RedisService,
     private readonly configService: ConfigService, // @Captcha 装饰器按名注入依赖，名字不可改
@@ -138,17 +135,6 @@ export class AuthService {
     const uuid = GenerateUUID();
     const token = this.createToken({ uuid: uuid, userId: userData.userId });
     const permissions = await this.userService.getUserPermissions(userData.userId);
-    const deptData = await this.sysDeptEntityRep.findOne({
-      where: {
-        deptId: userData.deptId,
-      },
-      select: ['deptName'],
-    });
-
-    /**
-     * 设置公司名称
-     */
-    userData['deptName'] = deptData?.deptName || '';
     const roles = userData.roles.map((item) => item.roleKey);
 
     const userInfo = {
@@ -163,7 +149,6 @@ export class AuthService {
       user: userData,
       userId: userData.userId,
       username: userData.userName,
-      deptId: userData.deptId,
     };
 
     await this.updateRedisToken(uuid, userInfo);

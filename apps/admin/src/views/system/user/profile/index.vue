@@ -29,11 +29,6 @@
                 <div class="pull-right">{{ profile.user.email }}</div>
               </li>
               <li class="list-group-item">
-                <svg-icon icon-class="tree" />
-                所属部门
-                <div v-if="profile.user.dept" class="pull-right">{{ profile.user.dept.deptName }}</div>
-              </li>
-              <li class="list-group-item">
                 <svg-icon icon-class="peoples" />
                 所属角色
                 <div v-if="profile.user.roles && Array.isArray(profile.user.roles)" class="pull-right">
@@ -90,8 +85,6 @@ const profile = reactive({
   // 响应式数据
   activeTab: 'userinfo',
   user: {},
-  roleGroup: {},
-  postGroup: {},
 
   // 方法集合
   // 获取用户信息
@@ -114,8 +107,6 @@ const profile = reactive({
         .map((x) => x.roleName)
         .join('、');
       profile.user.roles = roles;
-      profile.roleGroup = response.roleGroup;
-      profile.postGroup = response.postGroup;
     } catch (e) {
       console.error('获取用户信息失败:', e);
     }

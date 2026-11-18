@@ -104,26 +104,17 @@ export class UserController {
   })
   @RequirePermission('system:user:list')
   @Get('list')
-  findAll(@Query() query: ListUserDto, @User() user: UserDto) {
-    return this.userService.findAll(query, user.user);
+  findAll(@Query() query: ListUserDto) {
+    return this.userService.findAll(query);
   }
 
   @ApiOperation({
-    summary: '用户-部门树',
-  })
-  @RequirePermission('system:dept:query')
-  @Get('deptTree')
-  deptTree() {
-    return this.userService.deptTree();
-  }
-
-  @ApiOperation({
-    summary: '用户-角色+岗位',
+    summary: '用户-角色列表',
   })
   @RequirePermission('system:user:add')
   @Get()
-  findPostAndRoleAll() {
-    return this.userService.findPostAndRoleAll();
+  findRoleAll() {
+    return this.userService.findRoleAll();
   }
 
   @ApiOperation({

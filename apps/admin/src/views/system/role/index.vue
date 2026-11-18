@@ -61,9 +61,6 @@
             <el-tooltip v-if="scope.row.roleId !== 1" content="删除" placement="top">
               <el-button v-hasPermi="['system:role:remove']" :icon="Delete" link type="primary" @click="role.handleDelete(scope.row)" />
             </el-tooltip>
-            <el-tooltip v-if="scope.row.roleId !== 1" content="数据权限" placement="top">
-              <el-button v-hasPermi="['system:role:edit']" :icon="CircleCheck" link type="primary" @click="handleDataScope(scope.row)" />
-            </el-tooltip>
             <el-tooltip v-if="scope.row.roleId !== 1" content="分配用户" placement="top">
               <el-button v-hasPermi="['system:role:edit']" :icon="User" link type="primary" @click="handleAuthUser(scope.row)" />
             </el-tooltip>
@@ -116,35 +113,6 @@
         </template>
       </el-dialog>
 
-      <!-- 分配角色数据权限对话框 -->
-      <el-dialog v-model="openDataScope" append-to-body :title="role.title" width="500px">
-        <el-form label-width="80px" :model="role.form">
-          <el-form-item label="角色名称">
-            <el-input v-model="role.form.roleName" :disabled="true" />
-          </el-form-item>
-          <el-form-item label="权限字符">
-            <el-input v-model="role.form.roleKey" :disabled="true" />
-          </el-form-item>
-          <el-form-item label="权限范围">
-            <el-select v-model="role.form.dataScope" @change="dataScopeSelectChange">
-              <el-option v-for="item in dataScopeOptions" :key="item.value" :label="item.label" :value="item.value" />
-            </el-select>
-          </el-form-item>
-          <el-form-item v-show="role.form.dataScope == 2" label="数据权限">
-            <el-checkbox v-model="deptExpand" @change="handleCheckedTreeExpand($event, 'dept')">展开/折叠</el-checkbox>
-            <el-checkbox v-model="deptNodeAll" @change="handleCheckedTreeNodeAll($event, 'dept')">全选/全不选</el-checkbox>
-            <el-checkbox v-model="role.form.deptCheckStrictly" @change="handleCheckedTreeConnect($event, 'dept')">父子联动</el-checkbox>
-            <el-tree ref="deptRef" :check-strictly="!role.form.deptCheckStrictly" class="tree-border" :data="deptOptions" default-expand-all empty-text="加载中，请稍候" node-key="id" :props="{ label: 'label', children: 'children' }" show-checkbox />
-          </el-form-item>
-        </el-form>
-        <template #footer>
-          <div class="dialog-footer">
-            <el-button type="primary" @click="submitDataScope">确 定</el-button>
-            <el-button @click="cancelDataScope">取 消</el-button>
-          </div>
-        </template>
-      </el-dialog>
-
       <!-- 分配用户抽屉 -->
       <el-drawer v-model="openAuthUser" append-to-body class="drawer-full-width" direction="rtl" title="分配用户">
         <auth-user ref="authUserRef" :role-id="authUserId" @close="handleCloseAuthUser" />
@@ -157,7 +125,7 @@
 import { CircleCheck, Delete, Download, Edit, Plus, QuestionFilled, Refresh, Search, User } from '@element-plus/icons-vue';
 
 import { roleMenuTreeselect, treeselect as menuTreeselect } from '@/api/system/menu';
-import { addRole, changeRoleStatus, dataScope, delRole, getRole, listRole, updateRole, deptTreeSelect } from '@/api/system/role';
+import { addRole, changeRoleStatus, delRole, getRole, listRole, updateRole } from '@/api/system/role';
 import { addDateRange } from '@/composables/useCommon';
 import { useCrud } from '@/composables/useCrud';
 import { useDict } from '@/composables/useDict';
@@ -171,7 +139,6 @@ const { sys_normal_disable } = useDict('sys_normal_disable');
 // ==================== 表单引用 ====================
 const roleRef = ref(null);
 const menuRef = ref(null);
-const deptRef = ref(null);
 const authUserRef = ref(null);
 const queryRef = ref(null);
 
@@ -180,21 +147,8 @@ const dateRange = ref([]);
 const menuOptions = ref([]);
 const menuExpand = ref(false);
 const menuNodeAll = ref(false);
-const deptExpand = ref(true);
-const deptNodeAll = ref(false);
-const deptOptions = ref([]);
-const openDataScope = ref(false);
 const openAuthUser = ref(false);
 const authUserId = ref(undefined);
-
-// 数据范围选项
-const dataScopeOptions = [
-  { value: '1', label: '全部数据权限' },
-  { value: '2', label: '自定数据权限' },
-  { value: '3', label: '本部门数据权限' },
-  { value: '4', label: '本部门及以下数据权限' },
-  { value: '5', label: '仅本人数据权限' }
-];
 
 // 表单校验规则
 const rules = {
@@ -227,27 +181,13 @@ const getRoleMenuTreeselect = async (roleId) => {
   }
 };
 
-// 根据角色 ID 查询部门树结构
-const getDeptTree = async (roleId) => {
-  try {
-    const response = await deptTreeSelect(roleId);
-    deptOptions.value = response.data.depts;
-    return response;
-  } catch (e) {
-    console.error('获取部门树失败:', e);
-    throw e;
-  }
-};
-
-// 重置菜单/部门树的勾选与展开状态
+// 重置菜单树的勾选与展开状态
 const resetTreeState = () => {
   if (menuRef.value != undefined) {
     menuRef.value.setCheckedKeys([]);
   }
   menuExpand.value = false;
   menuNodeAll.value = false;
-  deptExpand.value = true;
-  deptNodeAll.value = false;
 };
 
 // 树权限（展开/折叠）
@@ -257,11 +197,6 @@ const handleCheckedTreeExpand = (value, type) => {
     for (let i = 0; i < treeList.length; i++) {
       menuRef.value.store.nodesMap[treeList[i].id].expanded = value;
     }
-  } else if (type == 'dept') {
-    const treeList = deptOptions.value;
-    for (let i = 0; i < treeList.length; i++) {
-      deptRef.value.store.nodesMap[treeList[i].id].expanded = value;
-    }
   }
 };
 
@@ -269,8 +204,6 @@ const handleCheckedTreeExpand = (value, type) => {
 const handleCheckedTreeNodeAll = (value, type) => {
   if (type == 'menu') {
     menuRef.value.setCheckedNodes(value ? menuOptions.value : []);
-  } else if (type == 'dept') {
-    deptRef.value.setCheckedNodes(value ? deptOptions.value : []);
   }
 };
 
@@ -278,8 +211,6 @@ const handleCheckedTreeNodeAll = (value, type) => {
 const handleCheckedTreeConnect = (value, type) => {
   if (type == 'menu') {
     role.form.menuCheckStrictly = value ? true : false;
-  } else if (type == 'dept') {
-    role.form.deptCheckStrictly = value ? true : false;
   }
 };
 
@@ -289,16 +220,6 @@ const getMenuAllCheckedKeys = () => {
   const checkedKeys = menuRef.value.getCheckedKeys();
   // 半选中的菜单节点
   const halfCheckedKeys = menuRef.value.getHalfCheckedKeys();
-  checkedKeys.unshift(...halfCheckedKeys);
-  return checkedKeys;
-};
-
-// 所有部门节点数据
-const getDeptAllCheckedKeys = () => {
-  // 目前被选中的部门节点
-  const checkedKeys = deptRef.value.getCheckedKeys();
-  // 半选中的部门节点
-  const halfCheckedKeys = deptRef.value.getHalfCheckedKeys();
   checkedKeys.unshift(...halfCheckedKeys);
   return checkedKeys;
 };
@@ -345,9 +266,7 @@ const role = useCrud({
     roleSort: 0,
     status: '0',
     menuIds: [],
-    deptIds: [],
     menuCheckStrictly: true,
-    deptCheckStrictly: true,
     remark: undefined
   },
   queryRef,
@@ -421,62 +340,6 @@ const handleAuthUser = (row) => {
 const handleCloseAuthUser = () => {
   openAuthUser.value = false;
   authUserId.value = undefined;
-};
-
-// 选择角色权限范围触发
-const dataScopeSelectChange = (value) => {
-  if (value !== '2') {
-    deptRef.value.setCheckedKeys([]);
-  }
-};
-
-// 分配数据权限操作
-const handleDataScope = async (row) => {
-  resetTreeState();
-  role.reset();
-  const roleId = row.roleId;
-  try {
-    const deptTreeResponse = await getDeptTree(roleId);
-    const roleResponse = await getRole(roleId);
-    role.form = roleResponse.data;
-    openDataScope.value = true;
-    role.title = '分配数据权限';
-
-    nextTick(() => {
-      if (!deptRef.value) return;
-      // 逐个 setChecked 且不级联：父子联动下 setCheckedKeys 会把半选父节点膨胀成整棵子树
-      const checkedKeys = deptTreeResponse.data.checkedKeys || [];
-      checkedKeys.forEach((v) => {
-        nextTick(() => {
-          deptRef.value.setChecked(v, true, false);
-        });
-      });
-    });
-  } catch (e) {
-    console.error('获取数据权限信息失败:', e);
-  }
-};
-
-// 取消按钮（数据权限）
-const cancelDataScope = () => {
-  openDataScope.value = false;
-  resetTreeState();
-  role.reset();
-};
-
-// 提交按钮（数据权限）
-const submitDataScope = async () => {
-  if (role.form.roleId != undefined) {
-    try {
-      role.form.deptIds = getDeptAllCheckedKeys();
-      await dataScope(role.form);
-      ElMessage.success('修改成功');
-      openDataScope.value = false;
-      role.getList();
-    } catch (e) {
-      console.error('提交数据权限失败:', e);
-    }
-  }
 };
 
 // ==================== 初始化加载 ====================
