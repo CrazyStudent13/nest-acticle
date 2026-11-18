@@ -10,11 +10,6 @@ export enum StatusEnum {
 export class CreateUserDto {
   @ApiProperty({ required: false })
   @IsOptional()
-  @IsNumber()
-  deptId?: number;
-
-  @ApiProperty({ required: false })
-  @IsOptional()
   // @IsEmail()
   @Length(0, 50)
   email: string;
@@ -67,11 +62,6 @@ export class CreateUserDto {
   @IsString()
   @Length(0, 500)
   remark?: string;
-
-  @ApiProperty({ required: true })
-  @IsOptional()
-  @IsNumber()
-  postSort?: number;
 }
 
 export class UpdateUserDto extends PartialType(CreateUserDto) {
@@ -96,11 +86,6 @@ export class ChangeStatusDto {
 }
 
 export class ListUserDto extends PagingDto {
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsNumberString()
-  deptId?: string;
-
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
@@ -221,12 +206,6 @@ export class ImportUserDto {
   @IsString()
   @Length(0, 30)
   nickName: string;
-
-  /** 部门 ID */
-  @ApiProperty({ required: false })
-  @IsOptional()
-  @IsNumberString()
-  deptId?: string;
 
   /** 用户邮箱 */
   @ApiProperty({ required: false })

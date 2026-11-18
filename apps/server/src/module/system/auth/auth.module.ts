@@ -8,12 +8,11 @@ import { AuthStrategy } from './auth.strategy';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { UserEntity } from '../user/entities/sys-user.entity';
-import { SysDeptEntity } from '../dept/entities/dept.entity';
 
 @Global()
 @Module({
   imports: [
-    TypeOrmModule.forFeature([UserEntity, SysDeptEntity]),
+    TypeOrmModule.forFeature([UserEntity]),
     JwtModule.registerAsync({
       imports: [ConfigModule],
       useFactory: async (config: ConfigService) => ({

@@ -29,10 +29,6 @@ export class CreateRoleDto {
   @IsArray()
   menuIds?: Array<number>;
 
-  @IsOptional()
-  @IsArray()
-  deptIds?: Array<number>;
-
   @ApiProperty({ required: true })
   @IsOptional()
   @IsNumber()
@@ -49,23 +45,12 @@ export class CreateRoleDto {
   })
   @IsOptional()
   @IsString()
-  dataScope: string;
-
-  @ApiProperty({
-    required: false,
-  })
-  @IsOptional()
-  @IsString()
   @Length(0, 500)
   remark?: string;
 
   @IsOptional()
   @IsBoolean()
   menuCheckStrictly?: boolean;
-
-  @IsOptional()
-  @IsBoolean()
-  deptCheckStrictly?: boolean;
 }
 
 export class UpdateRoleDto extends CreateRoleDto {

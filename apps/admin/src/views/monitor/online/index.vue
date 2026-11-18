@@ -21,7 +21,6 @@
         </el-table-column>
         <el-table-column align="center" label="会话编号" prop="tokenId" :show-overflow-tooltip="true" />
         <el-table-column align="center" label="登录账号" prop="userName" :show-overflow-tooltip="true" />
-        <el-table-column align="center" label="所属部门" prop="deptName" :show-overflow-tooltip="true" />
         <el-table-column align="center" label="主机" prop="ipaddr" :show-overflow-tooltip="true" />
         <el-table-column align="center" label="登录地点" prop="loginLocation" :show-overflow-tooltip="true" />
         <el-table-column align="center" label="操作系统" prop="os" :show-overflow-tooltip="true" />

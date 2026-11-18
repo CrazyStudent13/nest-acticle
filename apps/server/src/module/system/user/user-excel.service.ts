@@ -34,7 +34,7 @@ export class UserExcelService {
   async export(res: Response, body: ListUserDto, user: UserType['user']) {
     delete body.pageNum;
     delete body.pageSize;
-    const list = await this.userService.findAll(body, user);
+    const list = await this.userService.findAll(body);
     const options = {
       sheetName: '用户数据',
       data: list.data.list,
@@ -48,8 +48,6 @@ export class UserExcelService {
         { title: '账号状态', dataIndex: 'status' },
         { title: '最后登录 IP', dataIndex: 'loginIp' },
         { title: '最后登录时间', dataIndex: 'loginDate', width: 20 },
-        { title: '部门', dataIndex: 'dept.deptName' },
-        { title: '部门负责人', dataIndex: 'dept.leader' },
       ],
     };
     ExportTable(options, res);
@@ -80,8 +78,6 @@ export class UserExcelService {
       const expectedHeaders: Record<string, string> = {
         用户账号: 'userName',
         用户昵称: 'nickName',
-        '部门 ID': 'deptId',
-        部门名称: 'deptName',
         用户邮箱: 'email',
         手机号码: 'phonenumber',
         性别: 'sex',
@@ -130,14 +126,7 @@ export class UserExcelService {
             }
 
             // 特殊字段处理
-            if (key === 'deptId' && value) {
-              const deptId = parseInt(value);
-              if (isNaN(deptId)) {
-                rowErrors.push(`部门 ID 格式不正确（应为数字）：${value}`);
-              } else {
-                userData.deptId = deptId;
-              }
-            } else if (key === 'sex' && value) {
+            if (key === 'sex' && value) {
               // 性别转换：男->0, 女->1, 未知->2
               if (['男', '女', '未知'].includes(value)) {
                 userData.sex = value === '男' ? '0' : value === '女' ? '1' : '2';
@@ -299,7 +288,6 @@ export class UserExcelService {
       columns: [
         { header: '用户账号', key: 'userName', width: 20, required: true },
         { header: '用户昵称', key: 'nickName', width: 20, required: true },
-        { header: '部门 ID', key: 'deptId', width: 15 },
         { header: '用户邮箱', key: 'email', width: 25 },
         { header: '手机号码', key: 'phonenumber', width: 15 },
         { header: '性别', key: 'sex', width: 10, validation: ['男', '女', '未知'] },
@@ -309,7 +297,6 @@ export class UserExcelService {
       exampleData: {
         userName: 'zhangsan',
         nickName: '张三',
-        deptId: 100,
         email: 'zhangsan@example.com',
         phonenumber: '13800138000',
         sex: '男',

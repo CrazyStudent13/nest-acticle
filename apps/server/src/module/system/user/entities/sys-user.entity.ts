@@ -8,9 +8,6 @@ export class UserEntity extends BaseEntity {
   @PrimaryGeneratedColumn({ type: 'int', name: 'user_id', comment: '用户ID' })
   public userId: number;
 
-  @Column({ type: 'int', name: 'dept_id', default: null, comment: '部门ID' })
-  public deptId: number;
-
   @Column({ type: 'varchar', name: 'user_name', length: 50, nullable: false, comment: '用户账号' })
   public userName: string;
 
