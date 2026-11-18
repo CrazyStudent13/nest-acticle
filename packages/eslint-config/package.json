@@ -1,0 +1,28 @@
+{
+  "name": "@nest-acticle/eslint-config",
+  "version": "0.1.0",
+  "private": true,
+  "description": "monorepo 共享 ESLint flat config 预设：ts（server 用）/ vue（admin 用）",
+  "type": "module",
+  "exports": {
+    ".": "./lib/index.mjs"
+  },
+  "files": [
+    "lib"
+  ],
+  "peerDependencies": {
+    "eslint": ">=9.0.0"
+  },
+  "dependencies": {
+    "@vue/eslint-config-prettier": "^10.2.0",
+    "@vue/eslint-config-typescript": "^14.9.0",
+    "eslint-config-prettier": "^10.1.0",
+    "eslint-plugin-perfectionist": "^5.13.0",
+    "eslint-plugin-vue": "^10.12.1",
+    "globals": "^16.0.0",
+    "typescript-eslint": "^8.46.0"
+  },
+  "devDependencies": {
+    "eslint": "^10.15.0"
+  }
+}
