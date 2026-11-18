@@ -14,7 +14,7 @@ RUN npm install -g pnpm@10.33.0 --registry=$NPM_REGISTRY
 
 # 先拷依赖清单（利用 Docker 层缓存），再按过滤安装
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
-COPY apps/admin/package.json ./apps/admin-web/
+COPY apps/admin/package.json ./apps/admin/
 
 RUN pnpm install --frozen-lockfile --filter admin --registry=$NPM_REGISTRY
 

@@ -48,7 +48,10 @@ values
     '127.0.0.1',
     sysdate(),
     'admin',
-    sysdate(
+    sysdate(),
+    '',
+    null,
+    '管理员'
   );
 
 insert into
@@ -69,7 +72,10 @@ values
     '127.0.0.1',
     sysdate(),
     'admin',
-    sysdate(
+    sysdate(),
+    '',
+    null,
+    '测试员'
   );
 
 -- ----------------------------

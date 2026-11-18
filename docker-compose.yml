@@ -16,6 +16,8 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
       - ./apps/server/db/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    # 2G 机器兜底：限制单容器最坏内存，避免任一进程拖垮整机（实测空闲 ~128M）
+    mem_limit: 640m
     healthcheck:
       test: ['CMD', 'mysqladmin', 'ping', '-h', 'localhost', '-uroot', '-p${MYSQL_ROOT_PASSWORD:-root123}']
       interval: 10s
@@ -26,6 +28,7 @@ services:
     image: redis:7-alpine
     container_name: blog-redis
     restart: unless-stopped
+    mem_limit: 128m
     ports:
       - '127.0.0.1:6379:6379'
     volumes:
@@ -38,6 +41,7 @@ services:
     image: ${IMAGE_PREFIX:-ghcr.io/crazystudent13/nest-acticle}-server:latest
     container_name: blog-server
     restart: unless-stopped
+    mem_limit: 500m
     environment:
       NODE_ENV: production
       SERVER_PORT: ${SERVER_PORT:-8080}
@@ -72,6 +76,7 @@ services:
     image: ${IMAGE_PREFIX:-ghcr.io/crazystudent13/nest-acticle}-client:latest
     container_name: blog-client
     restart: unless-stopped
+    mem_limit: 350m
     environment:
       NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-http://localhost:8888}
       HOST: 0.0.0.0
@@ -83,6 +88,7 @@ services:
     image: nginx:alpine
     container_name: blog-nginx
     restart: unless-stopped
+    mem_limit: 64m
     ports:
       - '${BLOG_PORT:-8888}:80'
     volumes:
@@ -98,6 +104,7 @@ services:
     image: ${IMAGE_PREFIX:-ghcr.io/crazystudent13/nest-acticle}-admin:latest
     container_name: blog-admin
     restart: unless-stopped
+    mem_limit: 64m
     ports:
       - '${ADMIN_PORT:-8081}:80'
     depends_on:
