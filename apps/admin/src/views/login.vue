@@ -33,7 +33,6 @@
 
       <div class="login-options">
         <el-checkbox v-model="loginForm.model.rememberMe" style="margin: 0px 0px 25px 0px">记住用户名</el-checkbox>
-        <el-link type="primary" style="margin: 0px 0px 25px 0px" @click="router.push('/register')">注册</el-link>
       </div>
 
       <el-form-item style="width: 100%">

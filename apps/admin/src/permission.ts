@@ -16,7 +16,7 @@ import type { NavigationGuardNext, RouteLocationNormalized, NavigationFailure } 
 
 NProgress.configure({ showSpinner: false });
 
-const whiteList: string[] = ['/login', '/register'];
+const whiteList: string[] = ['/login'];
 
 // 记录当前正在导航的目标路径
 let navigatingToPath: string | null = null;
@@ -31,7 +31,7 @@ router.beforeEach(async (to: RouteLocationNormalized, from: RouteLocationNormali
       useSettingsStore().setTitle(to.meta.title as string);
     }
     /* has token*/
-    if (to.path === '/login' || to.path === '/register') {
+    if (to.path === '/login') {
       next({ path: '/' });
       NProgress.done();
       setRouteLoading(false);
