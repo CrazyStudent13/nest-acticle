@@ -283,32 +283,6 @@ insert into
   sys_menu
 values
   (
-    '4',
-    'nest-admin官网',
-    '0',
-    '4',
-    'https://nest-admin.dooring.vip',
-    null,
-    '',
-    0,
-    0,
-    'M',
-    '0',
-    '0',
-    '',
-    'guide',
-    'admin',
-    sysdate(),
-    '',
-    null,
-    'nest-admin官网地址',
-    '0'
-  );
-
-insert into
-  sys_menu
-values
-  (
     '5',
     '内容管理',
     '0',
@@ -2327,11 +2301,6 @@ insert into
   sys_role_menu
 values
   ('2', '3');
-
-insert into
-  sys_role_menu
-values
-  ('2', '4');
 
 insert into
   sys_role_menu
