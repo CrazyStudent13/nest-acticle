@@ -116,3 +116,11 @@ F:\githubPro\nest-acticle\
 4. **种子密码实测确认:`admin / 123456`**(bcrypt compare 验证;README 已按此写)。
 5. **实施期端口说明**:实施时本机 8080/8888 被上游项目自身进程占用,故本地 dev 冒烟改用 18080(server)/18888(admin vite)/3000(web),docker 冒烟用 8889——**均为测试临时端口,仓库默认值不变(dev 8080/8888/3000;docker 8888/8081)**。
 6. **冒烟结论(全过)**:docker 路径——admin 登录(验证前缀+白名单)、register/config、captchaImage、guest 列表、发文→首页 SSR→详情 SSR→sitemap、svg 拒收、png 上传 + `/profile` 通路、管理端 :8081 静态;本地 dev 路径——server dev(dev.yml+joi+DB)、nuxt dev SSR、vite 代理 rewrite(借旧进程回显重写路径实证)。`NUXT_PUBLIC_API_BASE` 需为浏览器与 SSR 都可达的地址(局域网 IP/域名),SSR 数据通路已实证。
+
+## 九、v2.2 实施记录(2026-11-18 第二轮:精简 + 推送 + 资源审计)
+
+1. **配置切换**:dev.yml 套用旧项目真实凭据(远程 MySQL/Redis/RustFS/SMTP,邮箱注册已启用)并移出 git 跟踪;曾因拆分提交误将真实 dev.yml 入史,已用 filter-branch 重写本地历史清除(未推送前发现,远端无痕);入库模板 dev.example.yml 同步更新为集成版。
+2. **目录改名**:`apps/admin-web → apps/admin`、`apps/web → apps/client`(git mv 保历史),包名/脚本/compose/Dockerfile/workflow/README 全同步;后续修复了两处改名遗漏(Dockerfile COPY 目标路径、blog.conf 上游名 web→client)。
+3. **功能裁剪**:移除 admin 端注册模块(5 文件 + 路由/白名单/API);移除部门(dept)与岗位(post 岗位)模块——server 删 2 模块 + user/role/auth 手术 + init.sql 删 4 表/菜单 103/104/按钮/授权(5241→4504 行),admin 删页面 + 用户/角色/个人中心/在线用户的部门岗位 UI;数据权限机制整体下线;真实库(4 用户/3 角色)实测登录、用户列表、角色接口、getInfo 全正常。
+4. **推送**:远端 `github.com/CrazyStudent13/nest-acticle`;分支模型 master(汇总)/dev(开发)/release(发布,未推送);CI(workflow docker.yml)已改为仅 release + 手动触发。推送前全量凭据/IP 扫描通过。
+5. **资源审计(千问方案 + 实测)**:方向靠谱(Actions 构建、服务器只拉镜像、MySQL 关 performance-schema、镜像瘦身);修正 CI 触发分支;compose 补每容器 mem_limit(合计 ~1.75G);**实测空闲全栈内存 ~290MB**(mysql 128M/server 100M/client 29M/admin 16M/nginx 15M/redis 4M),2核/2G+2G swap 充裕;镜像 admin 105M/client 250M/server 1.09G(未压缩),ghcr 私有 500MB 配额偏紧→建议包设 public;server 镜像 590MB node_modules 中混有 dev 依赖(typescript/faker 等,--prod 过滤不彻底),可后续用 `pnpm deploy` 瘦身(不影响内存,仅影响镜像体积/拉取时间)。
