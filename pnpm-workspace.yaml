@@ -8,6 +8,5 @@ onlyBuiltDependencies:
   - core-js
   - esbuild
   - sharp
-  - simple-git-hooks
   - unrs-resolver
   - vue-demi
