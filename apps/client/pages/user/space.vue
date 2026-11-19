@@ -181,10 +181,14 @@ const avatarUrl = computed(() => {
   return toCoverUrl(config.public.apiBase, raw)
 })
 const avatarFallback = computed(() => profileName.value.slice(0, 1))
-// 性别仅男/女时内联展示在昵称后，保密不显示
+// 性别标签走数据字典（0男 1女 2未知），字典未加载或未设置时不在昵称后展示
+const sexOptions = useDict('sys_user_sex')
 const sexTag = computed(() => {
-  const map: Record<string, string> = { '0': '男', '1': '女' }
-  return map[user.value?.sex ?? ''] || ''
+  const sex = user.value?.sex ?? ''
+  if (!sex) {
+    return ''
+  }
+  return sexOptions.value.find((item) => item.dictValue === sex)?.dictLabel || ''
 })
 const registerTime = computed(() => {
   const value = user.value?.createTime

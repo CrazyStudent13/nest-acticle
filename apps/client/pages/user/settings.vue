@@ -43,9 +43,9 @@
               <label class="form-row">
                 <span class="form-label">性别</span>
                 <select v-model="editForm.sex" class="form-input form-select">
-                  <option value="">保密</option>
-                  <option value="0">男</option>
-                  <option value="1">女</option>
+                  <!-- 选项走数据字典 sys_user_sex（0男 1女 2未知），未选过时占位 -->
+                  <option value="" disabled>请选择</option>
+                  <option v-for="item in sexOptions" :key="item.dictValue" :value="item.dictValue">{{ item.dictLabel }}</option>
                 </select>
               </label>
               <label class="form-row">
@@ -199,6 +199,8 @@ const avatarFallback = computed(() => (user.value?.nickName || user.value?.userN
 const editingReady = ref(false)
 const saving = ref(false)
 const editForm = reactive({ nickName: '', email: '', sex: '', signature: '' })
+// 性别选项走数据字典 sys_user_sex（0男 1女 2未知）
+const sexOptions = useDict('sys_user_sex')
 const fileInput = ref<HTMLInputElement | null>(null)
 const avatarUploading = ref(false)
 
