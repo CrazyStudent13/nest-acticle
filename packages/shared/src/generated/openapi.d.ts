@@ -2077,6 +2077,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/post/comment/my/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 评论-我的评论列表 */
+        get: operations["PostCommentController_findMyList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/post/comment/batch/{ids}": {
         parameters: {
             query?: never;
@@ -5602,6 +5619,34 @@ export interface operations {
                 nickName?: string;
                 /** @description 评论内容（模糊搜索） */
                 content?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostCommentController_findMyList: {
+        parameters: {
+            query?: {
+                /** @description 当前分页 */
+                pageNum?: number;
+                /** @description 每页数量 */
+                pageSize?: number;
+                /** @description 排序字段 */
+                orderByColumn?: string;
+                /** @description 排序规则 */
+                isAsc?: string;
+                /** @description 文章标题（模糊搜索，联 post_article） */
+                title?: string;
             };
             header?: never;
             path?: never;
