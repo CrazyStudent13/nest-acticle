@@ -55,7 +55,6 @@
                   <span class="sig-count" :class="{ 'sig-count--max': editForm.signature.length >= 50 }">{{ editForm.signature.length }}/50</span>
                 </div>
               </label>
-              <p v-if="profileTip" class="form-tip" :class="{ 'tip-error': profileTipIsError }">{{ profileTip }}</p>
               <div class="form-actions">
                 <button class="btn primary" type="submit" :disabled="saving">{{ saving ? '保存中…' : '保存' }}</button>
               </div>
@@ -100,7 +99,6 @@
                 <span class="form-label">确认新密码</span>
                 <input v-model="pwdForm.confirm" class="form-input" type="password" maxlength="20" placeholder="再次输入新密码" />
               </label>
-              <p v-if="pwdTip" class="form-tip" :class="{ 'tip-error': pwdTipIsError }">{{ pwdTip }}</p>
               <div class="form-actions">
                 <button class="btn primary" type="submit" :disabled="pwdSaving">{{ pwdSaving ? '提交中…' : '确认修改' }}</button>
               </div>
@@ -200,16 +198,9 @@ const avatarFallback = computed(() => (user.value?.nickName || user.value?.userN
 
 const editingReady = ref(false)
 const saving = ref(false)
-const profileTip = ref('')
-const profileTipIsError = ref(false)
 const editForm = reactive({ nickName: '', email: '', sex: '', signature: '' })
 const fileInput = ref<HTMLInputElement | null>(null)
 const avatarUploading = ref(false)
-
-const setProfileTip = (message: string, isError = false) => {
-  profileTip.value = message
-  profileTipIsError.value = isError
-}
 
 // 表单初值：进入页面与用户信息变化后都同步一次
 // 注册约定 userName=邮箱且后端 email 列可能为空，回填时用邮箱格式的账号兜底
@@ -232,20 +223,20 @@ const handleSaveProfile = async () => {
   const nickName = editForm.nickName.trim()
   const email = editForm.email.trim()
   if (!nickName) {
-    return setProfileTip('请输入昵称', true)
+    return showToast('请输入昵称', 'error')
   }
   if (!email) {
-    return setProfileTip('请输入邮箱', true)
+    return showToast('请输入邮箱', 'error')
   }
   if (!EMAIL_RE.test(email)) {
-    return setProfileTip('邮箱格式不正确', true)
+    return showToast('邮箱格式不正确', 'error')
   }
   saving.value = true
   try {
     await updateProfile({ nickName, email, sex: editForm.sex || undefined, signature: editForm.signature.trim() })
-    setProfileTip('资料已更新')
+    showToast('资料已更新', 'success')
   } catch (error: any) {
-    setProfileTip(error?.message || '保存失败，请稍后重试', true)
+    showToast(error?.message || '保存失败，请稍后重试', 'error')
   } finally {
     saving.value = false
   }
@@ -259,7 +250,7 @@ const handleAvatarChange = async (event: Event) => {
     return
   }
   if (!/^image\//.test(file.type)) {
-    return setProfileTip('请选择图片文件', true)
+    return showToast('请选择图片文件', 'error')
   }
   if (file.size > 5 * 1024 * 1024) {
     return showToast('图片不能超过 5MB', 'error')
@@ -274,9 +265,9 @@ const handleAvatarChange = async (event: Event) => {
   avatarUploading.value = true
   try {
     await updateAvatar(cropped)
-    setProfileTip('头像已更新')
+    showToast('头像已更新', 'success')
   } catch (error: any) {
-    setProfileTip(error?.message || '头像上传失败', true)
+    showToast(error?.message || '头像上传失败', 'error')
   } finally {
     avatarUploading.value = false
   }
@@ -285,33 +276,26 @@ const handleAvatarChange = async (event: Event) => {
 // ---------- 账号设置 ----------
 const pwdOpen = ref(false)
 const pwdSaving = ref(false)
-const pwdTip = ref('')
-const pwdTipIsError = ref(false)
 const pwdForm = reactive({ old: '', next: '', confirm: '' })
-
-const setPwdTip = (message: string, isError = false) => {
-  pwdTip.value = message
-  pwdTipIsError.value = isError
-}
 
 const handleChangePwd = async () => {
   if (!pwdForm.old) {
-    return setPwdTip('请输入旧密码', true)
+    return showToast('请输入旧密码', 'error')
   }
   if (!pwdForm.next) {
-    return setPwdTip('请输入新密码', true)
+    return showToast('请输入新密码', 'error')
   }
   if (pwdForm.next.length < 6) {
-    return setPwdTip('新密码至少 6 位', true)
+    return showToast('新密码至少 6 位', 'error')
   }
   if (pwdForm.next.length > 20) {
-    return setPwdTip('新密码不能超过 20 位', true)
+    return showToast('新密码不能超过 20 位', 'error')
   }
   if (!isPasswordComplexEnough(pwdForm.next)) {
-    return setPwdTip('新密码需包含数字、字母、特殊字符中的至少两类', true)
+    return showToast('新密码需包含数字、字母、特殊字符中的至少两类', 'error')
   }
   if (pwdForm.next !== pwdForm.confirm) {
-    return setPwdTip('两次输入的新密码不一致', true)
+    return showToast('两次输入的新密码不一致', 'error')
   }
   pwdSaving.value = true
   try {
@@ -319,9 +303,9 @@ const handleChangePwd = async () => {
     pwdForm.old = ''
     pwdForm.next = ''
     pwdForm.confirm = ''
-    setPwdTip('密码已修改')
+    showToast('密码已修改', 'success')
   } catch (error: any) {
-    setPwdTip(error?.message || '修改失败，请稍后重试', true)
+    showToast(error?.message || '修改失败，请稍后重试', 'error')
   } finally {
     pwdSaving.value = false
   }
@@ -588,17 +572,6 @@ void registerTime
 
   .form-select {
     max-width: 140px;
-  }
-
-  .form-tip {
-    margin: 4px 0 0 96px;
-    font-size: 12px;
-    line-height: 18px;
-    color: var(--color-primary);
-
-    &.tip-error {
-      color: #d1242f;
-    }
   }
 
   .form-actions {
