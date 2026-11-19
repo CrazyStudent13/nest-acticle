@@ -31,6 +31,41 @@ export function formatDateTime(value?: string | number | Date | null, format: st
 }
 
 /**
+ * 相对时间（掘金口径：刚刚/N分钟前/N小时前/N天前/N月前/N年前）
+ * 未来时间（时钟偏差）一律回退「刚刚」；非法输入回退空串
+ */
+export function formatRelativeTime(value?: string | number | Date | null): string {
+  if (value === null || typeof value === 'undefined' || value === '') {
+    return '';
+  }
+  const time = dayjs(value);
+  if (!time.isValid()) {
+    return '';
+  }
+  const diffSecond = dayjs().diff(time, 'second');
+  if (diffSecond < 60) {
+    return '刚刚';
+  }
+  const diffMinute = Math.floor(diffSecond / 60);
+  if (diffMinute < 60) {
+    return `${diffMinute}分钟前`;
+  }
+  const diffHour = Math.floor(diffMinute / 60);
+  if (diffHour < 24) {
+    return `${diffHour}小时前`;
+  }
+  const diffDay = Math.floor(diffHour / 24);
+  if (diffDay < 30) {
+    return `${diffDay}天前`;
+  }
+  const diffMonth = Math.floor(diffDay / 30);
+  if (diffMonth < 12) {
+    return `${diffMonth}月前`;
+  }
+  return `${Math.floor(diffMonth / 12)}年前`;
+}
+
+/**
  * 格式化为日期字符串（YYYY-MM-DD）；非法输入回退空串
  */
 export function formatDate(value?: string | number | Date | null): string {
