@@ -1,6 +1,6 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { In, Repository } from 'typeorm';
+import { EntityManager, In, Repository } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
 import { PublishStatusEnum } from '@nest-acticle/shared';
 import { PostCommentEntity } from './entities/comment.entity';
@@ -24,8 +24,8 @@ export class PostCommentService {
   ) {}
 
   /**
-   * 发表评论（仅已发布文章；事务内插记录 + increment comment_num）
-   * 返回带评论人公开信息的完整行，供前端即时追加
+   * 发表评论（仅已发布文章；带 parentId 即为回复，校验父评论存在且同文章）
+   * 事务内插记录 + increment comment_num；返回带评论人公开信息的完整行，供前端即时追加
    */
   async create(dto: CreateCommentDto, userId: number) {
     return this.articleRepo.manager.transaction(async (manager) => {
@@ -36,10 +36,24 @@ export class PostCommentService {
         return ResultData.fail(500, '文章不存在或未发布');
       }
 
+      // 回复目标校验：父评论必须存在且属于同一篇文章，被回复人取父评论作者
+      let replyUserId: number | null = null;
+      if (dto.parentId) {
+        const parent = await manager.findOne(PostCommentEntity, {
+          where: { id: dto.parentId, articleId: dto.articleId },
+        });
+        if (!parent) {
+          return ResultData.fail(500, '被回复的评论不存在');
+        }
+        replyUserId = parent.userId;
+      }
+
       const created = await manager.insert(PostCommentEntity, {
         articleId: dto.articleId,
         userId,
         content: dto.content,
+        parentId: dto.parentId || null,
+        replyUserId,
       });
       await manager.increment(PostArticleEntity, { id: dto.articleId }, 'commentNum', 1);
 
@@ -55,19 +69,22 @@ export class PostCommentService {
         content: dto.content,
         createTime: new Date().toISOString(),
         userInfo: user ? { userId: user.userId, nickName: user.nickName, avatar: user.avatar } : null,
+        parentId: dto.parentId || null,
+        replyUserId,
       });
     });
   }
 
   /**
-   * 评论 guest 列表（公开：仅已发布文章的评论，联评论人公开信息，最新在前）
+   * 评论 guest 列表（公开：仅已发布文章的评论，联评论人与被回复人公开信息，最新在前，平铺不嵌套）
    */
   async findGuestList(query: ListCommentGuestDto) {
     const entity = this.commentRepo.createQueryBuilder('comment');
     entity
       .leftJoin(PostArticleEntity, 'article', 'article.id = comment.articleId')
       .leftJoin(UserEntity, 'user', 'user.userId = comment.userId')
-      .addSelect(['user.nickName', 'user.avatar'])
+      .leftJoin(UserEntity, 'replyUser', 'replyUser.userId = comment.replyUserId')
+      .addSelect(['user.nickName', 'user.avatar', 'replyUser.nickName'])
       .where('comment.articleId = :articleId', { articleId: query.articleId })
       .andWhere('article.delFlag = :delFlag', { delFlag: '0' })
       .andWhere('article.publishStatus = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED });
@@ -91,6 +108,9 @@ export class PostCommentService {
       userInfo: row.user_nick_name
         ? { userId: row.comment_user_id, nickName: row.user_nick_name, avatar: row.user_avatar }
         : null,
+      parentId: row.comment_parent_id,
+      replyUserId: row.comment_reply_user_id,
+      replyNickName: row.reply_user_nick_name || null,
     }));
 
     return ResultData.ok({ list, total });
@@ -143,13 +163,41 @@ export class PostCommentService {
       nickName: row.user_nick_name,
       content: row.comment_content,
       createTime: row.comment_create_time,
+      parentId: row.comment_parent_id,
+      replyNickName: row.reply_user_nick_name || null,
     }));
 
     return ResultData.ok({ list, total });
   }
 
   /**
-   * 删除自己的评论（前端入口；非本人评论拒绝）
+   * 级联收集待删评论及其全部后代（回复可指向回复，逐层向下找）
+   * 返回按文章聚合的删除计数 Map，供回减 comment_num
+   */
+  private async collectCascade(
+    manager: EntityManager,
+    rootIds: number[]
+  ): Promise<{ ids: number[]; countByArticle: Map<number, number> }> {
+    const allIds = new Set<number>(rootIds);
+    let pending = [...rootIds];
+
+    while (pending.length) {
+      const children = await manager.find(PostCommentEntity, {
+        where: { parentId: In(pending) },
+        select: ['id', 'articleId'],
+      });
+      pending = children.map((c) => c.id).filter((id) => !allIds.has(id));
+      children.forEach((c) => allIds.add(c.id));
+    }
+
+    const rows = await manager.find(PostCommentEntity, { where: { id: In([...allIds]) } });
+    const countByArticle = new Map<number, number>();
+    rows.forEach((row) => countByArticle.set(row.articleId, (countByArticle.get(row.articleId) || 0) + 1));
+    return { ids: [...allIds], countByArticle };
+  }
+
+  /**
+   * 删除自己的评论（前端入口；非本人评论拒绝；带回复时级联删除全部后代）
    */
   async removeOwn(id: number, userId: number) {
     return this.articleRepo.manager.transaction(async (manager) => {
@@ -161,26 +209,31 @@ export class PostCommentService {
         return ResultData.fail(403, '只能删除自己的评论');
       }
 
-      await manager.delete(PostCommentEntity, { id });
-      await manager.decrement(PostArticleEntity, { id: comment.articleId }, 'commentNum', 1);
+      const { ids, countByArticle } = await this.collectCascade(manager, [id]);
+      await manager.delete(PostCommentEntity, { id: In(ids) });
+      for (const [articleId, count] of countByArticle) {
+        await manager
+          .createQueryBuilder()
+          .update(PostArticleEntity)
+          .set({ commentNum: () => `GREATEST(comment_num - ${count}, 0)` })
+          .where('id = :id', { id: articleId })
+          .execute();
+      }
       return ResultData.ok();
     });
   }
 
   /**
-   * 管理端批量删除评论：同步回减对应文章 comment_num（下限 0）
+   * 管理端批量删除评论：级联删除后代，同步回减对应文章 comment_num（下限 0）
    */
   async removeByIds(ids: number[]) {
     return this.articleRepo.manager.transaction(async (manager) => {
-      const rows = await manager.find(PostCommentEntity, { where: { id: In(ids) } });
-      if (!rows.length) {
+      const { ids: allIds, countByArticle } = await this.collectCascade(manager, ids);
+      if (!allIds.length) {
         return ResultData.ok();
       }
 
-      await manager.delete(PostCommentEntity, { id: In(rows.map((row) => row.id)) });
-
-      const countByArticle = new Map<number, number>();
-      rows.forEach((row) => countByArticle.set(row.articleId, (countByArticle.get(row.articleId) || 0) + 1));
+      await manager.delete(PostCommentEntity, { id: In(allIds) });
       for (const [articleId, count] of countByArticle) {
         await manager
           .createQueryBuilder()
@@ -190,7 +243,7 @@ export class PostCommentService {
           .execute();
       }
 
-      this.logger.log(`管理员删除评论 ${rows.length} 条，涉及文章 ${countByArticle.size} 篇`);
+      this.logger.log(`管理员删除评论 ${allIds.length} 条（含级联），涉及文章 ${countByArticle.size} 篇`);
       return ResultData.ok();
     });
   }
