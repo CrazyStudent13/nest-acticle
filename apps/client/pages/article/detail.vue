@@ -2,7 +2,7 @@
 <template>
   <div class="detail">
     <!-- 左侧悬浮工具栏：fixed 挂视口，不占布局宽度 -->
-    <ArticleActionBar :like-num="likeCount" :comment-num="commentCount" />
+    <ArticleActionBar :liked="liked" :like-num="likeCount" :comment-num="commentCount" @like="onLike" />
     <template v-if="article.title || article.content">
       <div class="detail-layout">
         <article class="panel">
@@ -108,6 +108,55 @@ const publishLabel = computed(() => article.value.publishTime || article.value.c
 const readLabel = computed(() => (typeof article.value.readNum === 'number' ? String(article.value.readNum) : ''))
 const likeCount = computed(() => (typeof article.value.likeNum === 'number' ? article.value.likeNum : 0))
 const commentCount = computed(() => (typeof article.value.commentNum === 'number' ? article.value.commentNum : 0))
+
+// ---------- 点赞：登录态下查询/切换，未登录点击引导登录 ----------
+const { isLoggedIn } = useUser()
+const { openLogin } = useAuthModal()
+const { fetchLikeStatus, likeArticle, unlikeArticle } = useLike()
+const liked = ref(false)
+const likeBusy = ref(false)
+
+const syncLikeStatus = () => {
+  if (isLoggedIn.value && article.value.id) {
+    fetchLikeStatus(article.value.id)
+      .then((value) => (liked.value = value))
+      .catch(() => {})
+  } else {
+    liked.value = false
+  }
+}
+
+// 点赞状态依赖 token，详情页 SSR 只出公共数据，状态在客户端补查
+onMounted(syncLikeStatus)
+watch(isLoggedIn, syncLikeStatus)
+
+const onLike = async () => {
+  if (likeBusy.value) {
+    return
+  }
+  if (!isLoggedIn.value) {
+    openLogin()
+    return
+  }
+  const id = article.value.id
+  if (!id) {
+    return
+  }
+  likeBusy.value = true
+  try {
+    const result = liked.value ? await unlikeArticle(id) : await likeArticle(id)
+    if (result) {
+      liked.value = result.liked
+      if (typeof result.likeNum === 'number') {
+        article.value.likeNum = result.likeNum
+      }
+    }
+  } catch (error: any) {
+    showToast(error?.message || '点赞失败，请稍后再试', 'error')
+  } finally {
+    likeBusy.value = false
+  }
+}
 
 // 编辑/删除入口：仅当前登录用户是文章作者时可见
 const { user, fetchUserInfo } = useUser()

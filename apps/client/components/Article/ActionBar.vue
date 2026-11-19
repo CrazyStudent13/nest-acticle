@@ -1,9 +1,9 @@
-<!-- 文章详情页左侧悬浮工具栏：点赞/评论/收藏/举报为占位（后端未就绪），分享=复制链接，回顶部按滚动距离显现 -->
+<!-- 文章详情页左侧悬浮工具栏：点赞接真实接口（由父组件处理登录态与请求），评论/收藏/举报为占位，分享=复制链接，回顶部按滚动距离显现 -->
 <template>
   <div class="action-bar">
-    <!-- 点赞：占位 -->
-    <button class="action-btn" type="button" title="点赞" @click="showTip('点赞功能即将上线')">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <!-- 点赞：已点赞高亮，点击由父组件切换 -->
+    <button :class="{ liked }" class="action-btn" type="button" title="点赞" @click="emit('like')">
+      <svg :fill="liked ? 'currentColor' : 'none'" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
       </svg>
       <span v-if="likeNum > 0" class="action-badge">{{ likeNum }}</span>
@@ -59,12 +59,19 @@ const props = withDefaults(
   defineProps<{
     likeNum?: number
     commentNum?: number
+    /** 当前用户是否已点赞（点赞高亮由父组件依据登录态与接口结果传入） */
+    liked?: boolean
   }>(),
   {
     likeNum: 0,
-    commentNum: 0
+    commentNum: 0,
+    liked: false
   }
 )
+
+const emit = defineEmits<{
+  (e: 'like'): void
+}>()
 
 // 占位功能的轻提示，2 秒自动消失
 const tip = ref('')
@@ -179,6 +186,12 @@ onBeforeUnmount(() => {
       font-size: 11px;
       line-height: 1;
       color: var(--color-text-3);
+    }
+
+    // 已点赞态：主题色高亮
+    &.liked {
+      color: var(--color-primary);
+      box-shadow: 0 2px 10px rgba(79, 107, 255, 0.25);
     }
   }
 
