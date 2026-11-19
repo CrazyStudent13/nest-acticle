@@ -92,6 +92,10 @@ export class UserService {
       entity.andWhere('user.phonenumber LIKE :phonenumber', { phonenumber: `%${query.phonenumber}%` });
     }
 
+    if (query.signature) {
+      entity.andWhere('user.signature LIKE :signature', { signature: `%${query.signature}%` });
+    }
+
     if (query.status) {
       entity.andWhere('user.status = :status', { status: query.status });
     }
