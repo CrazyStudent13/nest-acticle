@@ -21,7 +21,7 @@ create table
     login_ip varchar(128) default '' comment '最后登录IP',
     login_date datetime comment '最后登录时间',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default null comment '备注',
@@ -97,7 +97,7 @@ create table
     status char(1) not null comment '角色状态（0正常 1停用）',
     del_flag char(1) default '0' comment '删除标志（0代表存在 1代表删除）',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default null comment '备注',
@@ -167,6 +167,26 @@ values
     '负责文章审核和公告发布'
   );
 
+insert into
+  sys_role
+values
+  (
+    '4',
+    '注册用户',
+    'member',
+    4,
+    1,
+    1,
+    1,
+    '0',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '客户端注册用户默认角色，仅个人中心自助权限'
+  );
+
 -- ----------------------------
 -- 5、菜单权限表
 -- ----------------------------
@@ -189,7 +209,7 @@ create table
     perms varchar(100) default null comment '权限标识',
     icon varchar(100) default '#' comment '菜单图标',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default '' comment '备注',
@@ -933,6 +953,59 @@ values
     '',
     null,
     '',
+    '0'
+  );
+
+-- 个人中心按钮（注册用户角色自助使用，不出现在管理端侧边栏）
+insert into
+  sys_menu
+values
+  (
+    '1060',
+    '个人中心查询',
+    '100',
+    '8',
+    '',
+    '',
+    '',
+    '1',
+    '0',
+    'F',
+    '0',
+    '0',
+    'system:user:profile:view',
+    '#',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '个人中心自助查询权限',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
+    '1061',
+    '个人中心修改',
+    '100',
+    '9',
+    '',
+    '',
+    '',
+    '1',
+    '0',
+    'F',
+    '0',
+    '0',
+    'system:user:profile:edit',
+    '#',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '个人中心自助修改权限（资料/头像/密码）',
     '0'
   );
 
@@ -2678,6 +2751,17 @@ insert into
 values
   ('2', '2013');
 
+-- 普通角色补充个人中心自助权限（个人中心接口改用独立权限串，不再被 system:user:query/edit 覆盖）
+insert into
+  sys_role_menu
+values
+  ('2', '1060');
+
+insert into
+  sys_role_menu
+values
+  ('2', '1061');
+
 -- 编辑角色菜单权限(只包含文章审核和通知公告相关权限)
 insert into
   sys_role_menu
@@ -2739,6 +2823,17 @@ insert into
 values
   ('3', '2010');
 
+-- 注册用户菜单权限（仅个人中心自助权限）
+insert into
+  sys_role_menu
+values
+  ('4', '1060');
+
+insert into
+  sys_role_menu
+values
+  ('4', '1061');
+
 -- ----------------------------
 -- 10、操作日志记录
 -- ----------------------------
@@ -2781,7 +2876,7 @@ create table
     dict_type varchar(100) default '' comment '字典类型',
     status char(1) default '0' comment '状态（0正常 1停用）',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default null comment '备注',
@@ -3047,7 +3142,7 @@ create table
     is_default char(1) default 'N' comment '是否默认（Y是 N否）',
     status char(1) default '0' comment '状态（0正常 1停用）',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default null comment '备注',
@@ -4081,7 +4176,7 @@ create table
     config_value varchar(500) default '' comment '参数键值',
     config_type char(1) default 'N' comment '系统内置（Y是 N否）',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default null comment '备注',
@@ -4215,7 +4310,7 @@ create table
     msg varchar(255) default '' comment '提示消息',
     login_time datetime comment '访问时间',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default null comment '备注',
@@ -4241,7 +4336,7 @@ create table
     concurrent char(1) default '1' comment '是否并发执行（0允许 1禁止）',
     status char(1) default '0' comment '状态（0正常 1暂停）',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default '' comment '备注信息',
@@ -4319,7 +4414,7 @@ create table
     job_message varchar(500) comment '日志信息',
     status char(1) default '0' comment '执行状态（0正常 1失败）',
     exception_info varchar(2000) default '' comment '异常信息',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     primary key (job_log_id)
   ) engine = innodb comment = '定时任务调度日志表';
 
@@ -4336,7 +4431,7 @@ create table
     notice_content longtext default null comment '公告内容',
     status char(1) default '0' comment '公告状态（0正常 1关闭）',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(255) default null comment '备注',

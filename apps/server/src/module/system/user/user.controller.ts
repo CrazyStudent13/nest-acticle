@@ -13,7 +13,7 @@ import { ResultData } from 'src/common/utils/result';
 import { User, UserDto, UserTool, UserToolType } from 'src/module/system/user/user.decorator';
 import { BusinessType } from 'src/common/constant/business.constant';
 import { Operlog } from 'src/common/decorators/operlog.decorator';
-import { UPLOAD_MAX_SIZE_BYTES } from 'src/common/constant/index';
+import { UPLOAD_MAX_SIZE_BYTES, PERM_PROFILE_VIEW, PERM_PROFILE_EDIT } from 'src/common/constant/index';
 
 @ApiTags('用户管理')
 @ApiBearerAuth()
@@ -29,7 +29,8 @@ export class UserController {
   @ApiOperation({
     summary: '个人中心 - 用户信息',
   })
-  @RequirePermission('system:user:query')
+  // 个人中心接口只操作当前登录用户自己，使用独立权限串（与管理端用户管理隔离）
+  @RequirePermission(PERM_PROFILE_VIEW)
   @Get('/profile')
   profile(@User() user: UserDto) {
     // 会话快照含密码哈希（updatePwd 比对依赖），仅在响应层剥离
@@ -40,7 +41,7 @@ export class UserController {
   @ApiOperation({
     summary: '个人中心-修改用户信息',
   })
-  @RequirePermission('system:user:edit')
+  @RequirePermission(PERM_PROFILE_EDIT)
   @Put('/profile')
   @Operlog({ businessType: BusinessType.UPDATE })
   updateProfile(@User() user: UserDto, @Body() updateProfileDto: UpdateProfileDto) {
@@ -50,7 +51,7 @@ export class UserController {
   @ApiOperation({
     summary: '个人中心 - 上传用户头像',
   })
-  @RequirePermission('system:user:edit')
+  @RequirePermission(PERM_PROFILE_EDIT)
   @Post('/profile/avatar')
   @UseInterceptors(FileInterceptor('avatarfile', { limits: { fileSize: UPLOAD_MAX_SIZE_BYTES } }))
   async avatar(@UploadedFile() avatarfile: Express.Multer.File, @User() user: UserDto) {
@@ -79,7 +80,7 @@ export class UserController {
   @ApiOperation({
     summary: '个人中心-修改密码',
   })
-  @RequirePermission('system:user:edit')
+  @RequirePermission(PERM_PROFILE_EDIT)
   @Operlog({ businessType: BusinessType.UPDATE })
   @Put('/profile/updatePwd')
   updatePwd(@User() user: UserDto, @Body() updatePwdDto: UpdatePwdDto) {

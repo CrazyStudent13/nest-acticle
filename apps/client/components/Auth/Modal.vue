@@ -87,6 +87,8 @@
                 <span class="strength-label" :class="`strength-${strength}`">{{ strengthLabel }}</span>
               </div>
 
+              <!-- 注册模式常驻提示：出错时让位给红色错误提示 -->
+              <p v-if="mode === 'register' && !fieldError('password')" class="field-hint">{{ PASSWORD_HINT }}</p>
               <p v-if="fieldError('password')" class="field-tip">{{ errors.password }}</p>
             </div>
 
@@ -150,6 +152,15 @@
                   title="看不清？点击刷新"
                   @click="refreshRegisterCaptcha"
                 />
+                <!-- 加载失败/加载中占位：与验证码图同尺寸，可点击重试，避免无图可点导致提交被拦死 -->
+                <div
+                  v-else
+                  class="captcha-img captcha-retry"
+                  :title="registerCaptcha.loading ? '验证码加载中' : '验证码加载失败，点击重试'"
+                  @click="refreshRegisterCaptcha"
+                >
+                  {{ registerCaptcha.loading ? '加载中…' : '加载失败，点击重试' }}
+                </div>
               </div>
               <p v-if="registerCaptcha.codeTouched && !registerCaptcha.code.trim()" class="field-tip">请输入验证码</p>
             </div>
@@ -213,7 +224,10 @@ const errors = computed<Record<FormField, string>>(() => ({
     ? '请输入密码'
     : form.password.length < 6
       ? '密码长度不能少于 6 位'
-      : '',
+      // 复杂度仅注册时校验：登录不拦，老账号的弱密码要能正常登录
+      : mode.value === 'register' && !isPasswordComplexEnough(form.password)
+        ? '需包含数字、字母、特殊字符中的至少两类'
+        : '',
   confirm:
     mode.value !== 'register'
       ? ''
@@ -286,28 +300,8 @@ const fieldClass = (field: FormField) => ({
   'field-valid': fieldValid(field)
 })
 
-// 密码强度：长度 + 字符种类，1 弱 / 2 中 / 3 强
-const strength = computed(() => {
-  const pwd = form.password
-  if (!pwd) {
-    return 0
-  }
-
-  let score = 0
-  if (pwd.length >= 6) {
-    score++
-  }
-  if (pwd.length >= 10) {
-    score++
-  }
-  if (/[a-zA-Z]/.test(pwd) && /\d/.test(pwd)) {
-    score++
-  }
-  if (/[^a-zA-Z0-9]/.test(pwd)) {
-    score++
-  }
-  return Math.min(score, 3)
-})
+// 密码强度：字符种类数定级（<6 位视为太短）—— 1 弱（单一类）/ 2 中（两类）/ 3 强（三类必含特殊字符）
+const strength = computed(() => passwordStrength(form.password))
 
 const strengthLabel = computed(() => ['太短了', '弱', '中', '强'][strength.value] ?? '')
 const strengthBarClass = (n: number) => ({ on: strength.value >= n, [`lv-${strength.value}`]: strength.value >= n })
@@ -359,15 +353,21 @@ const registerCaptcha = reactive({
   img: '',
   uuid: '',
   code: '',
-  codeTouched: false
+  codeTouched: false,
+  loading: false
 })
 
 const refreshRegisterCaptcha = async () => {
-  const info = await fetchCaptcha(form.email.trim(), 'register')
-  registerCaptcha.img = info.img || ''
-  registerCaptcha.uuid = info.uuid || ''
-  registerCaptcha.code = ''
-  registerCaptcha.codeTouched = false
+  registerCaptcha.loading = true
+  try {
+    const info = await fetchCaptcha(form.email.trim(), 'register')
+    registerCaptcha.img = info.img || ''
+    registerCaptcha.uuid = info.uuid || ''
+    registerCaptcha.code = ''
+    registerCaptcha.codeTouched = false
+  } finally {
+    registerCaptcha.loading = false
+  }
 }
 
 const refreshRegisterConfig = async () => {
@@ -435,6 +435,7 @@ const resetForm = () => {
   registerCaptcha.uuid = ''
   registerCaptcha.code = ''
   registerCaptcha.codeTouched = false
+  registerCaptcha.loading = false
   showTip('')
 }
 
@@ -723,12 +724,30 @@ onBeforeUnmount(() => {
       border-radius: var(--radius-sm);
       cursor: pointer;
     }
+
+    // 验证码加载失败/加载中占位框：与图片同高、固定宽度，可点击重试
+    .captcha-retry {
+      width: 96px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px dashed var(--color-border);
+      font-size: 12px;
+      color: var(--color-text-3);
+      user-select: none;
+    }
   }
 
   .field-tip {
     font-size: 12px;
     line-height: 18px;
     color: #d1242f;
+  }
+
+  .field-hint {
+    font-size: 12px;
+    line-height: 18px;
+    color: var(--color-text-3);
   }
 
   // 密码强度指示
