@@ -1,4 +1,4 @@
-<!-- 文章详情页：Markdown 正文+左侧悬浮工具栏+右侧作者卡/目录/相关推荐（窄屏隐藏）；编辑/删除仅作者本人可见，删除二次确认后回首页；useSeoMeta+Article 结构化数据；文章不存在或已下架显示空态 -->
+<!-- 文章详情页：Markdown 正文+左侧悬浮工具栏+右侧作者卡/目录/相关推荐（窄屏隐藏）；评论区收在 ArticleCommentSection 组件；编辑/删除仅作者本人可见，删除二次确认后回首页；useSeoMeta+Article 结构化数据；文章不存在或已下架显示空态 -->
 <template>
   <div class="detail">
     <!-- 左侧悬浮工具栏：fixed 挂视口，不占布局宽度 -->
@@ -44,70 +44,14 @@
             <MdViewer :value="article.content" />
           </div>
 
-          <!-- 评论区：guest 列表公开；登录后可发表/删除自己的评论，工具栏评论按钮滚动到此处 -->
-          <div ref="commentSectionRef" class="comment-section">
-            <h3 class="comment-title">评论 <span class="comment-count">{{ commentCount }}</span></h3>
-
-            <div v-if="isLoggedIn" class="comment-editor">
-              <div v-if="replyTo" class="reply-banner">
-                回复 @{{ replyTo.userInfo?.nickName || '用户' }}
-                <button class="reply-cancel" type="button" @click="cancelReply">取消</button>
-              </div>
-              <textarea
-                v-model="commentDraft"
-                class="comment-input"
-                maxlength="500"
-                :placeholder="replyTo ? `回复 @${replyTo.userInfo?.nickName || '用户'}（1-500 字）` : '写下你的评论（1-500 字）'"
-                rows="3"
-              ></textarea>
-              <div class="comment-editor-actions">
-                <span class="comment-hint">{{ commentDraft.length }}/500</span>
-                <button class="comment-submit" type="button" :disabled="commentBusy || !commentDraft.trim()" @click="submitComment">
-                  {{ commentBusy ? '发布中…' : '发布' }}
-                </button>
-              </div>
-            </div>
-            <div v-else class="comment-login">
-              <span>登录后即可发表评论</span>
-              <button class="comment-submit" type="button" @click="openLogin">去登录</button>
-            </div>
-
-            <div v-if="comments.length" class="comment-list">
-              <div v-for="item in comments" :key="item.id" class="comment-item">
-                <span class="comment-avatar">
-                  <img v-if="item.userInfo?.avatar" :src="toCoverUrl(config.public.apiBase, item.userInfo.avatar)" :alt="item.userInfo.nickName" loading="lazy" />
-                  <span v-else class="avatar-fallback">{{ (item.userInfo?.nickName || '游').slice(0, 1) }}</span>
-                </span>
-                <div class="comment-main">
-                  <div class="comment-meta">
-                    <span class="comment-author">{{ item.userInfo?.nickName || '用户' }}</span>
-                    <span class="comment-time">{{ formatDateTime(item.createTime, 'YYYY-MM-DD HH:mm') }}</span>
-                  </div>
-                  <p class="comment-content">
-                    <span v-if="item.replyNickName" class="comment-reply-tag">回复 @{{ item.replyNickName }}：</span>{{ item.content }}
-                  </p>
-                </div>
-                <div class="comment-actions">
-                  <button v-if="isLoggedIn" class="comment-reply-btn" type="button" @click="startReply(item)">回复</button>
-                  <button
-                    v-if="user?.userId && item.userId === user.userId"
-                    class="comment-del"
-                    type="button"
-                    :disabled="commentDeletingId === item.id"
-                    @click="removeComment(item)"
-                  >
-                    删除
-                  </button>
-                </div>
-              </div>
-              <div v-if="comments.length < commentTotal" class="comment-more">
-                <button class="comment-more-btn" type="button" :disabled="commentLoading" @click="loadMoreComments">
-                  {{ commentLoading ? '加载中…' : '加载更多评论' }}
-                </button>
-              </div>
-            </div>
-            <CommonEmptyState v-else-if="!commentLoading" text="还没有评论，来抢沙发" />
-          </div>
+          <!-- 评论区：抽成组件（掘金式两级结构），计数增删由组件回抛，页面同步文章冗余计数；工具栏评论按钮滚动到此处 -->
+          <ArticleCommentSection
+            ref="commentSectionRef"
+            :article-id="article.id || ''"
+            :comment-num="commentCount"
+            :author-user-id="article.userInfo?.userId"
+            @update:comment-num="onCommentNumChange"
+          />
         </article>
 
         <!-- 右侧信息栏：作者卡 + 目录 + 相关推荐（吸顶跟随，窄屏隐藏） -->
@@ -126,7 +70,7 @@
 
 <script setup lang="ts">
 import { formatDateTime } from '@nest-acticle/utils'
-import type { Article, CommentItem, Subject } from '@nest-acticle/shared'
+import type { Article, Subject } from '@nest-acticle/shared'
 
 const config = useRuntimeConfig()
 const route = useRoute()
@@ -223,136 +167,15 @@ const onLike = async () => {
   }
 }
 
-// ---------- 评论区：guest 列表公开；发表/删除自己的评论要求登录 ----------
-const { fetchComments, addComment, deleteComment } = useComment()
-const comments = ref<CommentItem[]>([])
-const commentTotal = ref(0)
-const commentPageNum = ref(1)
-const commentLoading = ref(false)
-const commentDraft = ref('')
-const commentBusy = ref(false)
-const commentDeletingId = ref<number | null>(null)
-const commentSectionRef = ref<HTMLElement | null>(null)
-// 回复目标：非空时编辑器处于回复模式，提交携带 parentId（服务端校验同文章且存在）
-const replyTo = ref<CommentItem | null>(null)
-
-const startReply = (item: CommentItem) => {
-  replyTo.value = item
-  const input = document.querySelector('.comment-input') as HTMLTextAreaElement | null
-  input?.focus()
-}
-
-const cancelReply = () => {
-  replyTo.value = null
-}
-
-const loadComments = async (page = 1) => {
-  const id = article.value.id
-  if (!id) {
-    return
-  }
-  commentLoading.value = true
-  try {
-    const data = await fetchComments(id, { pageNum: page, pageSize: 10 })
-    if (page === 1) {
-      comments.value = data.list || []
-    } else {
-      comments.value = [...comments.value, ...(data.list || [])]
-    }
-    commentTotal.value = data.total || 0
-    commentPageNum.value = page
-  } catch {
-    if (page === 1) {
-      comments.value = []
-    }
-  } finally {
-    commentLoading.value = false
-  }
-}
-
-const loadMoreComments = () => loadComments(commentPageNum.value + 1)
-
-// 评论列表依赖文章 id：SSR 首包后客户端补查，文章切换时重拉
-onMounted(() => {
-  if (article.value.id) {
-    loadComments(1)
-  }
-})
-watch(
-  () => article.value.id,
-  (id) => {
-    if (id) {
-      loadComments(1)
-    }
-  }
-)
-
-const submitComment = async () => {
-  const content = commentDraft.value.trim()
-  if (!content || commentBusy.value) {
-    return
-  }
-  const id = article.value.id
-  if (!id) {
-    return
-  }
-  commentBusy.value = true
-  try {
-    const created = await addComment(id, content, replyTo.value?.id ?? undefined)
-    if (created) {
-      // 列表为最新在前，新评论（含回复）插到头部并同步计数
-      comments.value = [created, ...comments.value]
-      commentTotal.value += 1
-      if (typeof article.value.commentNum === 'number') {
-        article.value.commentNum += 1
-      }
-      commentDraft.value = ''
-      cancelReply()
-      showToast('评论发布成功', 'success')
-    }
-  } catch (error: any) {
-    showToast(error?.message || '评论发布失败，请稍后再试', 'error')
-  } finally {
-    commentBusy.value = false
-  }
-}
-
-const removeComment = async (item: CommentItem) => {
-  if (commentDeletingId.value) {
-    return
-  }
-  const confirmed = await confirmAction({
-    title: '删除评论',
-    message: '确定删除这条评论吗？',
-    confirmText: '删除',
-    danger: true
-  })
-  if (!confirmed) {
-    return
-  }
-  commentDeletingId.value = item.id
-  try {
-    await deleteComment(item.id)
-    comments.value = comments.value.filter((c) => c.id !== item.id)
-    commentTotal.value = Math.max(0, commentTotal.value - 1)
-    if (typeof article.value.commentNum === 'number') {
-      article.value.commentNum = Math.max(0, article.value.commentNum - 1)
-    }
-    // 回复目标被删除（含级联删掉的回复）时退出回复模式
-    if (replyTo.value && !comments.value.some((c) => c.id === replyTo.value!.id)) {
-      cancelReply()
-    }
-    showToast('评论已删除', 'success')
-  } catch (error: any) {
-    showToast(error?.message || '删除失败，请稍后再试', 'error')
-  } finally {
-    commentDeletingId.value = null
-  }
+// ---------- 评论区：逻辑收进 ArticleCommentSection，页面只持有计数与滚动定位 ----------
+const commentSectionRef = ref<{ $el?: HTMLElement | null } | null>(null)
+const onCommentNumChange = (value: number) => {
+  article.value.commentNum = value
 }
 
 // 工具栏评论按钮：滚动定位到评论区
 const scrollToComments = () => {
-  commentSectionRef.value?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  commentSectionRef.value?.$el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
 }
 
 // 编辑/删除入口：仅当前登录用户是文章作者时可见
@@ -569,258 +392,6 @@ useHead(() => {
 
   .meta-line .meta-subject {
     display: none;
-  }
-}
-
-// 评论区：正文下方独立区块，依赖面板底色与分隔线 token
-.comment-section {
-  margin-top: 32px;
-  padding-top: 24px;
-  border-top: 1px solid var(--color-border-light);
-
-  .comment-title {
-    margin: 0 0 16px;
-    font-size: 17px;
-    font-weight: 600;
-    color: var(--color-text-1);
-
-    .comment-count {
-      font-size: 14px;
-      font-weight: 400;
-      color: var(--color-text-3);
-      margin-left: 4px;
-    }
-  }
-
-  .comment-editor {
-    margin-bottom: 20px;
-
-    .reply-banner {
-      margin-bottom: 8px;
-      padding: 6px 12px;
-      display: flex;
-      align-items: center;
-      justify-content: space-between;
-      border-radius: var(--radius-sm);
-      background-color: var(--color-primary-light);
-      font-size: 13px;
-      color: var(--color-primary);
-
-      .reply-cancel {
-        padding: 0;
-        border: 0;
-        background-color: transparent;
-        font-size: 12px;
-        color: var(--color-text-3);
-        cursor: pointer;
-
-        &:hover {
-          color: var(--color-text-1);
-        }
-      }
-    }
-
-    .comment-input {
-      width: 100%;
-      padding: 10px 12px;
-      border: 1px solid var(--color-border-light);
-      border-radius: var(--radius-sm);
-      background-color: var(--color-bg);
-      font-size: 13px;
-      line-height: 20px;
-      color: var(--color-text-1);
-      resize: vertical;
-      outline: none;
-      transition: border-color 0.2s ease;
-
-      &:focus {
-        border-color: var(--color-primary);
-      }
-    }
-
-    .comment-editor-actions {
-      margin-top: 8px;
-      display: flex;
-      align-items: center;
-      justify-content: flex-end;
-      gap: 12px;
-
-      .comment-hint {
-        font-size: 12px;
-        color: var(--color-text-3);
-      }
-    }
-  }
-
-  .comment-login {
-    margin-bottom: 20px;
-    padding: 12px 16px;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    border: 1px dashed var(--color-border-light);
-    border-radius: var(--radius-sm);
-    font-size: 13px;
-    color: var(--color-text-2);
-  }
-
-  .comment-submit {
-    padding: 6px 16px;
-    border: 0;
-    border-radius: var(--radius-sm);
-    background-image: var(--gradient-brand);
-    font-size: 13px;
-    color: #fff;
-    cursor: pointer;
-    transition: opacity 0.2s ease;
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
-  }
-
-  .comment-list {
-    .comment-item {
-      display: flex;
-      gap: 12px;
-      padding: 14px 0;
-
-      &:not(:last-child) {
-        border-bottom: 1px solid var(--color-border-light);
-      }
-
-      .comment-avatar {
-        flex-shrink: 0;
-        width: 36px;
-        height: 36px;
-        line-height: 0;
-
-        img {
-          width: 36px;
-          height: 36px;
-          border-radius: var(--radius-full);
-          object-fit: cover;
-        }
-
-        .avatar-fallback {
-          width: 36px;
-          height: 36px;
-          display: flex;
-          align-items: center;
-          justify-content: center;
-          border-radius: var(--radius-full);
-          background-image: var(--gradient-brand);
-          font-size: 14px;
-          color: #fff;
-        }
-      }
-
-      .comment-main {
-        flex: 1;
-        min-width: 0;
-
-        .comment-meta {
-          display: flex;
-          align-items: center;
-          gap: 10px;
-
-          .comment-author {
-            font-size: 13px;
-            font-weight: 500;
-            color: var(--color-text-1);
-          }
-
-          .comment-time {
-            font-size: 12px;
-            color: var(--color-text-3);
-          }
-        }
-
-        .comment-content {
-          margin: 6px 0 0;
-          font-size: 14px;
-          line-height: 22px;
-          color: var(--color-text-1);
-          white-space: pre-wrap;
-          overflow-wrap: anywhere;
-
-          .comment-reply-tag {
-            color: var(--color-primary);
-          }
-        }
-      }
-
-      .comment-actions {
-        flex-shrink: 0;
-        align-self: flex-start;
-        display: flex;
-        gap: 10px;
-
-        .comment-reply-btn {
-          padding: 0;
-          border: 0;
-          background-color: transparent;
-          font-size: 12px;
-          color: var(--color-text-3);
-          cursor: pointer;
-          transition: color 0.2s ease;
-
-          &:hover {
-            color: var(--color-primary);
-          }
-        }
-      }
-
-      .comment-del {
-        flex-shrink: 0;
-        align-self: flex-start;
-        padding: 0;
-        border: 0;
-        background-color: transparent;
-        font-size: 12px;
-        color: var(--color-text-3);
-        cursor: pointer;
-        transition: color 0.2s ease;
-
-        &:hover {
-          color: #d1242f;
-        }
-
-        &:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-      }
-    }
-
-    .comment-more {
-      padding: 14px 0 4px;
-      text-align: center;
-
-      .comment-more-btn {
-        padding: 6px 20px;
-        border: 1px solid var(--color-border-light);
-        border-radius: var(--radius-sm);
-        background-color: transparent;
-        font-size: 13px;
-        color: var(--color-text-2);
-        cursor: pointer;
-        transition:
-          color 0.2s ease,
-          border-color 0.2s ease;
-
-        &:hover {
-          color: var(--color-primary);
-          border-color: var(--color-primary);
-        }
-
-        &:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
-        }
-      }
-    }
   }
 }
 </style>
