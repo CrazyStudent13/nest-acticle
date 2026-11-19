@@ -17,6 +17,7 @@
     "dev:client": "pnpm --filter client dev",
     "dev:docs": "pnpm --filter docs dev",
     "dev:shared": "pnpm --filter @nest-acticle/shared dev",
+    "gen:api": "pnpm --filter @nest-acticle/shared gen:api",
     "build": "pnpm -r build",
     "typecheck": "pnpm --filter client typecheck",
     "docker:up": "docker compose up -d --build",
