@@ -118,14 +118,15 @@ export class PostLikeService {
     const { raw } = await entity.getRawAndEntities();
     const total = await entity.getCount();
 
+    // raw 键格式为「别名_数据库列名」（非实体属性名）
     const list = raw.map((row: Record<string, any>) => ({
       id: row.like_id,
       articleId: row.like_article_id,
       userId: row.like_user_id,
-      createTime: row.like_createTime,
+      createTime: row.like_create_time,
       articleTitle: row.article_title,
       articleCover: row.article_cover,
-      nickName: row.user_nickName,
+      nickName: row.user_nick_name,
     }));
 
     return ResultData.ok({ list, total });
