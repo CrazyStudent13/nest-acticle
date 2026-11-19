@@ -49,7 +49,17 @@
             <h3 class="comment-title">评论 <span class="comment-count">{{ commentCount }}</span></h3>
 
             <div v-if="isLoggedIn" class="comment-editor">
-              <textarea v-model="commentDraft" class="comment-input" maxlength="500" placeholder="写下你的评论（1-500 字）" rows="3"></textarea>
+              <div v-if="replyTo" class="reply-banner">
+                回复 @{{ replyTo.userInfo?.nickName || '用户' }}
+                <button class="reply-cancel" type="button" @click="cancelReply">取消</button>
+              </div>
+              <textarea
+                v-model="commentDraft"
+                class="comment-input"
+                maxlength="500"
+                :placeholder="replyTo ? `回复 @${replyTo.userInfo?.nickName || '用户'}（1-500 字）` : '写下你的评论（1-500 字）'"
+                rows="3"
+              ></textarea>
               <div class="comment-editor-actions">
                 <span class="comment-hint">{{ commentDraft.length }}/500</span>
                 <button class="comment-submit" type="button" :disabled="commentBusy || !commentDraft.trim()" @click="submitComment">
@@ -73,17 +83,22 @@
                     <span class="comment-author">{{ item.userInfo?.nickName || '用户' }}</span>
                     <span class="comment-time">{{ formatDateTime(item.createTime, 'YYYY-MM-DD HH:mm') }}</span>
                   </div>
-                  <p class="comment-content">{{ item.content }}</p>
+                  <p class="comment-content">
+                    <span v-if="item.replyNickName" class="comment-reply-tag">回复 @{{ item.replyNickName }}：</span>{{ item.content }}
+                  </p>
                 </div>
-                <button
-                  v-if="user?.userId && item.userId === user.userId"
-                  class="comment-del"
-                  type="button"
-                  :disabled="commentDeletingId === item.id"
-                  @click="removeComment(item)"
-                >
-                  删除
-                </button>
+                <div class="comment-actions">
+                  <button v-if="isLoggedIn" class="comment-reply-btn" type="button" @click="startReply(item)">回复</button>
+                  <button
+                    v-if="user?.userId && item.userId === user.userId"
+                    class="comment-del"
+                    type="button"
+                    :disabled="commentDeletingId === item.id"
+                    @click="removeComment(item)"
+                  >
+                    删除
+                  </button>
+                </div>
               </div>
               <div v-if="comments.length < commentTotal" class="comment-more">
                 <button class="comment-more-btn" type="button" :disabled="commentLoading" @click="loadMoreComments">
@@ -218,6 +233,18 @@ const commentDraft = ref('')
 const commentBusy = ref(false)
 const commentDeletingId = ref<number | null>(null)
 const commentSectionRef = ref<HTMLElement | null>(null)
+// 回复目标：非空时编辑器处于回复模式，提交携带 parentId（服务端校验同文章且存在）
+const replyTo = ref<CommentItem | null>(null)
+
+const startReply = (item: CommentItem) => {
+  replyTo.value = item
+  const input = document.querySelector('.comment-input') as HTMLTextAreaElement | null
+  input?.focus()
+}
+
+const cancelReply = () => {
+  replyTo.value = null
+}
 
 const loadComments = async (page = 1) => {
   const id = article.value.id
@@ -271,15 +298,16 @@ const submitComment = async () => {
   }
   commentBusy.value = true
   try {
-    const created = await addComment(id, content)
+    const created = await addComment(id, content, replyTo.value?.id ?? undefined)
     if (created) {
-      // 列表为最新在前，新评论插到头部并同步计数
+      // 列表为最新在前，新评论（含回复）插到头部并同步计数
       comments.value = [created, ...comments.value]
       commentTotal.value += 1
       if (typeof article.value.commentNum === 'number') {
         article.value.commentNum += 1
       }
       commentDraft.value = ''
+      cancelReply()
       showToast('评论发布成功', 'success')
     }
   } catch (error: any) {
@@ -309,6 +337,10 @@ const removeComment = async (item: CommentItem) => {
     commentTotal.value = Math.max(0, commentTotal.value - 1)
     if (typeof article.value.commentNum === 'number') {
       article.value.commentNum = Math.max(0, article.value.commentNum - 1)
+    }
+    // 回复目标被删除（含级联删掉的回复）时退出回复模式
+    if (replyTo.value && !comments.value.some((c) => c.id === replyTo.value!.id)) {
+      cancelReply()
     }
     showToast('评论已删除', 'success')
   } catch (error: any) {
@@ -563,6 +595,31 @@ useHead(() => {
   .comment-editor {
     margin-bottom: 20px;
 
+    .reply-banner {
+      margin-bottom: 8px;
+      padding: 6px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-radius: var(--radius-sm);
+      background-color: var(--color-primary-light);
+      font-size: 13px;
+      color: var(--color-primary);
+
+      .reply-cancel {
+        padding: 0;
+        border: 0;
+        background-color: transparent;
+        font-size: 12px;
+        color: var(--color-text-3);
+        cursor: pointer;
+
+        &:hover {
+          color: var(--color-text-1);
+        }
+      }
+    }
+
     .comment-input {
       width: 100%;
       padding: 10px 12px;
@@ -687,6 +744,31 @@ useHead(() => {
           color: var(--color-text-1);
           white-space: pre-wrap;
           overflow-wrap: anywhere;
+
+          .comment-reply-tag {
+            color: var(--color-primary);
+          }
+        }
+      }
+
+      .comment-actions {
+        flex-shrink: 0;
+        align-self: flex-start;
+        display: flex;
+        gap: 10px;
+
+        .comment-reply-btn {
+          padding: 0;
+          border: 0;
+          background-color: transparent;
+          font-size: 12px;
+          color: var(--color-text-3);
+          cursor: pointer;
+          transition: color 0.2s ease;
+
+          &:hover {
+            color: var(--color-primary);
+          }
         }
       }
 

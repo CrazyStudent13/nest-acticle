@@ -13,10 +13,14 @@ export const useComment = () => {
     return res.data ?? { list: [], total: 0 }
   }
 
-  const addComment = async (articleId: number | string, content: string): Promise<CommentItem | null> => {
+  const addComment = async (
+    articleId: number | string,
+    content: string,
+    parentId?: number
+  ): Promise<CommentItem | null> => {
     const res = await apiFetch<CommentItem>('/api/post/comment', {
       method: 'POST',
-      body: { articleId, content }
+      body: { articleId, content, ...(parentId ? { parentId } : {}) }
     })
     return res.data ?? null
   }
