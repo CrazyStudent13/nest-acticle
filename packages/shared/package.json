@@ -16,6 +16,9 @@
         "types": "./dist/index.d.ts",
         "default": "./dist/index.js"
       }
+    },
+    "./openapi": {
+      "types": "./src/generated/openapi.d.ts"
     }
   },
   "files": [
@@ -23,9 +26,11 @@
   ],
   "scripts": {
     "build": "tsup",
-    "dev": "tsup --watch"
+    "dev": "tsup --watch",
+    "gen:api": "openapi-typescript ../../apps/server/openApi.json -o src/generated/openapi.d.ts"
   },
   "devDependencies": {
+    "openapi-typescript": "^7.5.0",
     "tsup": "^8.0.0"
   }
 }
