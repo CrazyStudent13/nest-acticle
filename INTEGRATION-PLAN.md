@@ -189,3 +189,28 @@ down → 删 mysql_data/redis_data(保留 server_upload)→ up(init.sql 自动�
 ### 本轮提交
 
 71269f9 feat(user 签名)→ 3881534 chore(data_scope/prod 邮箱)→ f16e487 feat(like server)→ bd76376 feat(like init.sql)→ f437072 feat(admin 点赞页)→ 0050152 feat(client 点赞)→ fae6b37 feat(openapi 管线)→ 7346739 fix(DI)→ 89b251a fix(raw 键)→ 1787991 chore(openapi 重生成)→ 49add19 feat(like my/list)→ 714f440 feat(client 点赞栏)
+
+## 十三、v2.6 实施记录(2026-11-20:点赞公开化 + 评论模块——阶段四收官)
+
+### 点赞公开化(用户拍板,同掘金「赞」栏)
+
+1. server 新增 `GET /post/like/guest/list?userId=`(@NotRequireAuth),与 `/my/list` 共用 `findUserList(userId, query)`;client `useLike.fetchUserLikedArticles(userId, params)`,空间页点赞栏对访客开放——他人空间现在展示 文章/专栏/点赞 三个 tab,空态文案区分 自己/TA。
+2. 排序语义维持「点赞时间」;行结构 `LikedArticleItem`(文章公开字段+likeTime)不变;无 token 访客实测可用。
+
+### 评论模块(阶段四最后一项)
+
+3. **表结构 v1 为平铺一层评论**(无楼中楼):`post_comment`(article_id/user_id/content varchar 500/create_time,idx article+user),删除物理删,comment_num 冗余在文章表维护——与点赞同构(明细行+冗余计数+事务回写),讨论结论:个人规模不需要聚合表,热点场景才考虑 Redis 缓冲。
+4. **server**(`module/post/comment`):`POST /post/comment`(登录,仅已发布文章,事务插记录+increment)、`GET /post/comment/guest/list`(公开,联评论人昵称/头像,最新在前)、`DELETE /post/comment/:id`(**仅本人**,他人 403)、`GET /post/comment/list`(管理端 post:comment:list,联标题/昵称+content LIKE+时间范围)、`DELETE /post/comment/batch/:ids`(post:comment:remove,聚合回减下限 0);批量路由先于 `/:id` 声明。
+5. **shared**:`CommentItem`/`CommentUserInfo`/`CommentPayload`(types/comment.ts)。
+6. **init.sql**:post_comment 表(表 22)+ 交互管理下 **206 评论管理**(C)/ **207 评论删除**(F),授权默认仅管理员。
+7. **admin**:`views/post/comment/index.vue`(文章标题/评论人/内容模糊+时间范围,批量删除)+ api。
+8. **client**:详情页正文下方评论区(发表框字数 500 上限、评论人头像/昵称/时间、删除自己的评论带确认、加载更多分页),工具栏评论按钮 emit 滚动定位;新增 `useComment`。
+9. **openapi 管线刷新**:pnpm gen:api 重新生成,纳入评论端点与点赞 guest 列表。
+
+### E2E 冒烟(全栈重建卷,29/29 全绿)
+
+新增评论链路 9 断言:发表×2 → guest 列表含评论与评论人昵称 → comment_num=2 → 删除自己的评论 → **非本人删除被拒 403**(管理员直调用户删除接口也拦)→ 管理列表 content 过滤 → 管理批量删除 → comment_num 回减 0。点赞 guest 公开列表无 token 实测可用。
+
+### 本轮提交
+
+d0451e7 feat(like 公开化)→ 4cebb9c feat(comment server)→ 6d208b4 feat(comment init.sql)→ 9fbc1e6 feat(admin 评论页)→ b0f9990 feat(client 评论区)→ 7eaf20e chore(openapi 重生成)
