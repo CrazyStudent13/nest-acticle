@@ -1,4 +1,4 @@
-<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知）+ 右侧列表；系统通知接 /api/system/notice/list（Markdown 内容超 3 行收起、就地展开，分页），其余分类后端未建占位空态；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
+<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知）+ 右侧列表；系统通知接 /api/system/notice/list（Markdown 内容超 3 行收起、就地展开，分页）；评论栏接 /api/post/comment/my/list（我发表的评论与回复，类型徽标区分，支持删除）；赞和收藏/新增粉丝后端未建占位空态；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
 <template>
   <div class="notification-page">
     <div class="notice-panel">
@@ -57,6 +57,53 @@
           <CommonEmptyState v-else>暂无系统通知</CommonEmptyState>
         </template>
 
+        <!-- 评论：我发表的评论与回复（服务端按当前登录人过滤） -->
+        <template v-else-if="activeTab === 'comment'">
+          <template v-if="myComments.length">
+            <article v-for="row in myComments" :key="row.id" class="notice-item">
+              <div class="notice-head">
+                <!-- 徽标复用系统通知的配色：蓝=对文章的评论,橙=对他人评论的回复 -->
+                <span class="notice-badge" :class="row.parentId ? 'is-announce' : 'is-info'">
+                  {{ row.parentId ? '回复' : '评论' }}
+                </span>
+                <NuxtLink
+                  class="comment-article"
+                  :class="{ 'is-deleted': !row.articleTitle }"
+                  :to="{ path: '/article/detail', query: { id: String(row.articleId) } }"
+                  target="_blank"
+                >
+                  {{ row.articleTitle || '文章已删除' }}
+                </NuxtLink>
+                <time class="notice-time">{{ formatTime(row.createTime) }}</time>
+                <button class="comment-del" type="button" :disabled="deletingId === row.id" @click="removeMyComment(row)">
+                  {{ deletingId === row.id ? '删除中…' : '删除' }}
+                </button>
+              </div>
+              <p class="comment-content" :class="{ collapsed: !commentExpandedMap[row.id] }" :data-cid="row.id">
+                <span v-if="row.parentId" class="reply-mark">
+                  回复
+                  <!-- 被回复人昵称可跳其个人空间（与文章详情评论区一致） -->
+                  <NuxtLink v-if="row.replyUserId" class="reply-user" :to="{ path: '/user/space', query: { id: String(row.replyUserId) } }">
+                    @{{ row.replyNickName || '未知用户' }}：
+                  </NuxtLink>
+                  <template v-else>@{{ row.replyNickName || '未知用户' }}：</template>
+                </span>{{ row.content }}
+              </p>
+              <!-- 超长内容默认单行省略,溢出才出展开按钮 -->
+              <button v-if="commentOverflowMap[row.id]" class="notice-toggle" type="button" @click="toggleCommentExpand(row.id)">
+                {{ commentExpandedMap[row.id] ? '收起' : '展开' }}
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ flip: commentExpandedMap[row.id] }" aria-hidden="true">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+            </article>
+            <CommonPagination v-model:page="commentPage" :total="commentTotal" :page-size="PAGE_SIZE" />
+          </template>
+          <CommonEmptyState v-else-if="commentLoading" text="加载中…" />
+          <CommonEmptyState v-else-if="commentError">{{ commentError }}</CommonEmptyState>
+          <CommonEmptyState v-else>暂无评论或回复，去文章页说两句吧</CommonEmptyState>
+        </template>
+
         <!-- 其余分类：互动功能未建，占位空态 -->
         <CommonEmptyState v-else>{{ activeCat.label }}功能即将上线，敬请期待</CommonEmptyState>
       </section>
@@ -66,6 +113,7 @@
 
 <script setup lang="ts">
 import dayjs from 'dayjs'
+import type { MyCommentItem } from '@nest-acticle/shared'
 
 interface NoticeItem {
   noticeId: number
@@ -156,6 +204,81 @@ const loadNotices = async () => {
   measureOverflow()
 }
 
+// ---------- 我的评论列表（评论 tab）：分页拉取当前登录人的评论与回复，删除后重拉保证计数准确 ----------
+const { deleteComment } = useComment()
+
+const myComments = ref<MyCommentItem[]>([])
+const commentPage = ref(1)
+const commentTotal = ref(0)
+const commentLoading = ref(false)
+const commentError = ref('')
+const deletingId = ref<number | null>(null)
+
+const loadMyComments = async () => {
+  commentLoading.value = true
+  commentError.value = ''
+  try {
+    const res = await apiFetch<{ list?: MyCommentItem[]; total?: number }>('/api/post/comment/my/list', {
+      query: { pageNum: commentPage.value, pageSize: PAGE_SIZE }
+    })
+    myComments.value = res.data?.list || []
+    commentTotal.value = res.data?.total || 0
+  } catch (error: any) {
+    myComments.value = []
+    commentTotal.value = 0
+    commentError.value = error?.message || '评论加载失败'
+  } finally {
+    commentLoading.value = false
+  }
+  await nextTick()
+  measureCommentOverflow()
+}
+
+// ---------- 内容展开/收起：默认单行省略,渲染后量 scrollWidth 决定是否出「展开」按钮 ----------
+const commentExpandedMap = ref<Record<number, boolean>>({})
+const commentOverflowMap = ref<Record<number, boolean>>({})
+
+const measureCommentOverflow = () => {
+  const map: Record<number, boolean> = {}
+  document.querySelectorAll<HTMLElement>('.comment-content[data-cid]').forEach((el) => {
+    const cid = Number(el.dataset.cid)
+    if (Number.isFinite(cid)) {
+      map[cid] = el.scrollWidth > el.clientWidth + 1
+    }
+  })
+  commentOverflowMap.value = map
+}
+
+const toggleCommentExpand = (id: number) => {
+  commentExpandedMap.value = { ...commentExpandedMap.value, [id]: !commentExpandedMap.value[id] }
+}
+
+const removeMyComment = async (row: MyCommentItem) => {
+  if (deletingId.value) {
+    return
+  }
+  const confirmed = await confirmAction({
+    title: '删除评论',
+    message: '确定删除这条评论吗？其下的回复也会一并删除。',
+    confirmText: '删除',
+    danger: true
+  })
+  if (!confirmed) {
+    return
+  }
+  deletingId.value = row.id
+  try {
+    await deleteComment(row.id)
+    showToast('评论已删除', 'success')
+    // 服务端会级联删除其全部后代,行数与总数以重拉结果为准
+    loadMyComments()
+  } catch (error: any) {
+    showToast(error?.message || '删除失败，请稍后再试', 'error')
+  } finally {
+    deletingId.value = null
+  }
+}
+
 watch(
   activeTab,
   (tab) => {
@@ -163,11 +286,16 @@ watch(
       page.value = 1
       loadNotices()
     }
+    if (tab === 'comment') {
+      commentPage.value = 1
+      loadMyComments()
+    }
   },
   { immediate: true }
 )
 
 watch(page, loadNotices)
+watch(commentPage, loadMyComments)
 
 // ---------- 内容展开/收起：Markdown 长文默认收起（72px），渲染后量 scrollHeight 决定是否出「展开」按钮 ----------
 const expandedMap = ref<Record<number, boolean>>({})
@@ -190,7 +318,7 @@ const toggleExpand = (noticeId: number) => {
   expandedMap.value = { ...expandedMap.value, [noticeId]: !expandedMap.value[noticeId] }
 }
 
-const formatTime = (value?: string) => {
+const formatTime = (value?: string | null) => {
   if (!value) {
     return ''
   }
@@ -331,6 +459,89 @@ onMounted(() => {
     flex-shrink: 0;
     font-size: 12px;
     color: var(--color-text-3);
+  }
+}
+
+// 评论栏：文章标题链接（复用通知标题的排版），文章已删时降级灰字且不可点
+.comment-article {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--color-text-1);
+  transition: color 0.2s ease;
+
+  // 链接悬浮统一：主题色 + 下划线（与文章详情评论区一致）
+  &:hover {
+    color: var(--color-primary);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+  }
+
+  &.is-deleted {
+    color: var(--color-text-3);
+    font-weight: 400;
+    cursor: default;
+
+    &:hover {
+      color: var(--color-text-3);
+      text-decoration: none;
+    }
+  }
+}
+
+.comment-del {
+  flex-shrink: 0;
+  padding: 0;
+  border: 0;
+  background-color: transparent;
+  font-size: 12px;
+  color: var(--color-text-3);
+  cursor: pointer;
+  transition: color 0.2s ease;
+
+  &:hover:not(:disabled) {
+    color: #d1242f;
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// 评论内容：普通文本即可（评论本身不支持 Markdown），回复行带内联标记
+.comment-content {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 22px;
+  color: var(--color-text-1);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+
+  // 收起态：单行省略（掘金消息中心口径），展开后还原多行
+  &.collapsed {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .reply-mark {
+    color: var(--color-primary);
+
+    .reply-user {
+      color: inherit;
+      transition: color 0.2s ease;
+
+      // 链接悬浮统一：下划线（偏移 2px）
+      &:hover {
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
+    }
   }
 }
 
