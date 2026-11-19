@@ -1,4 +1,4 @@
-<!-- 文章详情页左侧悬浮工具栏：点赞接真实接口（由父组件处理登录态与请求），评论/收藏/举报为占位，分享=复制链接，回顶部按滚动距离显现 -->
+<!-- 文章详情页左侧悬浮工具栏：点赞/评论接真实交互（由父组件处理登录态与请求），收藏/举报为占位，分享=复制链接，回顶部按滚动距离显现 -->
 <template>
   <div class="action-bar">
     <!-- 点赞：已点赞高亮，点击由父组件切换 -->
@@ -9,8 +9,8 @@
       <span v-if="likeNum > 0" class="action-badge">{{ likeNum }}</span>
     </button>
 
-    <!-- 评论：占位 -->
-    <button class="action-btn" type="button" title="评论" @click="showTip('评论功能即将上线')">
+    <!-- 评论：点击滚动到评论区（由父组件定位） -->
+    <button class="action-btn" type="button" title="评论" @click="emit('comment')">
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
       </svg>
@@ -71,6 +71,7 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'like'): void
+  (e: 'comment'): void
 }>()
 
 // 占位功能的轻提示，2 秒自动消失
