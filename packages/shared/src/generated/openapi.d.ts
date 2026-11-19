@@ -1940,6 +1940,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/post/like/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 点赞-管理列表 */
+        get: operations["PostLikeController_findAdminList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/like/batch/{ids}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 点赞-批量删除 */
+        delete: operations["PostLikeController_removeByIds"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/like/{articleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 点赞-点赞 */
+        post: operations["PostLikeController_like"];
+        /** 点赞-取消 */
+        delete: operations["PostLikeController_unlike"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/like/status/{articleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 点赞-状态 */
+        get: operations["PostLikeController_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -5184,6 +5253,112 @@ export interface operations {
             header?: never;
             path: {
                 ids: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostLikeController_findAdminList: {
+        parameters: {
+            query?: {
+                /** @description 当前分页 */
+                pageNum?: number;
+                /** @description 每页数量 */
+                pageSize?: number;
+                /** @description 排序字段 */
+                orderByColumn?: string;
+                /** @description 排序规则 */
+                isAsc?: string;
+                /** @description 文章标题（模糊搜索，联 post_article） */
+                title?: string;
+                /** @description 点赞人昵称（模糊搜索，联 sys_user） */
+                nickName?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostLikeController_removeByIds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ids: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostLikeController_like: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                articleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostLikeController_unlike: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                articleId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostLikeController_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                articleId: string;
             };
             cookie?: never;
         };
