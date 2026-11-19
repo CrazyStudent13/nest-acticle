@@ -2,11 +2,11 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
-import { PublishStatusEnum } from '@nest-acticle/shared';
+import { PublishStatusEnum, SortRuleEnum } from '@nest-acticle/shared';
 import { PostLikeEntity } from './entities/like.entity';
 import { PostArticleEntity } from '../article/entities/article.entity';
 import { UserEntity } from 'src/module/system/user/entities/sys-user.entity';
-import { ListLikeDto } from './dto/index';
+import { ListLikeDto, ListMyLikeDto } from './dto/index';
 
 /**
  * 点赞服务
@@ -80,6 +80,65 @@ export class PostLikeService {
       select: ['id'],
     });
     return ResultData.ok({ liked: !!liked });
+  }
+
+  /**
+   * 我的点赞文章列表（个人空间点赞栏，按登录态返回本人点赞过的已发布文章）
+   * 排序按点赞时间；行形状对齐 shared 的 LikedArticleItem（文章公开字段 + likeTime）
+   */
+  async findMyList(userId: number, query: ListMyLikeDto) {
+    const entity = this.likeRepo.createQueryBuilder('like');
+    entity
+      .leftJoin(PostArticleEntity, 'article', 'article.id = like.articleId')
+      .leftJoin(UserEntity, 'user', 'user.userId = article.userId')
+      .addSelect([
+        'article.id',
+        'article.title',
+        'article.desc',
+        'article.cover',
+        'article.author',
+        'article.userId',
+        'article.readNum',
+        'article.likeNum',
+        'article.commentNum',
+        'article.publishTime',
+        'article.createTime',
+        'user.nickName',
+      ])
+      .where('like.userId = :userId', { userId })
+      .andWhere('article.delFlag = :delFlag', { delFlag: '0' })
+      .andWhere('article.publishStatus = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED });
+
+    if (query.title) {
+      entity.andWhere('article.title LIKE :title', { title: `%${query.title}%` });
+    }
+
+    if (query.pageSize && query.pageNum) {
+      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
+    }
+
+    entity.orderBy('like.createTime', query.isAsc === SortRuleEnum.ASCENDING ? 'ASC' : 'DESC');
+
+    const { raw } = await entity.getRawAndEntities();
+    const total = await entity.getCount();
+
+    // raw 键格式为「别名_数据库列名」；author 空时回退文章作者的昵称
+    const list = raw.map((row: Record<string, any>) => ({
+      id: row.article_id,
+      title: row.article_title,
+      desc: row.article_desc,
+      cover: row.article_cover,
+      author: row.article_author || row.user_nick_name || '',
+      userId: row.article_user_id,
+      readNum: row.article_read_num,
+      likeNum: row.article_like_num,
+      commentNum: row.article_comment_num,
+      publishTime: row.article_publish_time,
+      createTime: row.article_create_time,
+      likeTime: row.like_create_time,
+    }));
+
+    return ResultData.ok({ list, total });
   }
 
   /**
