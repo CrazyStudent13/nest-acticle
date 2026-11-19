@@ -294,6 +294,8 @@ export class DictService {
     const entity = this.sysDictTypeEntityRep.createQueryBuilder('entity');
     entity.where('entity.delFlag = :delFlag', { delFlag: '0' });
     entity.leftJoinAndMapMany('entity.dictTypeList', SysDictDataEntity, 'dictType', 'dictType.dictType = entity.dictType AND dictType.delFlag = :dataDelFlag', { dataDelFlag: '0' });
+    // 字典项按 dict_sort 升序映射，否则缓存里是 MySQL 返回的乱序，下拉框顺序随机
+    entity.orderBy('dictType.dictSort', 'ASC');
     const list = await entity.getMany();
 
     const result: Record<string, any[]> = {};

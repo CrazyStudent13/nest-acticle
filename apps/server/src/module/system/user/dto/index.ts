@@ -1,4 +1,4 @@
-import { IsString, IsJSON, IsEnum, IsPhoneNumber, IsArray, Min, Length, IsOptional, IsBoolean, IsNumber, IsNumberString, IsEmail, MinLength, MaxLength } from 'class-validator';
+import { IsString, IsJSON, IsEnum, IsPhoneNumber, IsArray, Min, Length, IsOptional, IsBoolean, IsNumber, IsNumberString, IsEmail, MinLength, MaxLength, IsIn } from 'class-validator';
 import { ApiProperty, PartialType } from '@nestjs/swagger';
 import { PagingDto } from 'src/common/dto/index';
 import { IsPasswordComplexEnough } from 'src/common/utils/password';
@@ -171,7 +171,8 @@ export class UpdateProfileDto {
   @ApiProperty({ required: true })
   @IsOptional()
   @IsString()
-  @IsEnum(StatusEnum)
+  // 取值对齐数据字典 sys_user_sex（0男 1女 2未知），未知=2 此前被 StatusEnum(0/1) 拦掉
+  @IsIn(['0', '1', '2'], { message: '性别取值不正确' })
   sex: string;
 
   @ApiProperty({ required: false })
