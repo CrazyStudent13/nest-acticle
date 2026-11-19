@@ -49,8 +49,11 @@
                 </select>
               </label>
               <label class="form-row">
-                <span class="form-label">个性签名</span>
-                <input v-model="editForm.signature" class="form-input" type="text" maxlength="50" placeholder="介绍一下自己，最多 50 字" />
+                <span class="form-label">签名</span>
+                <div class="sig-wrap">
+                  <input v-model="editForm.signature" class="form-input" type="text" maxlength="50" placeholder="介绍一下自己" />
+                  <span class="sig-count" :class="{ 'sig-count--max': editForm.signature.length >= 50 }">{{ editForm.signature.length }}/50</span>
+                </div>
               </label>
               <p v-if="profileTip" class="form-tip" :class="{ 'tip-error': profileTipIsError }">{{ profileTip }}</p>
               <div class="form-actions">
@@ -553,6 +556,33 @@ void registerTime
     &:focus {
       border-color: var(--color-primary);
       background-color: var(--color-surface);
+    }
+  }
+
+  // 个性签名输入：实时字数计数叠在输入框右侧
+  .sig-wrap {
+    position: relative;
+    flex: 1;
+    max-width: 320px;
+
+    .form-input {
+      width: 100%;
+      max-width: none;
+      padding-right: 44px;
+    }
+
+    .sig-count {
+      position: absolute;
+      right: 10px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 12px;
+      color: var(--color-text-3);
+      pointer-events: none;
+
+      &.sig-count--max {
+        color: #d1242f;
+      }
     }
   }
 

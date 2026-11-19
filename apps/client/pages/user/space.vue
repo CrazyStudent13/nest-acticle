@@ -22,9 +22,9 @@
           </div>
           <!-- 仅自己可见的账号信息；性别并入昵称行，昵称与名称重复不再展示；自己的文章数据未来走专门的个人数据入口 -->
           <dl v-if="isSelf" class="profile-fields">
-            <div class="field-row"><dt>账号</dt><dd>{{ user?.userName }}</dd></div>
+            <div class="field-row"><dt>昵称</dt><dd>{{ user?.userName }}</dd></div>
             <div class="field-row"><dt>注册时间</dt><dd>{{ registerTime }}</dd></div>
-            <div class="field-row"><dt>个性签名</dt><dd>{{ signature }}</dd></div>
+            <div class="field-row field-row--full"><dt>签名</dt><dd>{{ signature }}</dd></div>
           </dl>
         </div>
 
@@ -121,8 +121,8 @@ const route = useRoute()
 const { user, fetchUserInfo } = useUser()
 const { openLogin } = useAuthModal()
 
-// 个性签名：取用户资料，未设置时给占位文案
-const signature = computed(() => user.value?.signature?.trim() || '暂未设置个性签名')
+// 签名：取用户资料，未设置时给占位文案
+const signature = computed(() => user.value?.signature?.trim() || '暂未设置签名')
 
 // ---------- 空间归属：带 ?id= 看他人空间（guest 公开数据），否则是自己的 ----------
 const targetUserId = computed(() => {
@@ -399,6 +399,17 @@ const goColumn = (item: any) => {
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+        }
+
+        // 个性签名整行展示：跨满两列并允许换行，长签名不被半宽单行截断
+        &.field-row--full {
+          grid-column: 1 / -1;
+
+          dd {
+            white-space: normal;
+            overflow-wrap: anywhere;
+            text-overflow: clip;
+          }
         }
       }
     }
