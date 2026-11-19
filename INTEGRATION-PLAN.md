@@ -213,4 +213,16 @@ down → 删 mysql_data/redis_data(保留 server_upload)→ up(init.sql 自动�
 
 ### 本轮提交
 
-d0451e7 feat(like 公开化)→ 4cebb9c feat(comment server)→ 6d208b4 feat(comment init.sql)→ 9fbc1e6 feat(admin 评论页)→ b0f9990 feat(client 评论区)→ 7eaf20e chore(openapi 重生成)
+d0451e7 feat(like 公开化)→ 4cebb9c feat(comment server)→ 6d208b4 feat(comment init.sql)→ 9fbc1e6 feat(admin 评论页)→ b0f9990 feat(client 评论区)→ 7eaf20e chore(openapi 重生成)→ 49add19/714f440(点赞栏 my/list)→ 4b52b4e feat(回复)→ ea9f357 feat(init.sql 回复列)→ 5b0e635 feat(admin 回复标记)→ ed02c75 feat(client 回复交互)→ e2b05f2 fix(replyUser raw 键)→ 1fb7052 chore(openapi 重生成)
+
+### 排查记录：评论管理页白屏(非代码 bug)
+
+用户实测评论管理页白屏。取证:运行中的 admin 镜像构建于 01:13,而评论页代码 01:52 提交——**旧镜像 bundle 里没有 post/comment 组件**,新卷 init.sql 的 206 菜单却已存在,动态路由解析不到组件即白面。根因是 E2E 轮只重建了 server/client 镜像漏了 admin。教训:**新增页面后 docker compose build 必须三镜像全建**(或至少把改动面覆盖全)。修复即重建 admin 镜像,浏览器 Ctrl+F5 强刷。排查时的坑:admin dist 产物目录是 `static/js/`(Vite8+rolldown),按 assets/ 路径 grep 会误报 0;组件 chunk 按 `index.vue` 命名不带目录语义,验bundle 内容要 grep 组件 name 字符串。
+
+### 回复功能(回复他人的回复,掘金式平铺)
+
+- 表结构:post_comment 增 `parent_id`(被回复评论 id,根评论 null)+ `reply_user_id`(被回复人用户 id,冗余展示免二次回表)+ idx_parent_id;**展示层平铺不嵌套**,回复行以「回复 @昵称」前缀呈现(同掘金)。
+- server:创建时校验父评论存在且同文章(replyUserId 取父评论作者);guest/管理列表联 replyUser 昵称;**删除级联**——回复可指向回复形成链,删除逐层收集全部后代一并物理删除,comment_num 按文章聚合回减(下限 0);回复可指向回复的回复。
+- client:评论行加「回复」按钮 → 编辑器切换回复模式(横幅+取消,placeholder 提示目标);行内「回复 @昵称」标记;回复目标被删(含级联)自动退出回复模式。
+- E2E:回复链三层(根→回复→回复的回复)→ 列表带被回复人昵称 → comment_num=3 → 删根级联清空 → 计数归零,合计 **32/32 全绿**。
+- 新坑补一条:getRawAndEntities 的 raw 键别名**保留原大小写**——驼峰别名 `replyUser` 的键是 `replyUser_nick_name`,全小写别名看不出该规则。
