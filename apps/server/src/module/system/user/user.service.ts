@@ -583,14 +583,17 @@ export class UserService {
    * @returns
    */
   async updateProfile(user: UserType, updateProfileDto: UpdateProfileDto) {
-    // 只允许更新允许的字段
-    const allowedFields = {
-      nickName: updateProfileDto.nickName,
-      email: updateProfileDto.email,
-      phonenumber: updateProfileDto.phonenumber,
-      sex: updateProfileDto.sex,
-      avatar: updateProfileDto.avatar,
-    };
+    // 只允许更新允许的字段；未提交（undefined）的字段不参与更新——否则刷 Redis 会话时会把没传的旧值（如 avatar）洗掉
+    const allowedFields = Object.fromEntries(
+      Object.entries({
+        nickName: updateProfileDto.nickName,
+        email: updateProfileDto.email,
+        phonenumber: updateProfileDto.phonenumber,
+        sex: updateProfileDto.sex,
+        avatar: updateProfileDto.avatar,
+        signature: updateProfileDto.signature,
+      }).filter(([, value]) => value !== undefined),
+    );
 
     await this.userRepo.update({ userId: user.user.userId }, allowedFields);
 

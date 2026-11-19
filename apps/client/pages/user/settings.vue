@@ -48,6 +48,10 @@
                   <option value="1">女</option>
                 </select>
               </label>
+              <label class="form-row">
+                <span class="form-label">个性签名</span>
+                <input v-model="editForm.signature" class="form-input" type="text" maxlength="50" placeholder="介绍一下自己，最多 50 字" />
+              </label>
               <p v-if="profileTip" class="form-tip" :class="{ 'tip-error': profileTipIsError }">{{ profileTip }}</p>
               <div class="form-actions">
                 <button class="btn primary" type="submit" :disabled="saving">{{ saving ? '保存中…' : '保存' }}</button>
@@ -195,7 +199,7 @@ const editingReady = ref(false)
 const saving = ref(false)
 const profileTip = ref('')
 const profileTipIsError = ref(false)
-const editForm = reactive({ nickName: '', email: '', sex: '' })
+const editForm = reactive({ nickName: '', email: '', sex: '', signature: '' })
 const fileInput = ref<HTMLInputElement | null>(null)
 const avatarUploading = ref(false)
 
@@ -215,6 +219,7 @@ watch(
     editForm.nickName = val.nickName || ''
     editForm.email = val.email || (EMAIL_RE.test(val.userName || '') ? val.userName : '')
     editForm.sex = val.sex || ''
+    editForm.signature = val.signature || ''
     editingReady.value = true
   },
   { immediate: true, deep: true }
@@ -234,7 +239,7 @@ const handleSaveProfile = async () => {
   }
   saving.value = true
   try {
-    await updateProfile({ nickName, email, sex: editForm.sex || undefined })
+    await updateProfile({ nickName, email, sex: editForm.sex || undefined, signature: editForm.signature.trim() })
     setProfileTip('资料已更新')
   } catch (error: any) {
     setProfileTip(error?.message || '保存失败，请稍后重试', true)

@@ -7,6 +7,7 @@ export interface AuthUser {
   avatar: string
   sex?: string
   createTime?: string
+  signature?: string
 }
 
 export interface CaptchaInfo {
@@ -76,7 +77,8 @@ export const useUser = () => {
             email: raw.email,
             avatar: raw.avatar,
             sex: raw.sex,
-            createTime: raw.createTime
+            createTime: raw.createTime,
+            signature: raw.signature
           }
         : null
     } catch (error) {
@@ -111,8 +113,8 @@ export const useUser = () => {
     user.value = null
   }
 
-  // 修改个人资料：昵称/邮箱/性别，成功后同步本地 state（头部昵称即时更新）
-  const updateProfile = async (payload: { nickName?: string; email?: string; sex?: string }) => {
+  // 修改个人资料：昵称/邮箱/性别/个性签名，成功后同步本地 state（头部昵称即时更新）
+  const updateProfile = async (payload: { nickName?: string; email?: string; sex?: string; signature?: string }) => {
     await apiFetch('/api/system/user/profile', { method: 'PUT', body: payload })
     if (user.value) {
       user.value = { ...user.value, ...payload }
@@ -134,7 +136,7 @@ export const useUser = () => {
     return imgUrl
   }
 
-  // 修改密码：旧密码 + 新密码（注意：后端旧密码校验存在参数顺序 bug，实际恒通过）
+  // 修改密码：旧密码 + 新密码（旧密码由后端 bcrypt 比对校验，参数顺序已修正）
   const updatePassword = async (payload: { oldPassword: string; newPassword: string }) => {
     await apiFetch('/api/system/user/profile/updatePwd', { method: 'PUT', body: payload })
   }

@@ -121,7 +121,8 @@ const route = useRoute()
 const { user, fetchUserInfo } = useUser()
 const { openLogin } = useAuthModal()
 
-const signature = '我们暂时还没有开放签名系统，敬请期待！'
+// 个性签名：取用户资料，未设置时给占位文案
+const signature = computed(() => user.value?.signature?.trim() || '暂未设置个性签名')
 
 // ---------- 空间归属：带 ?id= 看他人空间（guest 公开数据），否则是自己的 ----------
 const targetUserId = computed(() => {
