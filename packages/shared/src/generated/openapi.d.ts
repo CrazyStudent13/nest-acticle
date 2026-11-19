@@ -2662,6 +2662,8 @@ export interface components {
             articleId: number;
             /** @description 评论内容（1-500 字） */
             content: string;
+            /** @description 被回复的评论 id（回复时传） */
+            parentId?: number;
         };
     };
     responses: never;
