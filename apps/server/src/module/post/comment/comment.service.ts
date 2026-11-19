@@ -6,7 +6,7 @@ import { PublishStatusEnum } from '@nest-acticle/shared';
 import { PostCommentEntity } from './entities/comment.entity';
 import { PostArticleEntity } from '../article/entities/article.entity';
 import { UserEntity } from 'src/module/system/user/entities/sys-user.entity';
-import { CreateCommentDto, ListCommentDto, ListCommentGuestDto } from './dto/index';
+import { CreateCommentDto, ListCommentDto, ListCommentGuestDto, ListMyCommentDto } from './dto/index';
 
 /**
  * 评论服务
@@ -165,6 +165,46 @@ export class PostCommentService {
       createTime: row.comment_create_time,
       parentId: row.comment_parent_id,
       replyNickName: row.reply_user_nick_name || null,
+    }));
+
+    return ResultData.ok({ list, total });
+  }
+
+  /**
+   * 我的评论列表（通知中心「评论」栏：当前用户发表的评论与回复，联文章标题与被回复人昵称，最新在前）
+   * 行形状对齐 shared 的 MyCommentItem；文章已删时 articleTitle 为空由前端降级展示
+   */
+  async findMyList(userId: number, query: ListMyCommentDto) {
+    const entity = this.commentRepo.createQueryBuilder('comment');
+    entity
+      .leftJoin(PostArticleEntity, 'article', 'article.id = comment.articleId')
+      .leftJoin(UserEntity, 'replyUser', 'replyUser.userId = comment.replyUserId')
+      .addSelect(['article.title', 'replyUser.nickName'])
+      .where('comment.userId = :userId', { userId });
+
+    if (query.title) {
+      entity.andWhere('article.title LIKE :title', { title: `%${query.title}%` });
+    }
+
+    if (query.pageSize && query.pageNum) {
+      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
+    }
+
+    entity.orderBy('comment.createTime', 'DESC');
+
+    const { raw } = await entity.getRawAndEntities();
+    const total = await entity.getCount();
+
+    // raw 键格式为「别名_数据库列名」，别名保留原大小写（replyUser → replyUser_nick_name）
+    const list = raw.map((row: Record<string, any>) => ({
+      id: row.comment_id,
+      articleId: row.comment_article_id,
+      articleTitle: row.article_title || null,
+      content: row.comment_content,
+      createTime: row.comment_create_time,
+      parentId: row.comment_parent_id,
+      replyUserId: row.comment_reply_user_id,
+      replyNickName: row.replyUser_nick_name || null,
     }));
 
     return ResultData.ok({ list, total });
