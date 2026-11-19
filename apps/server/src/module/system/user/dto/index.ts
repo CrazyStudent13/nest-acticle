@@ -110,6 +110,12 @@ export class ListUserDto extends PagingDto {
   @IsString()
   phonenumber?: string;
 
+  @ApiProperty({ required: false, description: '个性签名（模糊搜索）' })
+  @IsOptional()
+  @IsString()
+  @Length(0, 50)
+  signature?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
