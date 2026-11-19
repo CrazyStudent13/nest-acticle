@@ -1,4 +1,4 @@
-<!-- 评论管理（交互管理/评论管理）：评论记录列表，支持按文章标题/评论人/评论内容模糊搜索与时间范围过滤，删除会同步回减文章评论数 -->
+<!-- 评论管理（交互管理/评论管理）：评论记录列表，按「类型」列区分对文章的评论与对用户评论的回复（回复行附回复对象），支持按文章标题/评论人/评论内容模糊搜索与时间范围过滤，删除会同步回减文章评论数 -->
 <template>
   <div class="app-container">
     <div class="main-card">
@@ -20,18 +20,29 @@
       </el-row>
       <el-table v-loading="loading" :data="list">
         <el-table-column type="selection" width="55" />
-        <el-table-column label="文章标题" min-width="200" prop="articleTitle" show-overflow-tooltip>
+        <el-table-column label="文章标题" min-width="180" prop="articleTitle" show-overflow-tooltip>
           <template #default="{ row }">
             <span v-if="row.articleTitle">{{ row.articleTitle }}</span>
             <el-tag v-else size="small" type="info">文章已删除</el-tag>
           </template>
         </el-table-column>
-        <el-table-column label="评论人" prop="nickName" show-overflow-tooltip width="140" />
-        <el-table-column label="评论内容" min-width="260" show-overflow-tooltip>
+        <el-table-column label="类型" width="80">
           <template #default="{ row }">
-            <span v-if="row.replyNickName" class="reply-tag">回复 @{{ row.replyNickName }}：</span>
-            <span>{{ row.content }}</span>
+            <!-- parentId 为空即对文章的根评论,否则是对已有评论的回复 -->
+            <el-tag v-if="row.parentId" size="small" type="warning">回复</el-tag>
+            <el-tag v-else size="small" type="primary">评论</el-tag>
           </template>
+        </el-table-column>
+        <el-table-column label="评论人" prop="nickName" show-overflow-tooltip width="130" />
+        <el-table-column label="回复对象" width="140" show-overflow-tooltip>
+          <template #default="{ row }">
+            <!-- 被回复人昵称由服务端联查;账号被删时降级提示 -->
+            <span v-if="row.parentId" class="reply-tag">@{{ row.replyNickName || '未知用户' }}</span>
+            <span v-else class="no-target">—</span>
+          </template>
+        </el-table-column>
+        <el-table-column label="评论内容" min-width="220" show-overflow-tooltip>
+          <template #default="{ row }">{{ row.content }}</template>
         </el-table-column>
         <el-table-column label="评论时间" prop="createTime" width="180">
           <template #default="{ row }">{{ row.createTime ? dayjs(row.createTime).format('YYYY-MM-DD HH:mm:ss') : '' }}</template>
@@ -95,5 +106,8 @@ getList();
 <style scoped>
 .reply-tag {
   color: var(--el-color-primary);
+}
+.no-target {
+  color: var(--el-text-color-placeholder);
 }
 </style>
