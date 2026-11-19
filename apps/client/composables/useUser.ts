@@ -15,6 +15,19 @@ export interface CaptchaInfo {
   uuid: string
 }
 
+export interface RegisterConfig {
+  emailRegisterEnabled: boolean
+}
+
+export interface RegisterPayload {
+  username: string
+  password: string
+  email?: string
+  emailCode?: string
+  code?: string
+  uuid?: string
+}
+
 export const useUser = () => {
   const user = useState<AuthUser | null>('auth-user', () => null)
   const isLoggedIn = computed(() => !!user.value)
@@ -28,9 +41,25 @@ export const useUser = () => {
     return res
   }
 
-  // 注册：成功后无 data，由调用方引导用户登录；后端 nickName 默认取账号本身
-  const register = async (payload: { username: string; password: string }) => {
+  // 注册：后端开启邮箱验证码时须带 email + emailCode，否则须带图片验证码 code + uuid
+  // 成功后无 data，由调用方引导用户登录；后端 nickName 默认取账号本身
+  const register = async (payload: RegisterPayload) => {
     return await apiFetch('/api/register', { method: 'POST', body: payload })
+  }
+
+  // 注册页配置：决定注册用邮箱验证码还是图片验证码
+  const fetchRegisterConfig = async (): Promise<RegisterConfig> => {
+    try {
+      const res = await apiFetch<RegisterConfig>('/api/register/config')
+      return res.data ?? { emailRegisterEnabled: false }
+    } catch {
+      return { emailRegisterEnabled: false }
+    }
+  }
+
+  // 发送注册邮箱验证码（后端有 60 秒冷却与每小时上限）
+  const sendRegisterEmailCode = async (email: string) => {
+    await apiFetch('/api/register/emailCode', { method: 'POST', body: { email } })
   }
 
   // 当前登录用户信息（token 失效时清空登录态）
@@ -57,10 +86,13 @@ export const useUser = () => {
     }
   }
 
-  // 验证码：账号连续登录失败达到阈值（3 次）时后端才返回 captchaEnabled: true + 图片
-  const fetchCaptcha = async (username: string): Promise<CaptchaInfo> => {
+  // 验证码：登录场景按账号失败次数动态判断（3 次后返回 captchaEnabled: true）；
+  // 注册场景传 type='register' 无条件生成图片验证码
+  const fetchCaptcha = async (username: string, type?: 'register'): Promise<CaptchaInfo> => {
     try {
-      const res = await apiFetch<CaptchaInfo>('/api/captchaImage', { query: { username } })
+      const res = await apiFetch<CaptchaInfo>('/api/captchaImage', {
+        query: type ? { username, type } : { username }
+      })
       return res.data ?? { captchaEnabled: false, img: '', uuid: '' }
     } catch {
       // 验证码接口异常时按无验证码处理，由登录接口的报错兜底
@@ -112,6 +144,8 @@ export const useUser = () => {
     isLoggedIn,
     login,
     register,
+    fetchRegisterConfig,
+    sendRegisterEmailCode,
     fetchUserInfo,
     fetchCaptcha,
     logout,
