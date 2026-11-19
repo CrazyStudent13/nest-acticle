@@ -27,7 +27,12 @@
           </template>
         </el-table-column>
         <el-table-column label="评论人" prop="nickName" show-overflow-tooltip width="140" />
-        <el-table-column label="评论内容" min-width="260" prop="content" show-overflow-tooltip />
+        <el-table-column label="评论内容" min-width="260" show-overflow-tooltip>
+          <template #default="{ row }">
+            <span v-if="row.replyNickName" class="reply-tag">回复 @{{ row.replyNickName }}：</span>
+            <span>{{ row.content }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="评论时间" prop="createTime" width="180">
           <template #default="{ row }">{{ row.createTime ? dayjs(row.createTime).format('YYYY-MM-DD HH:mm:ss') : '' }}</template>
         </el-table-column>
@@ -87,3 +92,8 @@ const remove = async (row) => {
 };
 getList();
 </script>
+<style scoped>
+.reply-tag {
+  color: var(--el-color-primary);
+}
+</style>
