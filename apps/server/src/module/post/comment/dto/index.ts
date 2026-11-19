@@ -38,6 +38,17 @@ export class ListCommentGuestDto extends PagingDto {
 }
 
 /**
+ * 我的评论列表查询 DTO（通知中心「评论」栏，当前登录用户发表的评论与回复）
+ */
+export class ListMyCommentDto extends PagingDto {
+  @ApiProperty({ required: false, description: '文章标题（模糊搜索，联 post_article）' })
+  @IsOptional()
+  @IsString()
+  @Length(0, 64)
+  title?: string;
+}
+
+/**
  * 评论管理列表查询 DTO（管理端）
  */
 export class ListCommentDto extends PagingDto {

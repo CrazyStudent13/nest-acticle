@@ -1,7 +1,7 @@
 import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PostCommentService } from './comment.service';
-import { CreateCommentDto, ListCommentDto, ListCommentGuestDto } from './dto/index';
+import { CreateCommentDto, ListCommentDto, ListCommentGuestDto, ListMyCommentDto } from './dto/index';
 import { RequirePermission } from 'src/common/decorators/require-premission.decorator';
 import { NotRequireAuth, User, UserDto } from 'src/module/system/user/user.decorator';
 
@@ -34,6 +34,15 @@ export class PostCommentController {
   @Get('/list')
   findAdminList(@Query() query: ListCommentDto) {
     return this.commentService.findAdminList(query);
+  }
+
+  /**
+   * 我的评论列表（通知中心「评论」栏，登录用户）
+   */
+  @ApiOperation({ summary: '评论-我的评论列表' })
+  @Get('/my/list')
+  findMyList(@Query() query: ListMyCommentDto, @User() user: UserDto) {
+    return this.commentService.findMyList(user.userId, query);
   }
 
   /**
