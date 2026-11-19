@@ -49,7 +49,9 @@
           </span>
           <div class="comment-main">
             <div class="comment-head">
-              <span class="comment-author">{{ nickName(thread.root) }}</span>
+              <NuxtLink class="comment-author" :to="{ path: '/user/space', query: { id: String(thread.root.userId) } }">
+                {{ nickName(thread.root) }}
+              </NuxtLink>
               <span v-if="isArticleAuthor(thread.root)" class="author-badge">作者</span>
             </div>
             <p class="comment-content">{{ thread.root.content }}</p>
@@ -83,12 +85,20 @@
             </span>
             <div class="comment-main">
               <div class="comment-head">
-                <span class="comment-author">{{ nickName(reply) }}</span>
+                <NuxtLink class="comment-author" :to="{ path: '/user/space', query: { id: String(reply.userId) } }">
+                  {{ nickName(reply) }}
+                </NuxtLink>
                 <span v-if="isArticleAuthor(reply)" class="author-badge">作者</span>
               </div>
               <p class="comment-content">
-                <!-- 掘金口径:直接回复根评论不带 @ 标记,楼中楼（回复的回复）才显示 -->
-                <span v-if="reply.replyNickName && reply.parentId !== thread.root.id" class="reply-tag">回复 @{{ reply.replyNickName }}：</span>{{ reply.content }}
+                <!-- 掘金口径:直接回复根评论不带 @ 标记,楼中楼（回复的回复）才显示;@ 对方昵称可跳其空间 -->
+                <span v-if="reply.replyNickName && reply.parentId !== thread.root.id" class="reply-tag">
+                  回复
+                  <NuxtLink v-if="reply.replyUserId" class="reply-user" :to="{ path: '/user/space', query: { id: String(reply.replyUserId) } }">
+                    @{{ reply.replyNickName }}：
+                  </NuxtLink>
+                  <template v-else>@{{ reply.replyNickName }}：</template>
+                </span>{{ reply.content }}
               </p>
               <div class="comment-meta">
                 <span class="comment-time">{{ formatRelativeTime(reply.createTime) }}</span>
@@ -579,6 +589,14 @@ const removeComment = async (item: CommentItem) => {
             font-size: 14px;
             font-weight: 500;
             color: var(--color-text-1);
+            transition: color 0.2s ease;
+
+            // 链接悬浮统一：主题色 + 下划线（与通知中心评论栏一致）
+            &:hover {
+              color: var(--color-primary);
+              text-decoration: underline;
+              text-underline-offset: 2px;
+            }
           }
 
           // 「作者」徽标:评论人是文章作者时展示（掘金同款）
@@ -603,6 +621,17 @@ const removeComment = async (item: CommentItem) => {
 
           .reply-tag {
             color: var(--color-primary);
+
+            .reply-user {
+              color: inherit;
+              transition: color 0.2s ease;
+
+              // 链接悬浮统一：下划线（偏移 2px）
+              &:hover {
+                text-decoration: underline;
+                text-underline-offset: 2px;
+              }
+            }
           }
         }
 
