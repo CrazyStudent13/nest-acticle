@@ -171,6 +171,7 @@ F:\githubPro\nest-acticle\
 5. **client 点赞接入**:ActionBar 点赞按钮去占位(liked 高亮/emit like),详情页登录态补查状态 + 未登录 openLogin 引导,新增 `composables/useLike.ts`;评论/收藏/举报仍为占位。
 6. **openapi-typescript 管线**:`pnpm gen:api` 从 `apps/server/openApi.json` 生成 `packages/shared/src/generated/openapi.d.ts`(入库,随 server 启动刷新后重新生成),经 `@nest-acticle/shared/openapi` 子路径导出纯类型;生成物当前覆盖全部请求 DTO(实体类因 controller 未声明 @ApiOkResponse 不入 schema,后续按需补)。
 7. **prod.yml**:mail.enabled 改 true(上线默认开;凭据未配置时 isEnabled() 自动降级图片验证码,安全)。
+8. **个人空间点赞栏**(掘金式「赞」栏补全):server 新增 `GET /post/like/my/list`——**按登录态返回本人**点赞过的已发布文章(不接受 userId 参数,隐私在 API 层兜底,不只靠 UI 隐藏 tab),标题模糊搜索 + 点赞时间正/倒序(PagingDto.isAsc 枚举直接复用 shared SortRuleEnum);shared 增 `LikedArticleItem extends Article + likeTime`;client 空间页点赞 tab 去占位,复用文章行卡(ArticleCard)与既有的时间排序/标题搜索控件(文章/点赞两 tab 共用控件,切换 tab 按当前控件状态重载)。E2E 补 2 断言后 **20/20 全绿**。
 
 ### 两个新坑(实证)
 
@@ -187,4 +188,4 @@ down → 删 mysql_data/redis_data(保留 server_upload)→ up(init.sql 自动�
 
 ### 本轮提交
 
-71269f9 feat(user 签名)→ 3881534 chore(data_scope/prod 邮箱)→ f16e487 feat(like server)→ bd76376 feat(like init.sql)→ f437072 feat(admin 点赞页)→ 0050152 feat(client 点赞)→ fae6b37 feat(openapi 管线)→ 7346739 fix(DI)→ 89b251a fix(raw 键)→ 1787991 chore(openapi 重生成)
+71269f9 feat(user 签名)→ 3881534 chore(data_scope/prod 邮箱)→ f16e487 feat(like server)→ bd76376 feat(like init.sql)→ f437072 feat(admin 点赞页)→ 0050152 feat(client 点赞)→ fae6b37 feat(openapi 管线)→ 7346739 fix(DI)→ 89b251a fix(raw 键)→ 1787991 chore(openapi 重生成)→ 49add19 feat(like my/list)→ 714f440 feat(client 点赞栏)
