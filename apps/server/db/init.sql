@@ -4736,8 +4736,11 @@ create table
     article_id int not null comment '文章 id',
     user_id int not null comment '评论用户ID',
     content varchar(500) not null comment '评论内容',
+    parent_id int default null comment '被回复的评论 id（根评论为 null）',
+    reply_user_id int default null comment '被回复评论的作者用户 id',
     create_time datetime default current_timestamp comment '评论时间',
     primary key (id),
     key idx_article_id (article_id),
-    key idx_user_id (user_id)
+    key idx_user_id (user_id),
+    key idx_parent_id (parent_id)
   ) engine = innodb comment = '评论库';
