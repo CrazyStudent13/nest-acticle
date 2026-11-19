@@ -19,46 +19,19 @@
           <!-- novalidate：关闭浏览器原生校验气泡，统一用表单内的自定义提示 -->
           <form class="panel-body" novalidate @submit.prevent="handleSubmit">
             <div class="field-group">
-              <div class="field-wrap">
-                <input
-                  v-model="form.email"
-                  class="field"
-                  :class="[fieldClass('email'), { 'has-code': mode === 'register' && registerConfig.emailRegisterEnabled }]"
-                  type="email"
-                  maxlength="50"
-                  placeholder="请输入邮箱"
-                  @input="stripInvalidEmailChars"
-                  @compositionend="stripInvalidEmailChars"
-                  @keydown="blockSpaceKey"
-                  @blur="onBlur('email')"
-                />
-                <button
-                  v-if="mode === 'register' && registerConfig.emailRegisterEnabled"
-                  class="send-code"
-                  type="button"
-                  :disabled="sendingCode || cooldown > 0"
-                  @click="handleSendEmailCode"
-                >
-                  {{ cooldown > 0 ? `${cooldown}s 后重发` : sendingCode ? '发送中…' : '获取验证码' }}
-                </button>
-              </div>
-              <p v-if="fieldError('email')" class="field-tip">{{ errors.email }}</p>
-            </div>
-
-            <div v-if="mode === 'register' && registerConfig.emailRegisterEnabled" class="field-group">
               <input
-                v-model="form.emailCode"
+                v-model="form.email"
                 class="field"
-                :class="fieldClass('emailCode')"
-                type="text"
-                maxlength="6"
-                placeholder="请输入邮箱验证码"
-                @input="stripNonDigits('emailCode')"
-                @compositionend="stripNonDigits('emailCode')"
+                :class="fieldClass('email')"
+                type="email"
+                maxlength="50"
+                placeholder="请输入邮箱"
+                @input="stripInvalidEmailChars"
+                @compositionend="stripInvalidEmailChars"
                 @keydown="blockSpaceKey"
-                @blur="onBlur('emailCode')"
+                @blur="onBlur('email')"
               />
-              <p v-if="fieldError('emailCode')" class="field-tip">{{ errors.emailCode }}</p>
+              <p v-if="fieldError('email')" class="field-tip">{{ errors.email }}</p>
             </div>
 
             <div class="field-group">
@@ -163,6 +136,34 @@
                 </div>
               </div>
               <p v-if="registerCaptcha.codeTouched && !registerCaptcha.code.trim()" class="field-tip">请输入验证码</p>
+            </div>
+
+            <!-- 邮箱验证码：放最后填（临近注册按钮），5 分钟时效短，先填容易过期 -->
+            <div v-if="mode === 'register' && registerConfig.emailRegisterEnabled" class="field-group">
+              <div class="field-wrap">
+                <input
+                  v-model="form.emailCode"
+                  class="field"
+                  :class="[fieldClass('emailCode'), 'has-code']"
+                  type="text"
+                  maxlength="6"
+                  placeholder="请输入邮箱验证码"
+                  @input="stripNonDigits('emailCode')"
+                  @compositionend="stripNonDigits('emailCode')"
+                  @keydown="blockSpaceKey"
+                  @blur="onBlur('emailCode')"
+                />
+                <!-- 获取验证码内嵌在验证码输入框内：发送前校验邮箱，60 秒冷却 -->
+                <button
+                  class="send-code"
+                  type="button"
+                  :disabled="sendingCode || cooldown > 0"
+                  @click="handleSendEmailCode"
+                >
+                  {{ cooldown > 0 ? `${cooldown}s 后重发` : sendingCode ? '发送中…' : '获取验证码' }}
+                </button>
+              </div>
+              <p v-if="fieldError('emailCode')" class="field-tip">{{ errors.emailCode }}</p>
             </div>
 
             <p v-if="tip" class="tip" :class="{ 'tip-error': tipIsError }">{{ tip }}</p>
@@ -406,6 +407,8 @@ const startCooldown = (seconds: number) => {
 const handleSendEmailCode = async () => {
   touched.email = true
   if (errors.value.email) {
+    // 按钮已挪到验证码框内，邮箱非法时明确告知，不再静默返回
+    showTip(errors.value.email, true)
     return
   }
   sendingCode.value = true
