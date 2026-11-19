@@ -724,6 +724,85 @@ values
 insert into sys_menu values ('202', '文件管理', '5', '3', 'file', 'post/file/index', '', '1', '0', 'C', '0', '0', 'post:file:list', 'upload', 'admin', sysdate(), '', null, '文件管理菜单', '0');
 insert into sys_menu values ('203', '文件删除', '202', '1', '', '', '', '1', '0', 'F', '0', '0', 'post:file:remove', 'form', 'admin', sysdate(), '', null, '文件删除权限', '0');
 
+-- 交互管理目录（与内容管理同级；点赞管理为子菜单，授权默认仅管理员，其余角色经管理端角色管理按需分配）
+insert into
+  sys_menu
+values
+  (
+    '6',
+    '交互管理',
+    '0',
+    '6',
+    'interaction',
+    null,
+    '',
+    1,
+    0,
+    'M',
+    '0',
+    '0',
+    '',
+    'message',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '交互管理目录',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
+    '204',
+    '点赞管理',
+    '6',
+    '1',
+    'like',
+    'post/like/index',
+    '',
+    '1',
+    '0',
+    'C',
+    '0',
+    '0',
+    'post:like:list',
+    'star',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '点赞管理菜单',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
+    '205',
+    '点赞删除',
+    '204',
+    '1',
+    '',
+    '',
+    '',
+    '1',
+    '0',
+    'F',
+    '0',
+    '0',
+    'post:like:remove',
+    'form',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '点赞删除权限',
+    '0'
+  );
+
 insert into
   sys_menu
 values
@@ -4577,3 +4656,19 @@ create table
     key idx_audit_status (audit_status),
     key idx_scheduled_publish_time (scheduled_publish_time)
   ) engine = innodb comment = '专栏库';
+
+-- ----------------------------
+-- 21、点赞库
+-- ----------------------------
+drop table if exists post_like;
+
+create table
+  post_like (
+    id int not null auto_increment comment '点赞 id',
+    article_id int not null comment '文章 id',
+    user_id int not null comment '点赞用户ID',
+    create_time datetime default current_timestamp comment '点赞时间',
+    primary key (id),
+    unique key uk_article_user (article_id, user_id),
+    key idx_user_id (user_id)
+  ) engine = innodb comment = '点赞库';
