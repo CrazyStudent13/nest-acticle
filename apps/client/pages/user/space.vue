@@ -1,4 +1,4 @@
-<!-- 个人空间页：带 ?id= 看他人空间（仅公开昵称/头像+文章统计），否则自己的空间（完整账号信息+编辑资料入口）；文章 tab 标题搜索+时间正/倒序（400ms 防抖），专栏 tab 复用 ColumnCard，点赞 tab 展示本人点赞过的文章（仅本人可见） -->
+<!-- 个人空间页：带 ?id= 看他人空间（公开昵称/头像+文章统计+点赞栏），否则自己的空间（完整账号信息+编辑资料入口）；文章 tab 标题搜索+时间正/倒序（400ms 防抖），专栏 tab 复用 ColumnCard，点赞 tab 展示空间主人点赞过的文章（公开） -->
 <template>
   <div class="space-page">
     <!-- 资料卡：自己的空间展示完整字段，他人空间只展示公开信息 -->
@@ -120,7 +120,9 @@
         <CommonEmptyState v-else-if="keyword">
           未找到与“{{ keyword }}”相关的文章
         </CommonEmptyState>
-        <CommonEmptyState v-else>还没有点赞过文章，去信息流给好内容点个赞吧</CommonEmptyState>
+        <CommonEmptyState v-else>
+          {{ isSelf ? '还没有点赞过文章，去信息流给好内容点个赞吧' : 'TA 还没有点赞过文章' }}
+        </CommonEmptyState>
       </template>
     </div>
   </div>
@@ -134,7 +136,7 @@ const config = useRuntimeConfig()
 const route = useRoute()
 const { user, fetchUserInfo } = useUser()
 const { openLogin } = useAuthModal()
-const { fetchMyLikedArticles } = useLike()
+const { fetchUserLikedArticles } = useLike()
 
 // 签名：取用户资料，未设置时给占位文案
 const signature = computed(() => user.value?.signature?.trim() || '暂未设置签名')
@@ -222,14 +224,12 @@ const goSettings = () => {
   return navigateTo('/user/settings')
 }
 
-// ---------- 内容 tab：文章/专栏统一，点赞仅本人占位（通知走头部铃铛入口，保证入口统一） ----------
-const tabs = computed(() => {
-  const base = [
-    { key: 'article', label: '文章' },
-    { key: 'subject', label: '专栏' }
-  ]
-  return isSelf.value ? [...base, { key: 'like', label: '点赞' }] : base
-})
+// ---------- 内容 tab：文章/专栏/点赞（点赞栏公开可见，同掘金「赞」栏） ----------
+const tabs = [
+  { key: 'article', label: '文章' },
+  { key: 'subject', label: '专栏' },
+  { key: 'like', label: '点赞' }
+]
 const activeTab = ref('article')
 const articles = ref<any[]>([])
 const articlesLoading = ref(true)
@@ -318,14 +318,18 @@ const loadMySubjects = async () => {
   }
 }
 
-// ---------- 点赞 tab：本人点赞过的已发布文章；标题搜索与点赞时间排序共用上文控件，切入 tab 即按当前控件状态拉取 ----------
+// ---------- 点赞 tab：空间主人点赞过的已发布文章（公开接口，guest/list 按 userId 查询） ----------
 const likedArticles = ref<LikedArticleItem[]>([])
 const likedLoading = ref(false)
 
 const loadLikedArticles = async () => {
+  const userId = targetUserId.value
+  if (!userId) {
+    return
+  }
   likedLoading.value = true
   try {
-    const data = await fetchMyLikedArticles({
+    const data = await fetchUserLikedArticles(userId, {
       pageNum: 1,
       pageSize: 50,
       isAsc: timeOrder.value === 'desc' ? 'descending' : 'ascending',

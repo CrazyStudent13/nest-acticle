@@ -1,5 +1,6 @@
-import { IsOptional, IsString, Length } from 'class-validator';
+import { IsOptional, IsString, IsNumber, Length, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { Transform } from 'class-transformer';
 import { PagingDto } from 'src/common/dto/index';
 
 /**
@@ -29,4 +30,15 @@ export class ListMyLikeDto extends PagingDto {
   @IsString()
   @Length(0, 64)
   title?: string;
+}
+
+/**
+ * 他人点赞列表查询 DTO（公开：个人空间点赞栏对访客开放，同掘金「赞」栏）
+ */
+export class ListGuestLikeDto extends ListMyLikeDto {
+  @ApiProperty({ required: true, description: '空间主人的用户ID' })
+  @Transform(({ value }) => (value ? parseInt(value, 10) : undefined))
+  @IsNumber()
+  @Min(1)
+  userId: number;
 }

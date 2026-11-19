@@ -83,10 +83,10 @@ export class PostLikeService {
   }
 
   /**
-   * 我的点赞文章列表（个人空间点赞栏，按登录态返回本人点赞过的已发布文章）
+   * 指定用户的点赞文章列表（个人空间点赞栏，本人走 /my/list、访客走 /guest/list）
    * 排序按点赞时间；行形状对齐 shared 的 LikedArticleItem（文章公开字段 + likeTime）
    */
-  async findMyList(userId: number, query: ListMyLikeDto) {
+  async findUserList(userId: number, query: ListMyLikeDto) {
     const entity = this.likeRepo.createQueryBuilder('like');
     entity
       .leftJoin(PostArticleEntity, 'article', 'article.id = like.articleId')
