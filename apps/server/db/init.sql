@@ -807,6 +807,58 @@ insert into
   sys_menu
 values
   (
+    '206',
+    '评论管理',
+    '6',
+    '2',
+    'comment',
+    'post/comment/index',
+    '',
+    '1',
+    '0',
+    'C',
+    '0',
+    '0',
+    'post:comment:list',
+    'form',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '评论管理菜单',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
+    '207',
+    '评论删除',
+    '206',
+    '1',
+    '',
+    '',
+    '',
+    '1',
+    '0',
+    'F',
+    '0',
+    '0',
+    'post:comment:remove',
+    'form',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '评论删除权限',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
     '500',
     '操作日志',
     '108',
@@ -4672,3 +4724,20 @@ create table
     unique key uk_article_user (article_id, user_id),
     key idx_user_id (user_id)
   ) engine = innodb comment = '点赞库';
+
+-- ----------------------------
+-- 22、评论库
+-- ----------------------------
+drop table if exists post_comment;
+
+create table
+  post_comment (
+    id int not null auto_increment comment '评论 id',
+    article_id int not null comment '文章 id',
+    user_id int not null comment '评论用户ID',
+    content varchar(500) not null comment '评论内容',
+    create_time datetime default current_timestamp comment '评论时间',
+    primary key (id),
+    key idx_article_id (article_id),
+    key idx_user_id (user_id)
+  ) engine = innodb comment = '评论库';
