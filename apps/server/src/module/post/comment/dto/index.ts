@@ -4,7 +4,7 @@ import { Transform } from 'class-transformer';
 import { PagingDto } from 'src/common/dto/index';
 
 /**
- * 创建评论 DTO
+ * 创建评论 DTO（带 parentId 即为回复，服务端校验父评论存在且同文章）
  */
 export class CreateCommentDto {
   @ApiProperty({ required: true, description: '文章 id' })
@@ -17,6 +17,13 @@ export class CreateCommentDto {
   @IsString()
   @Length(1, 500, { message: '评论内容需为 1 到 500 字' })
   content: string;
+
+  @ApiProperty({ required: false, description: '被回复的评论 id（回复时传）' })
+  @IsOptional()
+  @Transform(({ value }) => (value ? parseInt(value, 10) : undefined))
+  @IsInt()
+  @Min(1)
+  parentId?: number;
 }
 
 /**
