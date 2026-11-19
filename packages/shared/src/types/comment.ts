@@ -47,3 +47,21 @@ export interface CommentPayload {
   /** 被回复的评论 id（回复时必传，服务端校验同文章） */
   parentId?: number;
 }
+
+/**
+ * 我的评论行（通知中心「评论」栏：当前登录用户发表的评论与回复，服务端联文章标题与被回复人昵称）
+ */
+export interface MyCommentItem {
+  id: number;
+  articleId: number;
+  /** 所属文章标题（文章已删时为 null，前端降级展示） */
+  articleTitle?: string | null;
+  content: string;
+  createTime?: string | null;
+  /** 被回复的评论 id（根评论为 null） */
+  parentId?: number | null;
+  /** 被回复评论的作者用户 id（冗余，跳转其个人空间用） */
+  replyUserId?: number | null;
+  /** 被回复人的昵称（服务端联查，展示用；账号被删时为 null） */
+  replyNickName?: string | null;
+}
