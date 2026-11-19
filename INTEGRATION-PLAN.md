@@ -155,3 +155,36 @@ F:\githubPro\nest-acticle\
 ### 本轮提交
 
 3eb01e0 feat(utils)→ 212d798 refactor(client)→ 95fde3e refactor(client uploadImage)→ 45f0d81 chore(死配置)→ 7b6626d build(config 版本对齐)→ 5543d90 build(lint)→ c58e819 chore(client 死 lint 配置)→ 53e2e99 fix(docker 补拷 tsconfig.base.json,包级 extends 根文件缺失会挂镜像构建)
+
+## 十二、v2.5 实施记录(2026-11-20:注册链路审计 + 阶段四首批——点赞模块与交互管理)
+
+### 注册链路加固审计(用户经 DeepSeek 实施 8 commits,bc3283f..d2ecadf)
+
+签名列贯穿(sys_user.signature varchar 50)、性别字典化(sys_user_sex 本就有种子,client 新增 useDict)、密码复杂度前后端贯通(server 新增 `IsPasswordComplexEnough` 装饰器挂 RegisterDto/UpdatePwdDto,登录刻意不校验)、profile 独立权限串(system:user:profile:view/edit,init.sql 菜单 1060/1061 授权 role2/role4)、注册绑角色事务化(role_key='member')、字典缓存 dict_sort 排序修复、updateProfile undefined 过滤防会话洗字段。综合审计全绿,无 P0/P1。
+
+### 阶段四首批(本轮实施)
+
+1. **admin 签名查看与搜索**:ListUserDto 增 signature(模糊)+ findAll LIKE + 管理端用户页查询项/列(列显隐 key 顺延)。
+2. **点赞模块 server**(`module/post/like`):表 `post_like`(uk_article_user 一人一文一条,取消即物理删除);端点——`POST /post/like/:articleId`(幂等点赞,仅已发布文章,事务插记录+increment like_num)、`DELETE /post/like/:articleId`(幂等取消+decrement)、`GET /post/like/status/:articleId`(登录态无权限串)、`GET /post/like/list`(管理端,联文章标题/点赞人昵称,getRawAndEntities 取数)、`DELETE /post/like/batch/:ids`(管理端批量删除,聚合回减 like_num 下限 0);批量删除路由必须声明在 `/:articleId` 之前。shared 增加 `LikeActionResult` 契约类型。
+3. **init.sql**:目录 6 交互管理(path=interaction,与内容管理同级)→ C 204 点赞管理(post:like:list,组件 post/like/index)→ F 205 点赞删除(post:like:remove);**未做角色授权,默认仅管理员可见**(其余角色经管理端角色管理按需分配);post_like 表追加在专栏库之后;member 角色 data_scope 1→'5'(仅本人,语义对齐)。
+4. **admin 点赞管理页**(`views/post/like/index.vue` + `api/post/like.js`):仿文件管理页模式——文章标题/点赞人昵称模糊 + 时间范围(PagingDto.params),删除按钮 v-hasPermi post:like:remove。
+5. **client 点赞接入**:ActionBar 点赞按钮去占位(liked 高亮/emit like),详情页登录态补查状态 + 未登录 openLogin 引导,新增 `composables/useLike.ts`;评论/收藏/举报仍为占位。
+6. **openapi-typescript 管线**:`pnpm gen:api` 从 `apps/server/openApi.json` 生成 `packages/shared/src/generated/openapi.d.ts`(入库,随 server 启动刷新后重新生成),经 `@nest-acticle/shared/openapi` 子路径导出纯类型;生成物当前覆盖全部请求 DTO(实体类因 controller 未声明 @ApiOkResponse 不入 schema,后续按需补)。
+7. **prod.yml**:mail.enabled 改 true(上线默认开;凭据未配置时 isEnabled() 自动降级图片验证码,安全)。
+
+### 两个新坑(实证)
+
+- **forFeature 仓储不随 @Global 传递**:LikeModule 只注册 PostLikeEntity 会 DI 启动失败(PostLikeService 依赖 PostArticleEntityRepository)——必须在自己模块 forFeature 同时注册所依赖实体。
+- **getRawAndEntities 的 raw 键 = 「别名_数据库列名」**(非实体属性名):like_create_time/user_nick_name;用实体属性名拼键会静默 undefined。
+
+### 冒烟工具坑(本机)
+
+Git Bash 调 **原生 curl.exe 时 argv 按系统 GBK 代码页解析**——内联中文请求体/中文查询参数在 argv 阶段被损毁(库里出现 U+FFFD 序列即此症,库内 title 用 mysql CLI utf8mb4 直插则完好,可对照定位是"工具链"还是"服务端"问题)。规避:中文 JSON 体写 UTF-8 文件走 `--data-binary @file`;中文查询参数直接用百分号预编码写死在脚本里。
+
+### E2E 冒烟(全栈 docker 重建卷,18/18 全绿)
+
+down → 删 mysql_data/redis_data(保留 server_upload)→ up(init.sql 自动导入)→ 注册(redis 读验证码答案法)→ 默认角色 member 绑定核对 → 登录 → getInfo 权限串核对 → 签名更新 → SQL 直插种子文章 → 点赞(liked:true/likeNum:1)→ 状态 → 管理员登录 → 点赞管理列表(标题过滤+昵称联查)→ 批量删除 → like_num 回减核对 → 签名模糊搜索命中 → getRouters 含交互管理/点赞管理 → 博客/管理端页面 200。`getInfo` 的 permissions 在响应顶层(非 data 内)。
+
+### 本轮提交
+
+71269f9 feat(user 签名)→ 3881534 chore(data_scope/prod 邮箱)→ f16e487 feat(like server)→ bd76376 feat(like init.sql)→ f437072 feat(admin 点赞页)→ 0050152 feat(client 点赞)→ fae6b37 feat(openapi 管线)→ 7346739 fix(DI)→ 89b251a fix(raw 键)→ 1787991 chore(openapi 重生成)
