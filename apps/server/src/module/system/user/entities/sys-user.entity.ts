@@ -31,6 +31,9 @@ export class UserEntity extends BaseEntity {
   @Column({ type: 'varchar', name: 'avatar', default: '', comment: '头像地址' })
   public avatar: string;
 
+  @Column({ type: 'varchar', name: 'signature', length: 50, default: '', comment: '个性签名' })
+  public signature: string;
+
   @Exclude({ toPlainOnly: true }) // 输出屏蔽密码
   @Column({ type: 'varchar', length: 200, nullable: false, default: '', comment: '用户登录密码' })
   public password: string;

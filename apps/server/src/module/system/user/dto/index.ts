@@ -178,6 +178,12 @@ export class UpdateProfileDto {
   @IsOptional()
   @IsString()
   avatar?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @Length(0, 50)
+  signature?: string;
 }
 
 export class UpdatePwdDto {
