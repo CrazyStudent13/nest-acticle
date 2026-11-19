@@ -98,7 +98,7 @@ export class PostCommentService {
     const { raw } = await entity.getRawAndEntities();
     const total = await entity.getCount();
 
-    // raw 键格式为「别名_数据库列名」
+    // raw 键格式为「别名_数据库列名」，别名保留原大小写（replyUser → replyUser_nick_name）
     const list = raw.map((row: Record<string, any>) => ({
       id: row.comment_id,
       articleId: row.comment_article_id,
@@ -110,7 +110,7 @@ export class PostCommentService {
         : null,
       parentId: row.comment_parent_id,
       replyUserId: row.comment_reply_user_id,
-      replyNickName: row.reply_user_nick_name || null,
+      replyNickName: row.replyUser_nick_name || null,
     }));
 
     return ResultData.ok({ list, total });
