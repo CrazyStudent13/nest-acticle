@@ -114,6 +114,22 @@
               <p v-if="captcha.codeTouched && !captcha.code.trim()" class="field-tip">请输入验证码</p>
             </div>
 
+            <div v-if="mode === 'register'" class="field-group">
+              <input
+                v-model="form.confirm"
+                class="field"
+                :class="fieldClass('confirm')"
+                  type="password"
+                  maxlength="20"
+                  placeholder="请再次输入密码"
+                @input="stripSpaces('confirm')"
+                @compositionend="stripSpaces('confirm')"
+                @keydown="blockSpaceKey"
+                @blur="onBlur('confirm')"
+              />
+              <p v-if="fieldError('confirm')" class="field-tip">{{ errors.confirm }}</p>
+            </div>
+
             <!-- 注册图片验证码：后端未开启邮箱验证码注册时使用 -->
             <div v-if="mode === 'register' && registerConfig.ready && !registerConfig.emailRegisterEnabled" class="field-group">
               <div class="captcha-row">
@@ -136,22 +152,6 @@
                 />
               </div>
               <p v-if="registerCaptcha.codeTouched && !registerCaptcha.code.trim()" class="field-tip">请输入验证码</p>
-            </div>
-
-            <div v-if="mode === 'register'" class="field-group">
-              <input
-                v-model="form.confirm"
-                class="field"
-                :class="fieldClass('confirm')"
-                  type="password"
-                  maxlength="20"
-                  placeholder="请再次输入密码"
-                @input="stripSpaces('confirm')"
-                @compositionend="stripSpaces('confirm')"
-                @keydown="blockSpaceKey"
-                @blur="onBlur('confirm')"
-              />
-              <p v-if="fieldError('confirm')" class="field-tip">{{ errors.confirm }}</p>
             </div>
 
             <p v-if="tip" class="tip" :class="{ 'tip-error': tipIsError }">{{ tip }}</p>
