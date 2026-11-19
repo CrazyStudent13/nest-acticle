@@ -1,4 +1,4 @@
-import { Repository } from 'typeorm';
+import { EntityManager, Repository } from 'typeorm';
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
@@ -18,6 +18,7 @@ import {
   EMAIL_SEND_HOURLY_LIMIT,
   EMAIL_SEND_IP_EXPIRESIN,
   EMAIL_SEND_IP_LIMIT,
+  REGISTER_DEFAULT_ROLE_KEY,
 } from 'src/common/constant/index';
 import { ResultData, SUCCESS_CODE } from 'src/common/utils/result';
 import { LoginDto, RegisterDto } from './dto/index';
@@ -27,6 +28,8 @@ import { recordLoginFailure, clearLoginFailure } from 'src/common/utils/login-ca
 import { UserType } from '../user/dto/user';
 import { UserDto } from '../user/user.decorator';
 import { UserEntity } from '../user/entities/sys-user.entity';
+import { SysUserWithRoleEntity } from '../user/entities/user-width-role.entity';
+import { SysRoleEntity } from '../role/entities/role.entity';
 import { UserService } from '../user/user.service';
 import { MenuService } from '../menu/menu.service';
 import { ConfigService } from '../config/config.service';
@@ -224,7 +227,11 @@ export class AuthService {
     user['nickName'] = user.username;
     user['password'] = await bcrypt.hash(user.password, 10);
     try {
-      await this.userRepo.save({ ...user, userType: SYS_USER_TYPE.CUSTOM, loginDate });
+      // 建用户与绑默认角色打包为事务：绑角色失败时连同用户一起回滚，避免出现"有账号无角色"的半成功状态
+      await this.userRepo.manager.transaction(async (manager) => {
+        const createdUser = await manager.save(UserEntity, { ...user, userType: SYS_USER_TYPE.CUSTOM, loginDate });
+        await this.assignRegisterRole(createdUser.userId, manager);
+      });
     } catch (error) {
       // 并发注册撞车时前置查重拦不住，靠 user_name 唯一索引兜底（ER_DUP_ENTRY）
       if (error?.code === 'ER_DUP_ENTRY') {
@@ -237,6 +244,22 @@ export class AuthService {
       await this.redisService.del(CacheEnum.EMAIL_CODE_KEY + user.email);
     }
     return ResultData.ok();
+  }
+
+  /**
+   * 给注册用户绑定默认角色（role_key 查询，避免各环境角色 ID 不一致）
+   * 角色缺失时只告警不阻断注册，避免角色未初始化导致注册整体不可用
+   */
+  private async assignRegisterRole(userId: number, manager: EntityManager): Promise<void> {
+    const role = await manager.findOne(SysRoleEntity, {
+      where: { roleKey: REGISTER_DEFAULT_ROLE_KEY, delFlag: '0' },
+      select: ['roleId'],
+    });
+    if (!role) {
+      this.logger.warn(`未找到默认注册角色 role_key=${REGISTER_DEFAULT_ROLE_KEY}，新注册用户将无任何权限`);
+      return;
+    }
+    await manager.insert(SysUserWithRoleEntity, { userId, roleId: role.roleId });
   }
 
   /**

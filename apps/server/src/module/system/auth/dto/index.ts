@@ -1,5 +1,6 @@
 import { IsString, IsJSON, IsEnum, IsEmail, IsPhoneNumber, Min, IsOptional, IsBoolean, IsNumber, MinLength, MaxLength } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
+import { IsPasswordComplexEnough } from 'src/common/utils/password';
 
 export enum StatusEnum {
   STATIC = '0',
@@ -39,6 +40,14 @@ export class LoginDto {
 }
 
 export class RegisterDto extends LoginDto {
+  // 覆写 password：注册比登录更严——最少 6 位（与前台提示一致）+ 至少两类字符；登录不校验复杂度，老账号弱密码可正常登录
+  @ApiProperty({ required: true })
+  @IsString({ message: '密码必须是字符串' })
+  @MinLength(6, { message: '密码长度必须为 6 到 20 个字符' })
+  @MaxLength(20, { message: '密码长度必须为 20 个字符' })
+  @IsPasswordComplexEnough()
+  password: string;
+
   @ApiProperty({
     required: false,
     description: '邮箱，开启邮箱验证码注册时必填',

@@ -87,7 +87,7 @@
               </label>
               <label class="form-row">
                 <span class="form-label">新密码</span>
-                <input v-model="pwdForm.next" class="form-input" type="password" maxlength="20" placeholder="至少 6 位" />
+                <input v-model="pwdForm.next" class="form-input" type="password" maxlength="20" placeholder="6-20 位，至少两类字符" />
               </label>
               <label class="form-row">
                 <span class="form-label">确认新密码</span>
@@ -298,6 +298,9 @@ const handleChangePwd = async () => {
   }
   if (pwdForm.next.length > 20) {
     return setPwdTip('新密码不能超过 20 位', true)
+  }
+  if (!isPasswordComplexEnough(pwdForm.next)) {
+    return setPwdTip('新密码需包含数字、字母、特殊字符中的至少两类', true)
   }
   if (pwdForm.next !== pwdForm.confirm) {
     return setPwdTip('两次输入的新密码不一致', true)
