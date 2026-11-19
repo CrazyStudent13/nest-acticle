@@ -1,6 +1,6 @@
-// 文章点赞：状态查询/点赞/取消。均要求登录态，未登录的引导逻辑由调用方处理
-// 服务端一人一文一条点赞记录（post_like uk_article_user），点赞/取消幂等
-import type { LikeActionResult } from '@nest-acticle/shared'
+// 文章点赞：状态查询/点赞/取消/我的点赞列表。
+// 点赞与取消均要求登录态；「我的点赞」按登录态返回本人点赞过的已发布文章（个人空间点赞栏）
+import type { LikedArticleItem, LikeActionResult, PageResult } from '@nest-acticle/shared'
 
 export const useLike = () => {
   const fetchLikeStatus = async (articleId: number | string): Promise<boolean> => {
@@ -18,5 +18,16 @@ export const useLike = () => {
     return res.data ?? null
   }
 
-  return { fetchLikeStatus, likeArticle, unlikeArticle }
+  // 我的点赞文章列表（个人空间点赞栏）：标题模糊搜索 + 点赞时间正/倒序
+  const fetchMyLikedArticles = async (params: {
+    pageNum?: number
+    pageSize?: number
+    title?: string
+    isAsc?: 'ascending' | 'descending'
+  }): Promise<PageResult<LikedArticleItem>> => {
+    const res = await apiFetch<PageResult<LikedArticleItem>>('/api/post/like/my/list', { query: params })
+    return res.data ?? { list: [], total: 0 }
+  }
+
+  return { fetchLikeStatus, likeArticle, unlikeArticle, fetchMyLikedArticles }
 }

@@ -1,4 +1,4 @@
-<!-- 个人空间页：带 ?id= 看他人空间（仅公开昵称/头像+文章统计），否则自己的空间（完整账号信息+编辑资料入口，点赞占位 tab）；文章 tab 标题搜索+时间正/倒序（400ms 防抖），专栏 tab 复用 ColumnCard -->
+<!-- 个人空间页：带 ?id= 看他人空间（仅公开昵称/头像+文章统计），否则自己的空间（完整账号信息+编辑资料入口）；文章 tab 标题搜索+时间正/倒序（400ms 防抖），专栏 tab 复用 ColumnCard，点赞 tab 展示本人点赞过的文章（仅本人可见） -->
 <template>
   <div class="space-page">
     <!-- 资料卡：自己的空间展示完整字段，他人空间只展示公开信息 -->
@@ -34,7 +34,7 @@
       </div>
     </div>
 
-    <!-- 内容卡：文章 / 专栏 tab 统一，点赞占位（仅本人空间）；通知入口统一收归头部铃铛 -->
+    <!-- 内容卡：文章 / 专栏 / 点赞 tab 统一（点赞仅本人空间），通知入口统一收归头部铃铛 -->
     <div class="feed-panel content-panel">
       <div class="tab-bar">
         <div class="tab-items">
@@ -106,20 +106,35 @@
         </CommonEmptyState>
       </template>
 
-      <!-- 点赞：仅本人空间占位 -->
-      <CommonEmptyState v-else>该功能暂未开放，敬请期待</CommonEmptyState>
+      <!-- 点赞 tab：本人点赞过的文章（复用文章行卡），数据按登录态拉取本人记录 -->
+      <template v-else-if="activeTab === 'like'">
+        <template v-if="likedArticles.length">
+          <article-card
+            v-for="item in likedArticles"
+            :key="item.id || item.title"
+            :card-info="item"
+            @click="goArticle(item)"
+          />
+        </template>
+        <CommonEmptyState v-else-if="likedLoading" text="加载中…" />
+        <CommonEmptyState v-else-if="keyword">
+          未找到与“{{ keyword }}”相关的文章
+        </CommonEmptyState>
+        <CommonEmptyState v-else>还没有点赞过文章，去信息流给好内容点个赞吧</CommonEmptyState>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import dayjs from 'dayjs'
-import type { PageResult, Subject } from '@nest-acticle/shared'
+import type { LikedArticleItem, PageResult, Subject } from '@nest-acticle/shared'
 
 const config = useRuntimeConfig()
 const route = useRoute()
 const { user, fetchUserInfo } = useUser()
 const { openLogin } = useAuthModal()
+const { fetchMyLikedArticles } = useLike()
 
 // 签名：取用户资料，未设置时给占位文案
 const signature = computed(() => user.value?.signature?.trim() || '暂未设置签名')
@@ -140,9 +155,13 @@ const spaceStats = ref({ total: 0, reads: 0, likes: 0 })
 
 // ---------- 页面初始化：自己的空间要求登录，他人空间公开可看 ----------
 const initSpace = () => {
-  // 切换空间时清掉搜索词，避免上一位的过滤条件带到下一位
+  // 切换空间时清掉搜索词与点赞列表，避免上一位的过滤条件/数据带到下一位
   keyword.value = ''
+  likedArticles.value = []
   loadMyArticles()
+  if (activeTab.value === 'like') {
+    loadLikedArticles()
+  }
 }
 
 onMounted(() => {
@@ -262,12 +281,17 @@ const onKeywordInput = () => {
   if (keywordTimer) {
     clearTimeout(keywordTimer)
   }
-  keywordTimer = setTimeout(() => loadMyArticles(), 400)
+  // 搜索与排序控件为文章/点赞两个列表共用，按当前 tab 分发
+  keywordTimer = setTimeout(() => (activeTab.value === 'like' ? loadLikedArticles() : loadMyArticles()), 400)
 }
 
 const toggleTimeOrder = () => {
   timeOrder.value = timeOrder.value === 'desc' ? 'asc' : 'desc'
-  loadMyArticles()
+  if (activeTab.value === 'like') {
+    loadLikedArticles()
+  } else {
+    loadMyArticles()
+  }
 }
 
 // ---------- 专栏 tab：guest subject list 原生支持 userId 过滤，首次进入 tab 才拉取 ----------
@@ -294,12 +318,38 @@ const loadMySubjects = async () => {
   }
 }
 
+// ---------- 点赞 tab：本人点赞过的已发布文章；标题搜索与点赞时间排序共用上文控件，切入 tab 即按当前控件状态拉取 ----------
+const likedArticles = ref<LikedArticleItem[]>([])
+const likedLoading = ref(false)
+
+const loadLikedArticles = async () => {
+  likedLoading.value = true
+  try {
+    const data = await fetchMyLikedArticles({
+      pageNum: 1,
+      pageSize: 50,
+      isAsc: timeOrder.value === 'desc' ? 'descending' : 'ascending',
+      ...(keyword.value.trim() ? { title: keyword.value.trim() } : {})
+    })
+    likedArticles.value = data.list || []
+  } catch {
+    likedArticles.value = []
+  } finally {
+    likedLoading.value = false
+  }
+}
+
 const switchTab = (key: string) => {
   if (activeTab.value === key) {
     return
   }
   activeTab.value = key
-  if (key === 'subject' && !subjectsLoaded.value) {
+  // 文章/点赞两 tab 共用搜索与排序控件，切入时按当前控件状态重载；专栏首次进入才拉取
+  if (key === 'like') {
+    loadLikedArticles()
+  } else if (key === 'article') {
+    loadMyArticles()
+  } else if (key === 'subject' && !subjectsLoaded.value) {
     loadMySubjects()
   }
 }
