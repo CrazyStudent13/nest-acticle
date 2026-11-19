@@ -1,5 +1,6 @@
-// 文章点赞：状态查询/点赞/取消/我的点赞列表。
-// 点赞与取消均要求登录态；「我的点赞」按登录态返回本人点赞过的已发布文章（个人空间点赞栏）
+// 文章点赞：状态查询/点赞/取消/用户点赞列表。
+// 点赞与取消均要求登录态；点赞栏列表为公开接口（个人空间对访客开放，同掘金「赞」栏），
+// 本人空间与他人空间共用 guest/list（userId 区分归属）
 import type { LikedArticleItem, LikeActionResult, PageResult } from '@nest-acticle/shared'
 
 export const useLike = () => {
@@ -18,16 +19,21 @@ export const useLike = () => {
     return res.data ?? null
   }
 
-  // 我的点赞文章列表（个人空间点赞栏）：标题模糊搜索 + 点赞时间正/倒序
-  const fetchMyLikedArticles = async (params: {
-    pageNum?: number
-    pageSize?: number
-    title?: string
-    isAsc?: 'ascending' | 'descending'
-  }): Promise<PageResult<LikedArticleItem>> => {
-    const res = await apiFetch<PageResult<LikedArticleItem>>('/api/post/like/my/list', { query: params })
+  // 指定用户的点赞文章列表（个人空间点赞栏）：标题模糊搜索 + 点赞时间正/倒序
+  const fetchUserLikedArticles = async (
+    userId: number,
+    params: {
+      pageNum?: number
+      pageSize?: number
+      title?: string
+      isAsc?: 'ascending' | 'descending'
+    }
+  ): Promise<PageResult<LikedArticleItem>> => {
+    const res = await apiFetch<PageResult<LikedArticleItem>>('/api/post/like/guest/list', {
+      query: { userId, ...params }
+    })
     return res.data ?? { list: [], total: 0 }
   }
 
-  return { fetchLikeStatus, likeArticle, unlikeArticle, fetchMyLikedArticles }
+  return { fetchLikeStatus, likeArticle, unlikeArticle, fetchUserLikedArticles }
 }
