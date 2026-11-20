@@ -3,7 +3,16 @@
      预览渲染走 @nest-acticle/markdown 的 createMarkdownRenderer，与前台文章页同源；
      工具栏/快捷键/字数统计逻辑自 client useMarkdownEditor 逐行迁入（集合不变）。 -->
 <template>
-  <div class="na-md-editor" :style="{ height }">
+  <div
+    ref="rootRef"
+    class="na-md-editor"
+    :class="{ 'na-md-editor-dragging': dragging }"
+    :style="{ height }"
+    @dragenter="handleDragEnter"
+    @dragover="handleDragOver"
+    @dragleave="handleDragLeave"
+    @drop="handleDrop"
+  >
     <!-- 工具栏 -->
     <div class="na-md-editor-toolbar">
       <button class="na-md-editor-tool-btn na-md-editor-tool-text" type="button" title="标题" @click="cycleHeading">H</button>
@@ -71,6 +80,7 @@
         :placeholder="placeholder"
         @keydown="handleShortcut"
         @paste="handlePaste"
+        @scroll="handleScrollSync"
       />
       <div v-if="preview" ref="previewRef" class="na-md-editor-preview">
         <!-- 预览 HTML 由 @nest-acticle/markdown 产出（宿主需引入其 style.css），与文章详情页渲染同源；
@@ -94,7 +104,7 @@
 import ClipboardJS from 'clipboard';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-import { createMarkdownRenderer, renderMermaidDiagrams } from '@nest-acticle/markdown';
+import { bindImageLightbox, createMarkdownRenderer, renderMermaidDiagrams } from '@nest-acticle/markdown';
 
 import { useMarkdownEditor } from './composables/useMarkdownEditor';
 
@@ -198,8 +208,15 @@ watch(() => props.preview, schedulePreviewRender);
 
 // 预览代码块复制按钮：与两端 MdViewer 壳一致的绑定与反馈（ClipboardJS 全局委托，卸载销毁）
 let clipboard: ClipboardJS | null = null;
+let unbindLightbox: (() => void) | null = null;
+
+const rootRef = ref<HTMLElement | null>(null);
 
 onMounted(() => {
+  // 预览区图片点击放大（事件委托绑在根元素，v-html 重渲染无需重绑）
+  if (rootRef.value) {
+    unbindLightbox = bindImageLightbox(rootRef.value);
+  }
   clipboard = new ClipboardJS('.copy-btn');
   clipboard.on('success', (event) => {
     event.clearSelection();
@@ -224,6 +241,8 @@ onBeforeUnmount(() => {
     clearTimeout(previewTimer);
     previewTimer = null;
   }
+  unbindLightbox?.();
+  unbindLightbox = null;
   clipboard?.destroy();
   clipboard = null;
 });
@@ -290,6 +309,63 @@ const insertText = (text: string) => {
 };
 
 defineExpose({ insertText });
+
+// ---------- 拖拽上传图片：拖入文件高亮提示，松手与粘贴/按钮共用 uploadAndInsert 链路 ----------
+const dragging = ref(false);
+let dragDepth = 0;
+
+const hasFiles = (event: DragEvent) => Array.from(event.dataTransfer?.types || []).includes('Files');
+
+const handleDragEnter = (event: DragEvent) => {
+  if (!hasFiles(event)) {
+    return;
+  }
+  event.preventDefault();
+  dragDepth += 1;
+  dragging.value = true;
+};
+
+const handleDragOver = (event: DragEvent) => {
+  if (!hasFiles(event)) {
+    return;
+  }
+  // 只拦截文件拖拽以允许 drop；textarea 内选区拖动（非文件）不受影响
+  event.preventDefault();
+  dragging.value = true;
+};
+
+const handleDragLeave = () => {
+  dragDepth = Math.max(dragDepth - 1, 0);
+  if (dragDepth === 0) {
+    dragging.value = false;
+  }
+};
+
+const handleDrop = (event: DragEvent) => {
+  dragDepth = 0;
+  dragging.value = false;
+  const files = Array.from(event.dataTransfer?.files || []);
+  if (files.length === 0) {
+    return;
+  }
+  // 有文件时阻止浏览器默认打开文件；非图片文件静默忽略
+  event.preventDefault();
+  const file = files.find((f) => /^image\//.test(f.type));
+  if (file) {
+    uploadAndInsert(file);
+  }
+};
+
+// ---------- 编辑/预览滚动同步（单向：编辑区按滚动比例带动预览；预览隐藏/窄屏时跳过） ----------
+const handleScrollSync = () => {
+  const ta = taRef.value;
+  const pv = previewRef.value;
+  if (!ta || !pv || !props.preview || pv.offsetWidth === 0) {
+    return;
+  }
+  const ratio = ta.scrollTop / Math.max(ta.scrollHeight - ta.clientHeight, 1);
+  pv.scrollTop = ratio * (pv.scrollHeight - pv.clientHeight);
+};
 </script>
 
 <style lang="less">
@@ -299,6 +375,12 @@ defineExpose({ insertText });
   display: flex;
   flex-direction: column;
   min-height: 0;
+
+  // 拖入文件时的高亮提示
+  &.na-md-editor-dragging {
+    outline: 2px dashed var(--color-primary, #4f6bff);
+    outline-offset: -2px;
+  }
 
   // ---------- 工具栏 ----------
   &-toolbar {
