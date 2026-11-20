@@ -188,3 +188,24 @@
     max-width: 100%;
   }
 }
+
+// 图片放大预览遮罩（lightbox.ts 命令式挂载到 body，不依赖宿主样式体系）
+.na-markdown-lightbox {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  background-color: rgba(0, 0, 0, 0.72);
+  cursor: zoom-out;
+
+  img {
+    max-width: 92vw;
+    max-height: 92vh;
+    object-fit: contain;
+    border-radius: 4px;
+    background-color: #ffffff;
+  }
+}
