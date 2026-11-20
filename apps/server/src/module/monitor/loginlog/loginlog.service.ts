@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Response } from 'express';
 import { Repository, In, Not, IsNull } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
+import { applyLike } from 'src/common/query';
 import { ExportTable } from 'src/common/utils/export';
 import { MonitorLoginlogEntity } from './entities/loginlog.entity';
 import { CreateLoginlogDto, ListLoginlogDto } from './dto/index';
@@ -32,13 +33,8 @@ export class LoginlogService {
     const entity = this.monitorLoginlogEntityRep.createQueryBuilder('entity');
     entity.where('entity.delFlag = :delFlag', { delFlag: '0' });
 
-    if (query.ipaddr) {
-      entity.andWhere('entity.ipaddr LIKE :ipaddr', { ipaddr: `%${query.ipaddr}%` });
-    }
-
-    if (query.userName) {
-      entity.andWhere('entity.userName LIKE :userName', { userName: `%${query.userName}%` });
-    }
+    applyLike(entity, 'entity.ipaddr', query.ipaddr);
+    applyLike(entity, 'entity.userName', query.userName);
 
     if (query.status) {
       entity.andWhere('entity.status = :status', { status: query.status });
