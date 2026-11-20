@@ -37,7 +37,9 @@ export class PostCommentService {
       }
 
       // 回复目标校验：父评论必须存在且属于同一篇文章，被回复人取父评论作者
+      // 同时带出被回复人昵称：前端据此即时渲染「回复 @xx：」前缀，与刷新后的列表形状一致
       let replyUserId: number | null = null;
+      let replyNickName: string | null = null;
       if (dto.parentId) {
         const parent = await manager.findOne(PostCommentEntity, {
           where: { id: dto.parentId, articleId: dto.articleId },
@@ -46,6 +48,11 @@ export class PostCommentService {
           return ResultData.fail(500, '被回复的评论不存在');
         }
         replyUserId = parent.userId;
+        const replyUser = await manager.findOne(UserEntity, {
+          where: { userId: parent.userId },
+          select: ['nickName'],
+        });
+        replyNickName = replyUser?.nickName || null;
       }
 
       const created = await manager.insert(PostCommentEntity, {
@@ -71,6 +78,7 @@ export class PostCommentService {
         userInfo: user ? { userId: user.userId, nickName: user.nickName, avatar: user.avatar } : null,
         parentId: dto.parentId || null,
         replyUserId,
+        replyNickName,
       });
     });
   }
