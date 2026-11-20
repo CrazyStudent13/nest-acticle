@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Response } from 'express';
 import { Repository, In } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
+import { applyLike, paginate } from 'src/common/query';
 import { CacheEnum } from 'src/common/enum/index';
 import { ExportTable } from 'src/common/utils/export';
 import { SysDictTypeEntity } from './entities/dict.type.entity';
@@ -44,13 +45,8 @@ export class DictService {
     const entity = this.sysDictTypeEntityRep.createQueryBuilder('entity');
     entity.where('entity.delFlag = :delFlag', { delFlag: '0' });
 
-    if (query.dictName) {
-      entity.andWhere('entity.dictName LIKE :dictName', { dictName: `%${query.dictName}%` });
-    }
-
-    if (query.dictType) {
-      entity.andWhere('entity.dictType LIKE :dictType', { dictType: `%${query.dictType}%` });
-    }
+    applyLike(entity, 'entity.dictName', query.dictName);
+    applyLike(entity, 'entity.dictType', query.dictType);
 
     if (query.status) {
       entity.andWhere('entity.status = :status', { status: query.status });
@@ -60,9 +56,7 @@ export class DictService {
       entity.andWhere('entity.createTime BETWEEN :start AND :end', { start: query.params.beginTime, end: query.params.endTime });
     }
 
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
+    paginate(entity, query);
 
     const [list, total] = await entity.getManyAndCount();
 
@@ -113,20 +107,13 @@ export class DictService {
   async findAllData(query: ListDictData) {
     const entity = this.sysDictDataEntityRep.createQueryBuilder('entity');
     entity.where('entity.delFlag = :delFlag', { delFlag: '0' });
-    if (query.dictLabel) {
-      entity.andWhere('entity.dictLabel LIKE :dictLabel', { dictLabel: `%${query.dictLabel}%` });
-    }
-
-    if (query.dictType) {
-      entity.andWhere('entity.dictType LIKE :dictType', { dictType: `%${query.dictType}%` });
-    }
+    applyLike(entity, 'entity.dictLabel', query.dictLabel);
+    applyLike(entity, 'entity.dictType', query.dictType);
 
     if (query.status) {
       entity.andWhere('entity.status = :status', { status: query.status });
     }
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
+    paginate(entity, query);
 
     const [list, total] = await entity.getManyAndCount();
 

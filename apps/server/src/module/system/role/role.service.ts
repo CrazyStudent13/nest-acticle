@@ -3,6 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In, FindManyOptions, DataSource } from 'typeorm';
 import { Response } from 'express';
 import { ResultData } from 'src/common/utils/result';
+import { applyLike, paginate } from 'src/common/query';
 import { ExportTable } from 'src/common/utils/export';
 import { RedisService } from 'src/module/common/redis/redis.service';
 import { CacheEnum } from 'src/common/enum/index';
@@ -40,13 +41,8 @@ export class RoleService {
     const entity = this.sysRoleEntityRep.createQueryBuilder('entity');
     entity.where('entity.delFlag = :delFlag', { delFlag: '0' });
 
-    if (query.roleName) {
-      entity.andWhere('entity.roleName LIKE :roleName', { roleName: `%${query.roleName}%` });
-    }
-
-    if (query.roleKey) {
-      entity.andWhere('entity.roleKey LIKE :roleKey', { roleKey: `%${query.roleKey}%` });
-    }
+    applyLike(entity, 'entity.roleName', query.roleName);
+    applyLike(entity, 'entity.roleKey', query.roleKey);
 
     if (query.roleId) {
       entity.andWhere('entity.roleId = :roleId', { roleId: query.roleId });
@@ -60,9 +56,7 @@ export class RoleService {
       entity.andWhere('entity.createTime BETWEEN :start AND :end', { start: query.params.beginTime, end: query.params.endTime });
     }
 
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
+    paginate(entity, query);
     const [list, total] = await entity.getManyAndCount();
 
     return ResultData.ok({

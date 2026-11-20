@@ -8,6 +8,7 @@ import { Uniq } from 'src/common/utils/index';
 import { CacheEnum, DelFlagEnum, StatusEnum } from 'src/common/enum/index';
 import { SYS_USER_TYPE } from 'src/common/constant/index';
 import { ResultData } from 'src/common/utils/result';
+import { applyLike, paginate } from 'src/common/query';
 import { CreateUserDto, UpdateUserDto, ListUserDto, ChangeStatusDto, ResetPwdDto, AllocatedListDto, UpdateProfileDto, UpdatePwdDto } from './dto/index';
 import { AuthUserCancelDto, AuthUserCancelAllDto, AuthUserSelectAllDto } from '../role/dto/index';
 
@@ -84,17 +85,9 @@ export class UserService {
     const entity = this.userRepo.createQueryBuilder('user');
     entity.where('user.delFlag = :delFlag', { delFlag: '0' });
 
-    if (query.userName) {
-      entity.andWhere('user.userName LIKE :userName', { userName: `%${query.userName}%` });
-    }
-
-    if (query.phonenumber) {
-      entity.andWhere('user.phonenumber LIKE :phonenumber', { phonenumber: `%${query.phonenumber}%` });
-    }
-
-    if (query.signature) {
-      entity.andWhere('user.signature LIKE :signature', { signature: `%${query.signature}%` });
-    }
+    applyLike(entity, 'user.userName', query.userName);
+    applyLike(entity, 'user.phonenumber', query.phonenumber);
+    applyLike(entity, 'user.signature', query.signature);
 
     if (query.status) {
       entity.andWhere('user.status = :status', { status: query.status });
@@ -104,9 +97,7 @@ export class UserService {
       entity.andWhere('user.createTime BETWEEN :start AND :end', { start: query.params.beginTime, end: query.params.endTime });
     }
 
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
+    paginate(entity, query);
 
     const [list, total] = await entity.getManyAndCount();
 
@@ -474,13 +465,8 @@ export class UserService {
     entity.where('user.delFlag = :delFlag', { delFlag: '0' });
     entity.andWhere('user.status = :status', { status: '0' });
     entity.andWhere('user.userId IN (:...userIds)', { userIds: userIds });
-    if (query.userName) {
-      entity.andWhere('user.userName LIKE :userName', { userName: `%${query.userName}%` });
-    }
-
-    if (query.phonenumber) {
-      entity.andWhere('user.phonenumber LIKE :phonenumber', { phonenumber: `%${query.phonenumber}%` });
-    }
+    applyLike(entity, 'user.userName', query.userName);
+    applyLike(entity, 'user.phonenumber', query.phonenumber);
     entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
     const [list, total] = await entity.getManyAndCount();
     const safeList = list.map(({ password: _password, ...user }) => user);
@@ -510,13 +496,8 @@ export class UserService {
     entity.andWhere({
       userId: Not(In(userIds)),
     });
-    if (query.userName) {
-      entity.andWhere('user.userName LIKE :userName', { userName: `%${query.userName}%` });
-    }
-
-    if (query.phonenumber) {
-      entity.andWhere('user.phonenumber LIKE :phonenumber', { phonenumber: `%${query.phonenumber}%` });
-    }
+    applyLike(entity, 'user.userName', query.userName);
+    applyLike(entity, 'user.phonenumber', query.phonenumber);
     entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
     const [list, total] = await entity.getManyAndCount();
     const safeList = list.map(({ password: _password, ...user }) => user);

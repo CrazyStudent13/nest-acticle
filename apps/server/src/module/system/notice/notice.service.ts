@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
+import { applyLike } from 'src/common/query';
 import { SysNoticeEntity } from './entities/notice.entity';
 import { CreateNoticeDto, UpdateNoticeDto, ListNoticeDto } from './dto/index';
 
@@ -20,13 +21,8 @@ export class NoticeService {
     const entity = this.sysNoticeEntityRep.createQueryBuilder('entity');
     entity.where('entity.delFlag = :delFlag', { delFlag: '0' });
 
-    if (query.noticeTitle) {
-      entity.andWhere('entity.noticeTitle LIKE :noticeTitle', { noticeTitle: `%${query.noticeTitle}%` });
-    }
-
-    if (query.createBy) {
-      entity.andWhere('entity.createBy LIKE :createBy', { createBy: `%${query.createBy}%` });
-    }
+    applyLike(entity, 'entity.noticeTitle', query.noticeTitle);
+    applyLike(entity, 'entity.createBy', query.createBy);
 
     if (query.noticeType) {
       entity.andWhere('entity.noticeType = :noticeType', { noticeType: query.noticeType });
