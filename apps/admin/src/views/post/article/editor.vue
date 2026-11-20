@@ -118,6 +118,22 @@ const handleUploadImage = async (file) => {
   }
   return url;
 };
+
+// Ctrl/Cmd+S 快捷键存草稿（对齐桌面编辑器习惯，走"存草稿"按钮同一条防抖保存链路）
+const handleSaveShortcut = (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+    event.preventDefault();
+    handleSaveDraft();
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('keydown', handleSaveShortcut);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleSaveShortcut);
+});
 </script>
 
 <style lang="scss" scoped>
