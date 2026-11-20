@@ -5,6 +5,7 @@ import { SysOperlogEntity } from './entities/operlog.entity';
 import { REQUEST } from '@nestjs/core';
 import { Request, Response } from 'express';
 import { ResultData } from 'src/common/utils/result';
+import { GetClientIp } from 'src/common/utils';
 import { ExportTable } from 'src/common/utils/export';
 import { AxiosService } from 'src/module/common/axios/axios.service';
 
@@ -138,7 +139,8 @@ export class OperlogService {
     errorMsg?: string;
     businessType: number;
   }) {
-    const { originalUrl, method, ip, body, query } = this.request;
+    const { originalUrl, method, body, query } = this.request;
+    const ip = GetClientIp(this.request);
     const { user } = this.request.user;
     const operLocation = await this.axiosService.getIpAddress(ip);
 

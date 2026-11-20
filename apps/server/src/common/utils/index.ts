@@ -13,6 +13,16 @@ dayjs.extend(isLeapYear); // 使用插件
 dayjs.locale('zh-cn'); // 使用本地化语言
 dayjs.tz.setDefault('Asia/Beijing');
 
+/**
+ * 取客户端真实 IP：优先 nginx 透传的 X-Real-IP，回退 Express 按 trust proxy 解析出的 request.ip
+ */
+export function GetClientIp(request: { headers?: Record<string, any>; ip?: string }): string {
+  const realIp = request?.headers?.['x-real-ip'];
+  const value = Array.isArray(realIp) ? realIp[0] : realIp;
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  return request?.ip || '';
+}
+
 
 /**
  * 数组转树结构
