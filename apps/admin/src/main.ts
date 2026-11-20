@@ -2,12 +2,6 @@ import { createApp, type App as VueApp } from 'vue';
 
 import '@/assets/styles/index.scss'; // global css
 import DictTag from '@/components/DictTag/index.vue';
-// 文件上传组件
-import FileUpload from '@/components/FileUpload/index.vue';
-// 图片预览组件
-import ImagePreview from '@/components/ImagePreview/index.vue';
-// 图片上传组件
-import ImageUpload from '@/components/ImageUpload/index.vue';
 
 // svg 图标
 import 'virtual:svg-icons-register';
@@ -28,9 +22,6 @@ const app: VueApp = createApp(App);
 
 // 全局组件挂载
 app.component('Pagination', Pagination);
-app.component('FileUpload', FileUpload);
-app.component('ImageUpload', ImageUpload);
-app.component('ImagePreview', ImagePreview);
 app.component('RightToolbar', RightToolbar);
 app.component('DictTag', DictTag);
 
