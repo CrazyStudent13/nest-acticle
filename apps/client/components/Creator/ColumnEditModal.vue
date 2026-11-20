@@ -82,6 +82,7 @@ const emit = defineEmits<{
 }>()
 
 const config = useRuntimeConfig()
+const { createSubject, updateSubject } = useSubject()
 
 const isEdit = computed(() => !!props.column?.id)
 
@@ -154,17 +155,21 @@ const confirmSubmit = async () => {
   submitting.value = true
   tip.value = ''
   try {
-    if (isEdit.value && props.column) {
+    if (props.column?.id) {
       // 编辑为补丁式更新，不传 publishStatus（保持原状态）
-      await apiFetch('/api/post/subject', {
-        method: 'PUT',
-        body: { id: props.column.id, title, desc: form.desc.trim() || undefined, cover: form.cover || undefined }
+      await updateSubject({
+        id: props.column.id,
+        title,
+        desc: form.desc.trim() || undefined,
+        cover: form.cover || undefined
       })
     } else {
       // 新建必须显式发布（后端默认 publishStatus='0' 草稿，guest 列表只显示 '2'）
-      await apiFetch('/api/post/subject', {
-        method: 'POST',
-        body: { title, desc: form.desc.trim() || undefined, cover: form.cover || undefined, publishStatus: '2' }
+      await createSubject({
+        title,
+        desc: form.desc.trim() || undefined,
+        cover: form.cover || undefined,
+        publishStatus: '2'
       })
     }
     emit('saved')

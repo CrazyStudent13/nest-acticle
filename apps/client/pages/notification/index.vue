@@ -150,20 +150,12 @@
 import dayjs from 'dayjs'
 import { formatRelativeTime } from '@nest-acticle/utils'
 import type { MyCommentItem, ReceivedLikeItem } from '@nest-acticle/shared'
+import type { NoticeItem } from '~/composables/useNotice'
 
 // 登录守卫走 auth middleware：未登录弹登录框并回首页，数据加载保持在组件内（守卫先行不发必 401 的请求）
 definePageMeta({
   middleware: 'auth'
 })
-
-interface NoticeItem {
-  noticeId: number
-  noticeTitle: string
-  noticeType: string
-  noticeContent: string
-  status: string
-  createTime: string
-}
 
 // ---------- 分类清单：与头部铃铛下拉一致（私信工作量大暂缓），icon 为全站规范的内联描边 SVG ----------
 const noticeCats = [
@@ -221,6 +213,8 @@ const switchCat = (key: NoticeTab) => {
 }
 
 // ---------- 系统通知列表：分页拉取，status='1'（已关闭）前端过滤；403 等业务错误降级为空态提示 ----------
+const { fetchNotices, fetchMyComments } = useNotice()
+
 const PAGE_SIZE = 10
 const page = ref(1)
 const total = ref(0)
@@ -232,11 +226,9 @@ const loadNotices = async () => {
   loading.value = true
   errorMsg.value = ''
   try {
-    const res = await apiFetch<{ list?: NoticeItem[]; total?: number }>('/api/system/notice/list', {
-      query: { pageNum: page.value, pageSize: PAGE_SIZE }
-    })
-    notices.value = (res.data?.list || []).filter((item) => item.status === '0')
-    total.value = res.data?.total || 0
+    const data = await fetchNotices({ pageNum: page.value, pageSize: PAGE_SIZE })
+    notices.value = (data.list || []).filter((item) => item.status === '0')
+    total.value = data.total || 0
   } catch (error: any) {
     notices.value = []
     total.value = 0
@@ -262,11 +254,9 @@ const loadMyComments = async () => {
   commentLoading.value = true
   commentError.value = ''
   try {
-    const res = await apiFetch<{ list?: MyCommentItem[]; total?: number }>('/api/post/comment/my/list', {
-      query: { pageNum: commentPage.value, pageSize: PAGE_SIZE }
-    })
-    myComments.value = res.data?.list || []
-    commentTotal.value = res.data?.total || 0
+    const data = await fetchMyComments({ pageNum: commentPage.value, pageSize: PAGE_SIZE })
+    myComments.value = data.list || []
+    commentTotal.value = data.total || 0
   } catch (error: any) {
     myComments.value = []
     commentTotal.value = 0

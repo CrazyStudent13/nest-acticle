@@ -130,7 +130,7 @@
 
 <script setup lang="ts">
 import dayjs from 'dayjs'
-import type { LikedArticleItem, PageResult, Subject } from '@nest-acticle/shared'
+import type { LikedArticleItem, Subject } from '@nest-acticle/shared'
 
 // 登录守卫走 auth middleware：未登录/恢复失败回首页；带 ?id= 看他人空间时走 guest 旁路公开可看（authGuestQuery）
 definePageMeta({
@@ -142,6 +142,8 @@ const config = useRuntimeConfig()
 const route = useRoute()
 const { user } = useUser()
 const { fetchUserLikedArticles } = useLike()
+const { fetchGuestArticles } = useArticleManage()
+const { fetchGuestSubjects } = useSubject()
 
 // 签名：取用户资料，未设置时给占位文案
 const signature = computed(() => user.value?.signature?.trim() || '暂未设置签名')
@@ -240,17 +242,15 @@ const loadMyArticles = async () => {
   }
   articlesLoading.value = true
   try {
-    const res = await apiFetch<{ list?: any[]; total?: number }>('/api/post/article/guest/list', {
-      query: {
-        userId,
-        pageNum: 1,
-        pageSize: 50,
-        orderByColumn: 'createTime',
-        isAsc: timeOrder.value === 'desc' ? 'descending' : 'ascending',
-        ...(keyword.value.trim() ? { title: keyword.value.trim() } : {})
-      }
+    const data = await fetchGuestArticles({
+      userId,
+      pageNum: 1,
+      pageSize: 50,
+      orderByColumn: 'createTime',
+      isAsc: timeOrder.value === 'desc' ? 'descending' : 'ascending',
+      ...(keyword.value.trim() ? { title: keyword.value.trim() } : {})
     })
-    const list = res.data?.list || []
+    const list = data.list || []
     articles.value = list
     // 公开统计（自己/他人同一套）+ 他人资料从文章携带的 userInfo 取
     if (!isSelf.value) {
@@ -260,7 +260,7 @@ const loadMyArticles = async () => {
       }
     }
     spaceStats.value = {
-      total: res.data?.total || 0,
+      total: data.total || 0,
       reads: list.reduce((sum, item) => sum + (item.readNum || 0), 0),
       likes: list.reduce((sum, item) => sum + (item.likeNum || 0), 0)
     }
@@ -300,10 +300,8 @@ const loadMySubjects = async () => {
   }
   subjectsLoading.value = true
   try {
-    const res = await apiFetch<PageResult<Subject>>('/api/post/subject/guest/list', {
-      query: { userId, pageNum: 1, pageSize: 50 }
-    })
-    subjects.value = res.data?.list || []
+    const data = await fetchGuestSubjects({ userId, pageNum: 1, pageSize: 50 })
+    subjects.value = data.list || []
   } catch {
     subjects.value = []
   } finally {

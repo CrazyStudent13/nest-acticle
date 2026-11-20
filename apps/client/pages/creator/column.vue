@@ -53,6 +53,7 @@ definePageMeta({
 // 行数据契约见 @nest-acticle/shared 的 Subject（articleCount 为该专栏下文章数）
 
 const { user, isLoggedIn } = useUser()
+const { fetchSubjects, deleteSubject } = useSubject()
 
 const PAGE_SIZE = 20
 
@@ -75,19 +76,17 @@ const loadList = async (reset = true) => {
     loadError.value = ''
   }
   try {
-    const res = await apiFetch<{ list?: Subject[]; total?: number }>('/api/post/subject/list', {
-      query: {
-        userId: user.value.userId,
-        pageNum: pageNum.value,
-        pageSize: PAGE_SIZE,
-        orderByColumn: 'createTime',
-        isAsc: 'descending',
-        ...(searchKeyword.value ? { title: searchKeyword.value } : {})
-      }
+    const data = await fetchSubjects({
+      userId: user.value.userId,
+      pageNum: pageNum.value,
+      pageSize: PAGE_SIZE,
+      orderByColumn: 'createTime',
+      isAsc: 'descending',
+      ...(searchKeyword.value ? { title: searchKeyword.value } : {})
     })
-    const list = res.data?.list || []
+    const list = data.list || []
     rows.value = reset ? list : rows.value.concat(list)
-    total.value = res.data?.total ?? rows.value.length
+    total.value = data.total ?? rows.value.length
   } catch (error: any) {
     loadError.value = error?.message || '加载失败，请稍后重试'
     if (!reset) {
@@ -177,7 +176,7 @@ const removeRow = async (row: Subject) => {
     return
   }
   try {
-    await apiFetch(`/api/post/subject/${row.id}`, { method: 'DELETE' })
+    await deleteSubject(row.id!)
     rows.value = rows.value.filter((item) => item.id !== row.id)
     total.value = Math.max(0, total.value - 1)
   } catch (error: any) {
