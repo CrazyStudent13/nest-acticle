@@ -2957,7 +2957,7 @@ insert into
 values
   ('3', '2010');
 
--- 注册用户菜单权限（仅个人中心自助权限）
+-- 注册用户菜单权限（个人中心自助 + 通知中心列表读取）
 insert into
   sys_role_menu
 values
@@ -2967,6 +2967,12 @@ insert into
   sys_role_menu
 values
   ('4', '1061');
+
+-- 通知公告菜单：仅取 system:notice:list 供前台通知中心读取
+insert into
+  sys_role_menu
+values
+  ('4', '107');
 
 -- ----------------------------
 -- 10、操作日志记录
