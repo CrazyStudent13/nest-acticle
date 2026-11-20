@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
 import { PostArticleEntity } from './entities/article.entity';
-import { CreatePostArticleDto, UpdatePostArticleDto, ListPostArticleDto, AuditPostArticleDto, PublishStatusEnum } from './dto/index';
+import { CreatePostArticleDto, UpdatePostArticleDto, ListPostArticleDto, AuditPostArticleDto, PublishStatusEnum, AuditStatusEnum } from './dto/index';
 import { UserDto } from 'src/module/system/user/user.decorator';
 import { UserEntity } from 'src/module/system/user/entities/sys-user.entity';
 
@@ -42,6 +42,16 @@ export class PostArticleService {
       subjectId: createDto.subjectId ?? 0,
       userId: userId, // 这里会覆盖 createDto 中可能存在的 userId
     });
+
+    // 状态/计数一律服务端写死，不信任请求体（相关字段已从 DTO 移除，此处再兜底覆盖一次）：
+    // 保留前台发文免审流程——直接已发布并落发布时间；audit_status 与 init.sql 默认值一致（0 未提交），
+    // 走人工审核流转需经 /audit 端点；计数只能由点赞/评论/浏览事务维护，禁止客户端指定
+    article.publishStatus = PublishStatusEnum.PUBLISHED;
+    article.auditStatus = AuditStatusEnum.NOT_SUBMITTED;
+    article.publishTime = new Date();
+    article.likeNum = 0;
+    article.readNum = 0;
+    article.commentNum = 0;
 
     await this.postArticleRepository.save(article);
     return ResultData.ok({ id: article.id });
@@ -357,8 +367,10 @@ export class PostArticleService {
       return ResultData.fail(403, '无权修改此文章');
     }
 
-    // 确保不会更新 userId 字段
-    const { userId, ...safeUpdateData } = updateData as any;
+    // 确保不会更新 userId 字段；状态/计数列也不允许经通用更新修改——
+    // publishStatus 只能经 /publish/:id 端点流转，auditStatus 只能经 /audit 端点流转，
+    // publishTime 随发布端点落值，计数由点赞/评论事务维护（相关字段也已从 DTO 移除，双重兜底）
+    const { userId, likeNum, readNum, commentNum, publishStatus, auditStatus, publishTime, ...safeUpdateData } = updateData as any;
 
     // 数据验证：检查描述字段是否过长
     if (safeUpdateData.desc && safeUpdateData.desc.length > 255) {

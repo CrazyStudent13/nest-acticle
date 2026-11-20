@@ -45,34 +45,11 @@ export class CreatePostArticleDto {
   @IsEnum(ArticleSourceEnum)
   source?: string;
 
-  @ApiProperty({ required: false, description: '发布时间' })
-  @IsOptional()
-  publishTime?: Date;
-
-  @ApiProperty({ required: false, description: '点赞数' })
-  @IsOptional()
-  @IsNumber()
-  likeNum?: number;
-
-  @ApiProperty({ required: false, description: '阅读数' })
-  @IsOptional()
-  @IsNumber()
-  readNum?: number;
-
-  @ApiProperty({ required: false, description: '评论数' })
-  @IsOptional()
-  @IsNumber()
-  commentNum?: number;
-
-  @ApiProperty({ required: false, description: '发布状态', enum: PublishStatusEnum })
-  @IsOptional()
-  @IsEnum(PublishStatusEnum)
-  publishStatus?: string;
-
-  @ApiProperty({ required: false, description: '审核状态', enum: AuditStatusEnum })
-  @IsOptional()
-  @IsEnum(AuditStatusEnum)
-  auditStatus?: string;
+  /**
+   * 发布状态/审核状态/发布时间/点赞数/阅读数/评论数不在可写 DTO 内：
+   * 状态只能经 /publish/:id 与 /audit 端点流转，计数由点赞/评论事务维护，
+   * 落库值由 service 写死，防止请求体伪造状态绕过审核（mass assignment）
+   */
 
   @ApiProperty({ required: false, description: '定时发布时间' })
   @IsOptional()
