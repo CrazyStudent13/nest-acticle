@@ -22,7 +22,7 @@
       <span class="na-md-editor-tool-divider" />
 
       <button class="na-md-editor-tool-btn na-md-editor-tool-text" type="button" title="引用" @click="toggleLinePrefix('> ')">”</button>
-      <button class="na-md-editor-tool-btn" type="button" title="链接" @click="insertLink">
+      <button class="na-md-editor-tool-btn" type="button" title="链接" @click="openLinkModal">
         <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
           <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
@@ -91,12 +91,43 @@
       </div>
     </div>
 
-    <!-- 状态栏：字数/行数内置，其余状态（如草稿保存提示）经 status-extra 插槽追加 -->
+    <!-- 状态栏：字数/行数/阅读时长内置，其余状态（如草稿保存提示）经 status-extra 插槽追加 -->
     <footer class="na-md-editor-status">
       <span>字数 {{ charCount }}</span>
       <span>行数 {{ lineCount }}</span>
+      <span v-if="readingMinutes">约 {{ readingMinutes }} 分钟</span>
       <slot name="status-extra" />
     </footer>
+
+    <!-- 链接插入弹窗（Teleport 到 body，替代原生 window.prompt） -->
+    <Teleport to="body">
+      <div v-if="linkModalOpen" class="na-md-editor-modal-mask" @click.self="closeLinkModal">
+        <div class="na-md-editor-modal" role="dialog" aria-label="插入链接">
+          <div class="na-md-editor-modal-title">插入链接</div>
+          <input
+            ref="linkUrlRef"
+            v-model="linkUrl"
+            class="na-md-editor-modal-input"
+            type="text"
+            placeholder="链接地址（https://…）"
+            @keydown.enter.prevent="confirmLinkModal"
+            @keydown.esc="closeLinkModal"
+          />
+          <input
+            v-model="linkText"
+            class="na-md-editor-modal-input"
+            type="text"
+            placeholder="链接文本（默认用选中文字）"
+            @keydown.enter.prevent="confirmLinkModal"
+            @keydown.esc="closeLinkModal"
+          />
+          <div class="na-md-editor-modal-actions">
+            <button type="button" class="na-md-editor-modal-btn" @click="closeLinkModal">取消</button>
+            <button type="button" class="na-md-editor-modal-btn primary" :disabled="!linkUrl.trim()" @click="confirmLinkModal">插入</button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -143,17 +174,53 @@ const taRef = ref<HTMLTextAreaElement | null>(null);
 const {
   charCount,
   lineCount,
+  readingMinutes,
   replaceRange,
   cycleHeading,
   wrapInline,
   toggleLinePrefix,
   toggleOrderedList,
-  insertLink,
   insertCodeBlock,
   insertTable,
   insertHr,
   handleShortcut
 } = useMarkdownEditor(content, taRef);
+
+// ---------- 链接插入弹窗：替代原生 window.prompt（无校验/无回显），默认文本取当前选区 ----------
+const linkModalOpen = ref(false);
+const linkUrl = ref('');
+const linkText = ref('');
+const linkUrlRef = ref<HTMLInputElement | null>(null);
+
+const openLinkModal = () => {
+  const el = taRef.value;
+  linkUrl.value = '';
+  linkText.value = el ? el.value.slice(el.selectionStart, el.selectionEnd) : '';
+  linkModalOpen.value = true;
+  nextTick(() => {
+    linkUrlRef.value?.focus();
+  });
+};
+
+const closeLinkModal = () => {
+  linkModalOpen.value = false;
+  // 归还焦点到编辑区（选区在 blur 后仍保留，直接补全）
+  taRef.value?.focus();
+};
+
+const confirmLinkModal = () => {
+  let url = linkUrl.value.trim();
+  if (!url) {
+    return;
+  }
+  // 无协议前缀时按 https 补全（example.com → https://example.com；相对路径/锚点不受影响）
+  if (!/^https?:\/\//i.test(url) && !url.startsWith('/') && !url.startsWith('#')) {
+    url = `https://${url}`;
+  }
+  wrapInline('[', `](${url})`, linkText.value.trim() || url);
+  linkModalOpen.value = false;
+  taRef.value?.focus();
+};
 
 // ---------- 预览：渲染器与前台文章页同源，200ms 防抖（输入即时性由 textarea 本身保证，长文每键全量渲染会卡） ----------
 const renderer = createMarkdownRenderer();
@@ -505,6 +572,82 @@ const handleScrollSync = () => {
 @media (max-width: 900px) {
   .na-md-editor-preview {
     display: none;
+  }
+}
+
+// ---------- 链接插入弹窗（Teleport 到 body，颜色走宿主变量带回退） ----------
+.na-md-editor-modal-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 3000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: rgba(0, 0, 0, 0.45);
+}
+
+.na-md-editor-modal {
+  width: 420px;
+  max-width: calc(100vw - 48px);
+  padding: 20px;
+  border-radius: var(--radius-md, 8px);
+  background-color: var(--color-surface, #ffffff);
+
+  .na-md-editor-modal-title {
+    margin-bottom: 14px;
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--color-text-1, #1f2329);
+  }
+
+  .na-md-editor-modal-input {
+    width: 100%;
+    margin-bottom: 10px;
+    padding: 8px 10px;
+    border: 1px solid var(--color-border-light, #f0f1f3);
+    border-radius: var(--radius-sm, 4px);
+    outline: none;
+    background-color: var(--color-bg, #f7f8fa);
+    font-size: 13px;
+    color: var(--color-text-1, #1f2329);
+    box-sizing: border-box;
+
+    &::placeholder {
+      color: var(--color-text-3, #86909c);
+    }
+
+    &:focus {
+      border-color: var(--color-primary, #4f6bff);
+      background-color: var(--color-surface, #ffffff);
+    }
+  }
+
+  .na-md-editor-modal-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 4px;
+
+    .na-md-editor-modal-btn {
+      padding: 6px 16px;
+      border: 1px solid var(--color-border-light, #f0f1f3);
+      border-radius: var(--radius-sm, 4px);
+      background-color: transparent;
+      font-size: 13px;
+      color: var(--color-text-1, #1f2329);
+      cursor: pointer;
+
+      &.primary {
+        background-color: var(--color-primary, #4f6bff);
+        border-color: var(--color-primary, #4f6bff);
+        color: #ffffff;
+
+        &:disabled {
+          opacity: 0.5;
+          cursor: not-allowed;
+        }
+      }
+    }
   }
 }
 </style>
