@@ -1,4 +1,4 @@
-<!-- Markdown 预览壳：渲染器与 client 文章页共用 @nest-acticle/markdown（预览即前台呈现），壳只负责 ClipboardJS 绑定与复制成功反馈与 mermaid 懒加载渲染；编辑组件统一走 @nest-acticle/editor，与本组件无关 -->
+<!-- Markdown 预览壳：渲染器与 client 文章页共用 @nest-acticle/markdown（预览即前台呈现），壳只负责 ClipboardJS 绑定与复制成功反馈、mermaid 懒加载渲染与图片点击放大；编辑组件统一走 @nest-acticle/editor，与本组件无关 -->
 <template>
   <div class="markdown-viewer">
     <div ref="containerRef" class="markdown-body">
@@ -8,7 +8,7 @@
 </template>
 
 <script setup lang="ts">
-import { createMarkdownRenderer, renderMermaidDiagrams } from '@nest-acticle/markdown';
+import { bindImageLightbox, createMarkdownRenderer, renderMermaidDiagrams } from '@nest-acticle/markdown';
 import '@nest-acticle/markdown/style.css';
 import ClipboardJS from 'clipboard';
 
@@ -42,9 +42,14 @@ const tryRenderMermaid = () => {
 };
 
 let clipboard: ClipboardJS | null = null;
+let unbindLightbox: (() => void) | null = null;
 
 onMounted(() => {
   tryRenderMermaid();
+  // 图片点击放大（事件委托，v-html 重渲染无需重绑）
+  if (containerRef.value) {
+    unbindLightbox = bindImageLightbox(containerRef.value);
+  }
   clipboard = new ClipboardJS('.copy-btn');
   clipboard.on('success', (event) => {
     event.clearSelection();
@@ -67,6 +72,8 @@ onMounted(() => {
 watch(() => props.modelValue, tryRenderMermaid);
 
 onBeforeUnmount(() => {
+  unbindLightbox?.();
+  unbindLightbox = null;
   clipboard?.destroy();
   clipboard = null;
 });

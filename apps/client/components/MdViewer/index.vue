@@ -1,4 +1,4 @@
-<!-- Markdown 渲染壳：HTML 由 @nest-acticle/markdown 共享包产出（与 admin 预览两端同构），壳只负责 ClipboardJS 绑定与复制成功反馈（成功后 1.5s 显示"已复制"）与 mermaid 懒加载渲染；入参兼容引号包裹内容与字面 \n 由包的 render 处理 -->
+<!-- Markdown 渲染壳：HTML 由 @nest-acticle/markdown 共享包产出（与 admin 预览两端同构），壳只负责 ClipboardJS 绑定与复制成功反馈（成功后 1.5s 显示"已复制"）、mermaid 懒加载渲染与图片点击放大；入参兼容引号包裹内容与字面 \n 由包的 render 处理 -->
 <template>
   <div ref="containerRef" class="markdown-body">
     <div v-html="resultStr"></div>
@@ -7,7 +7,7 @@
 
 <script setup lang="ts">
 import ClipboardJS from 'clipboard'
-import { createMarkdownRenderer, renderMermaidDiagrams } from '@nest-acticle/markdown'
+import { bindImageLightbox, createMarkdownRenderer, renderMermaidDiagrams } from '@nest-acticle/markdown'
 import '@nest-acticle/markdown/style.css'
 
 const props = withDefaults(
@@ -42,9 +42,14 @@ const tryRenderMermaid = () => {
 }
 
 let clipboard: ClipboardJS | null = null
+let unbindLightbox: (() => void) | null = null
 
 onMounted(() => {
   tryRenderMermaid()
+  // 图片点击放大（事件委托，v-html 重渲染无需重绑）
+  if (containerRef.value) {
+    unbindLightbox = bindImageLightbox(containerRef.value)
+  }
   clipboard = new ClipboardJS('.copy-btn')
   clipboard.on('success', (event) => {
     event.clearSelection()
@@ -65,6 +70,8 @@ onMounted(() => {
 })
 
 onBeforeUnmount(() => {
+  unbindLightbox?.()
+  unbindLightbox = null
   clipboard?.destroy()
   clipboard = null
 })
