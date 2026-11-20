@@ -27,9 +27,10 @@ export class LoginlogService {
   /**
    * 日志列表 - 分页
    * @param query
+   * @param opts.paginate 传 false 时不追加 skip/take（内部全量查询，如导出）；默认分页
    * @returns
    */
-  async findAll(query: ListLoginlogDto) {
+  async findAll(query: ListLoginlogDto, opts: { paginate?: boolean } = {}) {
     const entity = this.monitorLoginlogEntityRep.createQueryBuilder('entity');
     entity.where('entity.delFlag = :delFlag', { delFlag: '0' });
 
@@ -53,12 +54,14 @@ export class LoginlogService {
       entity.orderBy('entity.loginTime', 'DESC');
     }
 
-    // 分页处理 - 确保总是执行分页
-    if (query.pageSize && query.pageNum) {
-      entity.skip((query.pageNum - 1) * query.pageSize).take(query.pageSize);
-    } else {
-      // 如果没有分页参数，使用默认值
-      entity.skip(0).take(10);
+    // 分页处理 - 确保总是执行分页（opts.paginate=false 的内部全量查询除外）
+    if (opts.paginate !== false) {
+      if (query.pageSize && query.pageNum) {
+        entity.skip((query.pageNum - 1) * query.pageSize).take(query.pageSize);
+      } else {
+        // 如果没有分页参数，使用默认值
+        entity.skip(0).take(10);
+      }
     }
 
     const [list, total] = await entity.getManyAndCount();
@@ -99,12 +102,11 @@ export class LoginlogService {
 
   /**
    * 导出登录日志数据为xlsx
+   * 全量导出走 { paginate: false }：原先"删分页参数再 findAll"会落入缺参兜底 skip(0).take(10)，导致导出最多 10 行
    * @param res
    */
   async export(res: Response, body: ListLoginlogDto) {
-    delete body.pageNum;
-    delete body.pageSize;
-    const list = await this.findAll(body);
+    const list = await this.findAll(body, { paginate: false });
     const options = {
       sheetName: '登录日志',
       data: list.data.list,
