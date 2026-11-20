@@ -8,6 +8,7 @@ import { Uniq } from 'src/common/utils/index';
 import { CacheEnum, DelFlagEnum, StatusEnum } from 'src/common/enum/index';
 import { SYS_USER_TYPE } from 'src/common/constant/index';
 import { ResultData } from 'src/common/utils/result';
+import { BusinessException } from 'src/common/exceptions/business.exception';
 import { applyLike, paginate } from 'src/common/query';
 import { CreateUserDto, UpdateUserDto, ListUserDto, ChangeStatusDto, ResetPwdDto, AllocatedListDto, UpdateProfileDto, UpdatePwdDto } from './dto/index';
 import { AuthUserCancelDto, AuthUserCancelAllDto, AuthUserSelectAllDto } from '../role/dto/index';
@@ -303,7 +304,7 @@ export class UserService {
   @CacheEvict(CacheEnum.SYS_USER_KEY, '{body.userId}')
   async resetPwd(body: ResetPwdDto) {
     if (body.userId === 1) {
-      return ResultData.fail(500, '系统用户不能重置密码');
+      throw new BusinessException(500, '系统用户不能重置密码');
     }
     if (body.password) {
       body.password = await bcrypt.hash(body.password, 10);
@@ -426,7 +427,7 @@ export class UserService {
     });
     if (!userData) throw new BadRequestException('用户不存在');
     if (userData.userType === SYS_USER_TYPE.SYS) {
-      return ResultData.fail(500, '系统角色不可停用');
+      throw new BusinessException(500, '系统角色不可停用');
     }
 
     const res = await this.userRepo.update(
@@ -661,11 +662,11 @@ export class UserService {
    */
   async updatePwd(user: UserType, updatePwdDto: UpdatePwdDto) {
     if (updatePwdDto.oldPassword === updatePwdDto.newPassword) {
-      return ResultData.fail(500, '新密码不能与旧密码相同');
+      throw new BusinessException(500, '新密码不能与旧密码相同');
     }
     // 旧密码校验：compare(明文, 哈希)——此前参数顺序颠倒导致校验形同虚设
     if (!(await bcrypt.compare(updatePwdDto.oldPassword, user.user.password))) {
-      return ResultData.fail(500, '修改密码失败，旧密码错误');
+      throw new BusinessException(500, '修改密码失败，旧密码错误');
     }
 
     const password = await bcrypt.hash(updatePwdDto.newPassword, 10);
