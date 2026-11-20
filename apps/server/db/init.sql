@@ -2974,6 +2974,22 @@ insert into
 values
   ('4', '107');
 
+-- 发文权限：发布/编辑/删除自己的文章（服务层校验仅限本人，不含管理端列表/审核权限）
+insert into
+  sys_role_menu
+values
+  ('4', '2001');
+
+insert into
+  sys_role_menu
+values
+  ('4', '2002');
+
+insert into
+  sys_role_menu
+values
+  ('4', '2003');
+
 -- ----------------------------
 -- 10、操作日志记录
 -- ----------------------------
