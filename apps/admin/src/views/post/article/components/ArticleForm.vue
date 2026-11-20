@@ -35,22 +35,6 @@
           </el-form-item>
           <el-row :gutter="20">
             <el-col :span="12">
-              <el-form-item label="发布状态" prop="publishStatus">
-                <el-select v-model="formData.publishStatus" clearable placeholder="请选择发布状态" style="width: 100%">
-                  <el-option v-for="dict in post_article_publish_status" :key="dict.value" :label="dict.label" :value="dict.value" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="审核状态" prop="auditStatus">
-                <el-select v-model="formData.auditStatus" clearable placeholder="请选择审核状态" style="width: 100%">
-                  <el-option v-for="dict in post_article_audit_status" :key="dict.value" :label="dict.label" :value="dict.value" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-row :gutter="20">
-            <el-col :span="12">
               <el-form-item label="文章来源" prop="source">
                 <el-select v-model="formData.source" clearable placeholder="请选择文章来源" style="width: 100%">
                   <el-option v-for="dict in post_article_source" :key="dict.value" :label="dict.label" :value="dict.value" />
@@ -112,7 +96,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'success']);
 
-const { post_article_publish_status, post_article_audit_status, post_article_source } = useDict('post_article_publish_status', 'post_article_audit_status', 'post_article_source');
+const { post_article_source } = useDict('post_article_source');
 
 const formRef = ref(null);
 const open = ref(false);
@@ -127,16 +111,19 @@ const formData = reactive({
   cover: undefined,
   author: undefined,
   source: undefined,
-  publishTime: undefined,
-  likeNum: 0,
-  readNum: 0,
-  commentNum: 0,
-  publishStatus: '0',
-  auditStatus: '0',
   scheduledPublishTime: undefined,
   sort: 0,
   userInfo: undefined
 });
+
+// 服务端不可写字段（create 服务端写死、update DTO 已剥离）：发布/审核状态经 /publish 与 /audit
+// 端点流转，计数由点赞/评论事务维护，publishTime 由发布端点落库——详情回填时剔除，payload 不携带
+const READONLY_FIELDS = ['publishStatus', 'auditStatus', 'publishTime', 'likeNum', 'readNum', 'commentNum'];
+const mergeFormData = (data) => {
+  const filtered = { ...data };
+  READONLY_FIELDS.forEach((key) => delete filtered[key]);
+  Object.assign(formData, filtered);
+};
 
 const formRules = {
   title: [{ required: true, message: '文章标题不能为空', trigger: 'blur' }],
@@ -161,7 +148,7 @@ watch(
       if (!data.id && data.articleId) {
         data.id = data.articleId;
       }
-      Object.assign(formData, data);
+      mergeFormData(data);
     } else if (val) {
       // 否则重置表单
       resetForm();
@@ -186,12 +173,6 @@ const resetForm = () => {
     cover: undefined,
     author: undefined,
     source: undefined,
-    publishTime: undefined,
-    likeNum: 0,
-    readNum: 0,
-    commentNum: 0,
-    publishStatus: '0',
-    auditStatus: '0',
     scheduledPublishTime: undefined,
     sort: 0
   });
@@ -277,7 +258,7 @@ const validateBeforeUpload = () => {
 defineExpose({
   resetForm,
   setFormData: (data) => {
-    Object.assign(formData, data);
+    mergeFormData(data);
   }
 });
 
