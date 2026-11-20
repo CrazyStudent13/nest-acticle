@@ -151,6 +151,11 @@ import dayjs from 'dayjs'
 import { formatRelativeTime } from '@nest-acticle/utils'
 import type { MyCommentItem, ReceivedLikeItem } from '@nest-acticle/shared'
 
+// 登录守卫走 auth middleware：未登录弹登录框并回首页，数据加载保持在组件内（守卫先行不发必 401 的请求）
+definePageMeta({
+  middleware: 'auth'
+})
+
 interface NoticeItem {
   noticeId: number
   noticeTitle: string
@@ -188,7 +193,6 @@ type NoticeTab = (typeof noticeCats)[number]['key']
 
 const route = useRoute()
 const config = useRuntimeConfig()
-const { openLogin } = useAuthModal()
 
 // 头像/封面统一补全服务端前缀（相对路径直出会 404）
 const coverUrl = (path?: string | null) => toCoverUrl(config.public.apiBase, path)
@@ -393,12 +397,8 @@ const formatTime = (value?: string | null) => {
   return formatted === 'Invalid Date' ? '' : formatted
 }
 
-// ---------- 登录守卫：未登录弹登录框并回首页（与个人空间页同策略） ----------
+// ---------- 首屏加载：登录守卫已由 auth middleware 先行（未登录不会到达这里），避免发一轮必然 401 的请求 ----------
 onMounted(() => {
-  if (!getToken()) {
-    openLogin()
-    return navigateTo('/')
-  }
   if (activeTab.value === 'system') {
     loadNotices()
   } else if (activeTab.value === 'comment') {

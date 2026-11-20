@@ -88,6 +88,25 @@ export const useUser = () => {
     }
   }
 
+  // 有 token 无用户时静默恢复登录态：头部/文章详情页的组件级恢复与 auth middleware 守卫共用
+  // 失败静默不外抛（fetchUserInfo 内部已清空本地态），调用方按各自场景兜底
+  const ensureUserRestored = async () => {
+    if (getToken() && !user.value) {
+      try {
+        await fetchUserInfo()
+      } catch {
+        // 与原头部/详情页的 .catch(() => {}) 行为一致：恢复失败不阻塞渲染
+      }
+    }
+  }
+
+  // 仅清本地登录态（不请求后端）：供 apiFetch 的 401 统一出口使用
+  // （logout 会请求 /api/logout，token 已失效时反而再吃一个 401）
+  const clearLocalAuth = () => {
+    clearToken()
+    user.value = null
+  }
+
   // 验证码：登录场景按账号失败次数动态判断（3 次后返回 captchaEnabled: true）；
   // 注册场景传 type='register' 无条件生成图片验证码
   const fetchCaptcha = async (username: string, type?: 'register'): Promise<CaptchaInfo> => {
@@ -149,6 +168,8 @@ export const useUser = () => {
     fetchRegisterConfig,
     sendRegisterEmailCode,
     fetchUserInfo,
+    ensureUserRestored,
+    clearLocalAuth,
     fetchCaptcha,
     logout,
     updateProfile,

@@ -136,7 +136,7 @@ const handleSearch = () => {
 
 const { openLogin, openRegister } = useAuthModal()
 const config = useRuntimeConfig()
-const { user, isLoggedIn, fetchUserInfo, logout } = useUser()
+const { user, isLoggedIn, ensureUserRestored, logout } = useUser()
 
 // ---------- 创作者中心入口（悬停出面板，点击进 /creator，页面守卫负责登录拦截） ----------
 // 创作入口清单：未来扩展（沸点/笔记等）往数组加项即可
@@ -231,11 +231,9 @@ const closeNoticePanelSoon = () => {
 const avatarUrl = computed(() => toCoverUrl(config.public.apiBase, user.value?.avatar))
 const avatarFallback = computed(() => (user.value?.nickName || user.value?.userName || '用户').slice(0, 1))
 
-// 页面刷新后恢复登录态：有 token 但还没有用户信息时静默拉取
+// 页面刷新后恢复登录态：有 token 但还没有用户信息时静默拉取（逻辑在 useUser.ensureUserRestored，与 auth middleware 共用）
 onMounted(() => {
-  if (getToken() && !user.value) {
-    fetchUserInfo().catch(() => {})
-  }
+  ensureUserRestored()
 })
 
 const handleLogout = async () => {

@@ -47,7 +47,10 @@
 import type { ApiResponse, Article, PageResult } from '@nest-acticle/shared'
 
 definePageMeta({
-  layout: 'creator'
+  layout: 'creator',
+  middleware: 'auth',
+  authNoToken: 'stay',
+  authRestoreFail: 'stay'
 })
 
 // 行数据契约见 @nest-acticle/shared 的 Article（publishStatus/auditStatus 取值注释也在包内）
