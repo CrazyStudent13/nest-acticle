@@ -80,10 +80,10 @@
       <!-- 操作按钮 -->
       <el-row class="mb8" :gutter="10">
         <el-col :span="1.5">
-          <el-button v-hasPermi="['post:Article:add']" :icon="Plus" plain type="primary" @click="handleNewEditor">新增</el-button>
+          <el-button v-hasPermi="['post:article:add']" :icon="Plus" plain type="primary" @click="handleNewEditor">新增</el-button>
         </el-col>
         <el-col :span="1.5">
-          <el-button v-hasPermi="['post:Article:remove']" :disabled="article.multiple" :icon="Delete" plain type="danger" @click="article.handleDelete">删除</el-button>
+          <el-button v-hasPermi="['post:article:remove']" :disabled="article.multiple" :icon="Delete" plain type="danger" @click="article.handleDelete">删除</el-button>
         </el-col>
         <right-toolbar v-model:show-search="article.showSearch" @query-table="article.getList" />
       </el-row>
@@ -126,8 +126,8 @@
         <el-table-column align="center" class-name="small-padding" fixed="right" label="操作" width="220">
           <template #default="scope">
             <el-button :icon="View" link type="primary" @click="handlePreview(scope.row)">预览</el-button>
-            <el-button v-hasPermi="['post:Article:edit']" :icon="Edit" link type="primary" @click="article.handleUpdate(scope.row)">修改</el-button>
-            <el-button v-hasPermi="['post:Article:remove']" :icon="Delete" link type="danger" @click="article.handleDelete(scope.row)">删除</el-button>
+            <el-button v-hasPermi="['post:article:edit']" :icon="Edit" link type="primary" @click="article.handleUpdate(scope.row)">修改</el-button>
+            <el-button v-hasPermi="['post:article:remove']" :icon="Delete" link type="danger" @click="article.handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
