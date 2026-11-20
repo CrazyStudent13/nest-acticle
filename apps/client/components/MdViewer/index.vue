@@ -1,13 +1,13 @@
-<!-- Markdown 渲染壳：HTML 由 @nest-acticle/markdown 共享包产出（与 admin 预览两端同构），壳只负责 ClipboardJS 绑定与复制成功反馈（成功后 1.5s 显示"已复制"）；入参兼容引号包裹内容与字面 \n 由包的 render 处理 -->
+<!-- Markdown 渲染壳：HTML 由 @nest-acticle/markdown 共享包产出（与 admin 预览两端同构），壳只负责 ClipboardJS 绑定与复制成功反馈（成功后 1.5s 显示"已复制"）与 mermaid 懒加载渲染；入参兼容引号包裹内容与字面 \n 由包的 render 处理 -->
 <template>
-  <div class="markdown-body">
+  <div ref="containerRef" class="markdown-body">
     <div v-html="resultStr"></div>
   </div>
 </template>
 
 <script setup lang="ts">
 import ClipboardJS from 'clipboard'
-import { createMarkdownRenderer } from '@nest-acticle/markdown'
+import { createMarkdownRenderer, renderMermaidDiagrams } from '@nest-acticle/markdown'
 import '@nest-acticle/markdown/style.css'
 
 const props = withDefaults(
@@ -21,9 +21,30 @@ const props = withDefaults(
 
 const renderer = createMarkdownRenderer()
 
+const containerRef = ref<HTMLElement | null>(null)
+
+// mermaid 懒加载渲染：仅在渲染产物含 .mermaid 容器时触发（动态 import，无图表的文章零加载成本）
+const tryRenderMermaid = () => {
+  if (import.meta.server) {
+    return
+  }
+  nextTick(async () => {
+    const host = containerRef.value
+    if (!host || !host.querySelector('.mermaid')) {
+      return
+    }
+    try {
+      await renderMermaidDiagrams(host)
+    } catch (error) {
+      console.warn('mermaid 渲染失败:', error)
+    }
+  })
+}
+
 let clipboard: ClipboardJS | null = null
 
 onMounted(() => {
+  tryRenderMermaid()
   clipboard = new ClipboardJS('.copy-btn')
   clipboard.on('success', (event) => {
     event.clearSelection()
@@ -47,6 +68,8 @@ onBeforeUnmount(() => {
   clipboard?.destroy()
   clipboard = null
 })
+
+watch(() => props.value, tryRenderMermaid)
 
 const resultStr = computed(() => {
   if (!props.value) {
