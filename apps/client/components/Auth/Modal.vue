@@ -48,7 +48,7 @@
                   @keydown="blockSpaceKey"
                   @blur="onBlur('password')"
                 />
-                <button v-if="mode === 'login'" class="forgot" type="button" @click="showTip('请联系管理员重置密码')">
+                <button v-if="mode === 'login'" class="forgot" type="button" @click="showToast('请联系管理员重置密码', 'info')">
                   忘记密码
                 </button>
               </div>
@@ -166,8 +166,6 @@
               <p v-if="fieldError('emailCode')" class="field-tip">{{ errors.emailCode }}</p>
             </div>
 
-            <p v-if="tip" class="tip" :class="{ 'tip-error': tipIsError }">{{ tip }}</p>
-
             <button class="submit-btn" type="submit" :disabled="submitting">
               {{ mode === 'login' ? '登录' : '注册' }}
             </button>
@@ -214,6 +212,9 @@ const touched = reactive<Record<FormField, boolean>>({
 
 // 邮箱格式：local 部分仅限常见字符（字母数字与 ._%+-），域名须为「标签.」+ 至少 2 位字母顶级域名
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)+[A-Za-z]{2,}$/
+
+// 后端「账号已存在」类错误特征：用户名占用、邮箱占用、并发撞唯一索引，统一转成登录引导
+const ACCOUNT_EXISTS_HINTS = ['注册账号已存在', '该邮箱已被其他账号使用', '该账号已注册']
 
 const errors = computed<Record<FormField, string>>(() => ({
   email: !form.email.trim()
@@ -307,14 +308,7 @@ const strength = computed(() => passwordStrength(form.password))
 const strengthLabel = computed(() => ['太短了', '弱', '中', '强'][strength.value] ?? '')
 const strengthBarClass = (n: number) => ({ on: strength.value >= n, [`lv-${strength.value}`]: strength.value >= n })
 
-const tip = ref('')
-const tipIsError = ref(false)
 const submitting = ref(false)
-
-const showTip = (message: string, isError = false) => {
-  tip.value = message
-  tipIsError.value = isError
-}
 
 // 验证码状态：后端仅在账号连续登录失败达到阈值（3 次）时要求
 const captcha = reactive({
@@ -407,17 +401,17 @@ const startCooldown = (seconds: number) => {
 const handleSendEmailCode = async () => {
   touched.email = true
   if (errors.value.email) {
-    // 按钮已挪到验证码框内，邮箱非法时明确告知，不再静默返回
-    showTip(errors.value.email, true)
+    // 邮箱非法时明确告知，不再静默返回
+    showToast(errors.value.email, 'error')
     return
   }
   sendingCode.value = true
   try {
     await sendRegisterEmailCode(form.email.trim())
-    showTip('验证码已发送，请查收邮件')
+    showToast('验证码已发送，请查收邮件', 'success')
     startCooldown(60)
   } catch (error: any) {
-    showTip(error?.message || '验证码发送失败，请稍后重试', true)
+    showToast(error?.message || '验证码发送失败，请稍后重试', 'error')
   } finally {
     sendingCode.value = false
   }
@@ -439,7 +433,6 @@ const resetForm = () => {
   registerCaptcha.code = ''
   registerCaptcha.codeTouched = false
   registerCaptcha.loading = false
-  showTip('')
 }
 
 const switchMode = () => {
@@ -473,6 +466,9 @@ const handleSubmit = async () => {
   touched.emailCode = true
 
   if (errors.value.email || errors.value.password || errors.value.confirm || errors.value.emailCode) {
+    // 字段下仍保留内联提示，这里再用 toast 报第一条错误，避免点提交看起来无反应
+    const firstError = [errors.value.email, errors.value.password, errors.value.confirm, errors.value.emailCode].find(Boolean)
+    if (firstError) showToast(firstError, 'error')
     return
   }
 
@@ -480,6 +476,7 @@ const handleSubmit = async () => {
   if (mode.value !== 'login') {
     if (!registerConfig.emailRegisterEnabled && !registerCaptcha.code.trim()) {
       registerCaptcha.codeTouched = true
+      showToast('请输入验证码', 'error')
       return
     }
     submitting.value = true
@@ -494,9 +491,15 @@ const handleSubmit = async () => {
       resetForm()
       form.email = username
       refreshCaptcha()
-      showTip('注册成功，请登录')
+      showToast('注册成功，请登录', 'success')
     } catch (error: any) {
-      showTip(error?.message || '注册失败，请稍后重试', true)
+      const message = error?.message || ''
+      // 账号已存在单独给登录引导，其余错误原样提示
+      if (ACCOUNT_EXISTS_HINTS.some((hint) => message.includes(hint))) {
+        showToast('该邮箱已注册，请直接登录', 'error')
+      } else {
+        showToast(message || '注册失败，请稍后重试', 'error')
+      }
       // 图片验证码一次性使用，失败后需重新获取
       if (!registerConfig.emailRegisterEnabled) {
         await refreshRegisterCaptcha()
@@ -509,6 +512,7 @@ const handleSubmit = async () => {
 
   if (captcha.enabled && !captcha.code.trim()) {
     captcha.codeTouched = true
+    showToast('请输入验证码', 'error')
     return
   }
 
@@ -521,7 +525,7 @@ const handleSubmit = async () => {
     })
     close()
   } catch (error: any) {
-    showTip(error?.message || '登录失败，请稍后重试', true)
+    showToast(error?.message || '登录失败，请稍后重试', 'error')
     // 登录失败会累计错误次数，重取验证码状态（达到阈值后自动展示）
     await refreshCaptcha()
   } finally {
@@ -797,16 +801,6 @@ onBeforeUnmount(() => {
       &.strength-3 {
         color: #1a7f37;
       }
-    }
-  }
-
-  .tip {
-    font-size: 13px;
-    line-height: 20px;
-    color: var(--color-primary);
-
-    &.tip-error {
-      color: #d1242f;
     }
   }
 
