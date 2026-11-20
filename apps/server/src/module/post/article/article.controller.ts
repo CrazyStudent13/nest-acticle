@@ -105,10 +105,8 @@ export class PostArticleController {
   @ApiBody({ type: AuditPostArticleDto, required: true })
   @RequirePermission('post:article:audit')
   @Post('/audit')
-  audit(@Body() auditDto: AuditPostArticleDto) {
-    // TODO: 从当前登录用户获取审核人ID
-    const auditUserId = 1;
-    return this.postArticleService.audit(auditDto, auditUserId);
+  audit(@Body() auditDto: AuditPostArticleDto, @User() user: UserDto) {
+    return this.postArticleService.audit(auditDto, user.user.userId);
   }
 
   /**
