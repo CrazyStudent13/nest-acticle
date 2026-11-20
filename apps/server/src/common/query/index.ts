@@ -91,8 +91,9 @@ export async function attachUserInfo<T extends { userId?: number | null }>(
 /**
  * 归属校验：管理员放行，否则仅资源本人放行
  * 判定与既有 `user.roles?.includes('admin')` + `entity.userId !== user.user.userId` 组合完全一致。
- * 返回是否放行（布尔值而非抛错），403 信封与文案由调用方用 ResultData.fail 自行返回——
- * 各调用点文案不同（如"无权修改此文章"/"无权发布此文章"），且必须维持 HTTP 200 + body.code 的既有信封
+ * 返回是否放行（布尔值而非抛错），403 文案由调用方自行决定并抛出/返回——
+ * 各调用点文案不同（如"无权修改此文章"/"无权发布此文章"）；已迁移错误协议的模块（post article）throw BusinessException，
+ * 未迁移模块暂用 ResultData.fail（统一错误协议迁移中，见审查报告 Server P0-2）
  * @param user 当前登录用户（UserDto 结构）
  * @param entity 携带创建者 userId 的资源行
  */

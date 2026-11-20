@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
+import { BusinessException } from 'src/common/exceptions/business.exception';
 import { applyLike, assertOwnership, attachUserInfo, paginate } from 'src/common/query';
 import { PostArticleEntity } from './entities/article.entity';
 import { CreatePostArticleDto, UpdatePostArticleDto, ListPostArticleDto, AuditPostArticleDto, PublishStatusEnum, AuditStatusEnum } from './dto/index';
@@ -88,7 +89,7 @@ export class PostArticleService {
     });
 
     if (!article) {
-      return ResultData.fail(500, '文章不存在');
+      throw new BusinessException(500, '文章不存在');
     }
 
     // 根据文章中的 userId 查询用户详细信息
@@ -227,7 +228,7 @@ export class PostArticleService {
   async findGuestOne(id: number) {
     const articleId = Number(id);
     if (!articleId) {
-      return ResultData.fail(500, '文章不存在');
+      throw new BusinessException(500, '文章不存在');
     }
 
     const article = await this.postArticleRepository.findOne({
@@ -251,7 +252,7 @@ export class PostArticleService {
     });
 
     if (!article) {
-      return ResultData.fail(500, '文章不存在');
+      throw new BusinessException(500, '文章不存在');
     }
 
     // 根据文章中的 userId 查询作者公开信息（仅昵称与头像，不暴露登录名）
@@ -291,12 +292,12 @@ export class PostArticleService {
     });
 
     if (!article) {
-      return ResultData.fail(500, '文章不存在');
+      throw new BusinessException(500, '文章不存在');
     }
 
     // 权限验证：只能更新自己的文章（管理员除外）
     if (!assertOwnership(user, article)) {
-      return ResultData.fail(403, '无权修改此文章');
+      throw new BusinessException(403, '无权修改此文章');
     }
 
     // 确保不会更新 userId 字段；状态/计数列也不允许经通用更新修改——
@@ -325,7 +326,7 @@ export class PostArticleService {
     const idList = Array.isArray(ids) ? ids : [ids];
 
     if (!idList || idList.length === 0) {
-      return ResultData.fail(400, '请选择要删除的文章');
+      throw new BusinessException(400, '请选择要删除的文章');
     }
 
     // 获取所有要删除的文章
@@ -337,13 +338,13 @@ export class PostArticleService {
     });
 
     if (articles.length === 0) {
-      return ResultData.fail(500, '未找到可删除的文章');
+      throw new BusinessException(500, '未找到可删除的文章');
     }
 
     // 权限验证：只能删除自己的文章（管理员除外）；检查是否有不属于当前用户的文章
     const unauthorizedArticles = articles.filter((article) => !assertOwnership(user, article));
     if (unauthorizedArticles.length > 0) {
-      return ResultData.fail(403, '无权删除部分文章');
+      throw new BusinessException(403, '无权删除部分文章');
     }
 
     // 批量软删除
@@ -364,7 +365,7 @@ export class PostArticleService {
     });
 
     if (!article) {
-      return ResultData.fail(500, '文章不存在');
+      throw new BusinessException(500, '文章不存在');
     }
 
     // 更新审核状态、审核人、审核时间和备注
@@ -393,12 +394,12 @@ export class PostArticleService {
     });
 
     if (!article) {
-      return ResultData.fail(500, '文章不存在');
+      throw new BusinessException(500, '文章不存在');
     }
 
     // 权限验证：只能提交自己的文章进行审核
     if (!assertOwnership(user, article)) {
-      return ResultData.fail(403, '无权操作此文章');
+      throw new BusinessException(403, '无权操作此文章');
     }
 
     await this.postArticleRepository.update(
@@ -423,12 +424,12 @@ export class PostArticleService {
     });
 
     if (!article) {
-      return ResultData.fail(500, '文章不存在');
+      throw new BusinessException(500, '文章不存在');
     }
 
     // 权限验证：只能发布自己的文章（管理员除外）
     if (!assertOwnership(user, article)) {
-      return ResultData.fail(403, '无权发布此文章');
+      throw new BusinessException(403, '无权发布此文章');
     }
 
     await this.postArticleRepository.update(

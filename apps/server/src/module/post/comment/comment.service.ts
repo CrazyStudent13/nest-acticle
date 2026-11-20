@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
+import { BusinessException } from 'src/common/exceptions/business.exception';
 import { applyLike, paginate } from 'src/common/query';
 import { PublishStatusEnum } from '@nest-acticle/shared';
 import { PostCommentEntity } from './entities/comment.entity';
@@ -34,7 +35,7 @@ export class PostCommentService {
         where: { id: dto.articleId, delFlag: '0', publishStatus: PublishStatusEnum.PUBLISHED },
       });
       if (!article) {
-        return ResultData.fail(500, '文章不存在或未发布');
+        throw new BusinessException(500, '文章不存在或未发布');
       }
 
       // 回复目标校验：父评论必须存在且属于同一篇文章，被回复人取父评论作者
@@ -46,7 +47,7 @@ export class PostCommentService {
           where: { id: dto.parentId, articleId: dto.articleId },
         });
         if (!parent) {
-          return ResultData.fail(500, '被回复的评论不存在');
+          throw new BusinessException(500, '被回复的评论不存在');
         }
         replyUserId = parent.userId;
         const replyUser = await manager.findOne(UserEntity, {
@@ -238,10 +239,10 @@ export class PostCommentService {
     return this.articleRepo.manager.transaction(async (manager) => {
       const comment = await manager.findOne(PostCommentEntity, { where: { id } });
       if (!comment) {
-        return ResultData.fail(500, '评论不存在');
+        throw new BusinessException(500, '评论不存在');
       }
       if (comment.userId !== userId) {
-        return ResultData.fail(403, '只能删除自己的评论');
+        throw new BusinessException(403, '只能删除自己的评论');
       }
 
       const { ids, countByArticle } = await this.collectCascade(manager, [id]);
