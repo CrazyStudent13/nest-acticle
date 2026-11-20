@@ -1,4 +1,4 @@
-<!-- Markdown 预览壳：渲染器与 client 文章页共用 @nest-acticle/markdown（预览即前台呈现），壳只负责 ClipboardJS 绑定与复制成功反馈；MdEditor 编辑组件仍为 md-editor-v3，与本组件无关 -->
+<!-- Markdown 预览壳：渲染器与 client 文章页共用 @nest-acticle/markdown（预览即前台呈现），壳只负责 ClipboardJS 绑定与复制成功反馈；编辑组件统一走 @nest-acticle/editor，与本组件无关 -->
 <template>
   <div class="markdown-viewer">
     <div class="markdown-body">
