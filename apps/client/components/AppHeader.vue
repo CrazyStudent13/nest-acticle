@@ -1,4 +1,4 @@
-<!-- 全站吸顶导航：品牌+栏目导航+文章搜索（回车跳首页带 title 参数）；创作者中心入口悬停展开面板（250ms 延迟关闭防误消）、点击新窗口进 /creator；已登录通知铃铛（点击进 /notification、悬停下拉四分类）+头像+退出，未登录登录/注册按钮 -->
+<!-- 全站吸顶导航：品牌+栏目导航+文章搜索（回车跳首页带 title 参数）；已登录创作者中心入口悬停展开面板（250ms 延迟关闭防误消）、点击新窗口进 /creator + 通知铃铛（点击进 /notification、悬停下拉四分类）+头像+退出，未登录仅登录/注册按钮 -->
 <template>
   <header class="header">
     <div class="inner">
@@ -37,8 +37,8 @@
           <input v-model="keyword" type="search" placeholder="搜索文章" />
         </form>
 
-        <!-- 创作者中心入口：仿掘金——悬停展开面板，点击新窗口进创作者中心（保留主站浏览状态） -->
-        <div class="creator-entry" @mouseenter="openPanel" @mouseleave="closePanelSoon">
+        <!-- 创作者中心入口：仿掘金——悬停展开面板，点击新窗口进创作者中心（保留主站浏览状态）；未登录不展示 -->
+        <div v-if="isLoggedIn" class="creator-entry" @mouseenter="openPanel" @mouseleave="closePanelSoon">
           <NuxtLink to="/creator" class="creator-btn" target="_blank">
             创作者中心
             <svg class="arrow" :class="{ open: creatorOpen }" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
