@@ -1,3 +1,15 @@
+/**
+ * 业务码常量（信封 body.code 取值）
+ * 契约来源：packages/shared/src/constants.ts（200/401/403/404/500/601 已收口在 shared），
+ * 此处仅补充 shared 暂缺、业务异常需映射 HTTP 状态时用到的两个码
+ */
+
+/** 参数错误 */
+export const BAD_REQUEST_CODE = 400;
+
+/** 请求过于频繁（限流） */
+export const TOO_MANY_REQUESTS_CODE = 429;
+
 export class BusinessType {
   /**
    * 其它
