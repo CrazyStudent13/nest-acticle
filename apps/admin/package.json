@@ -2,8 +2,8 @@
   "name": "admin",
   "version": "3.8.6",
   "type": "module",
-  "description": "若依管理系统",
-  "author": "若依",
+  "description": "nest-acticle 博客平台管理后台（Vue3 + Element Plus）",
+  "author": "crazystudent13",
   "license": "MIT",
   "scripts": {
     "dev": "vite",
