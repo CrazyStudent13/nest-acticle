@@ -21,6 +21,7 @@ import {
   REGISTER_DEFAULT_ROLE_KEY,
 } from 'src/common/constant/index';
 import { ResultData, SUCCESS_CODE } from 'src/common/utils/result';
+import { BusinessException } from 'src/common/exceptions/business.exception';
 import { LoginDto, RegisterDto } from './dto/index';
 import { ClientInfoDto } from 'src/common/decorators/common.decorator';
 import { Captcha } from 'src/common/decorators/captcha.decorator';
@@ -73,11 +74,21 @@ export class AuthService {
     } catch (error) {
       this.logger.warn(`登录 IP 归属地解析失败: ${error?.message ?? error}`);
     }
-    const loginRes = await this.doLogin(user, loginLog);
-    loginLog.status = loginRes.code === SUCCESS_CODE ? '0' : '1';
-    loginLog.msg = loginRes.msg;
-    this.safeCreateLoginLog(loginLog);
-    return loginRes;
+    try {
+      const loginRes = await this.doLogin(user, loginLog);
+      loginLog.status = loginRes.code === SUCCESS_CODE ? '0' : '1';
+      loginLog.msg = loginRes.msg;
+      this.safeCreateLoginLog(loginLog);
+      return loginRes;
+    } catch (error) {
+      // throw 协议下登录失败不再有返回信封可读：catch 到业务异常补记失败日志（与原 return fail 的日志行为一致）后原样重抛
+      if (error instanceof BusinessException) {
+        loginLog.status = '1';
+        loginLog.msg = error.msg;
+        this.safeCreateLoginLog(loginLog);
+      }
+      throw error;
+    }
   }
 
   /**
@@ -106,7 +117,7 @@ export class AuthService {
     if (!(data && (await bcrypt.compare(user.password, data.password)))) {
       // 累计密码错误次数，达到阈值后下次登录需要验证码
       await recordLoginFailure(this.redisService, user.username);
-      return ResultData.fail(500, `账号或密码错误`);
+      throw new BusinessException(500, `账号或密码错误`);
     }
 
     await clearLoginFailure(this.redisService, user.username);
@@ -115,10 +126,10 @@ export class AuthService {
     const userData = await this.userService.getUserinfo(data.userId);
 
     if (userData.delFlag === DelFlagEnum.DELETE) {
-      return ResultData.fail(500, `您已被禁用，如需正常使用请联系管理员`);
+      throw new BusinessException(500, `您已被禁用，如需正常使用请联系管理员`);
     }
     if (userData.status === StatusEnum.STOP) {
-      return ResultData.fail(500, `您已被停用，如需正常使用请联系管理员`);
+      throw new BusinessException(500, `您已被停用，如需正常使用请联系管理员`);
     }
 
     /**
@@ -193,14 +204,13 @@ export class AuthService {
    * 注册
    */
   async register(user: RegisterDto, ipaddr: string) {
-    // 注册验证：已配置邮件服务走邮箱验证码，否则走图片验证码
-    const verifyFail = await this.validateRegisterVerification(user);
-    if (verifyFail) return verifyFail;
+    // 注册验证：已配置邮件服务走邮箱验证码，否则走图片验证码（不通过直接 throw）
+    await this.validateRegisterVerification(user);
     const loginDate = GetNowDate();
     // IP 注册频率限制：同一 IP 每小时最多 REGISTER_IP_LIMIT 次（含验证码失败的尝试）
     const rateCount = await this.redisService.incr(CacheEnum.REGISTER_RATE_KEY + ipaddr, REGISTER_RATE_EXPIRESIN);
     if (rateCount > REGISTER_IP_LIMIT) {
-      return ResultData.fail(429, '注册过于频繁，请稍后再试');
+      throw new BusinessException(429, '注册过于频繁，请稍后再试');
     }
     const checkUserNameUnique = await this.userRepo.findOne({
       where: {
@@ -209,7 +219,7 @@ export class AuthService {
       select: ['userName'],
     });
     if (checkUserNameUnique) {
-      return ResultData.fail(500, '该账号已注册，请直接登录');
+      throw new BusinessException(500, '该账号已注册，请直接登录');
     }
     // 邮箱占用查重（sys_user.email 无唯一索引，应用层兜底；未填邮箱时跳过）
     if (user.email) {
@@ -220,7 +230,7 @@ export class AuthService {
         select: ['userId'],
       });
       if (checkEmailUnique) {
-        return ResultData.fail(500, '该邮箱已被其他账号使用');
+        throw new BusinessException(500, '该邮箱已被其他账号使用');
       }
     }
     user['userName'] = user.username;
@@ -235,7 +245,7 @@ export class AuthService {
     } catch (error) {
       // 并发注册撞车时前置查重拦不住，靠 user_name 唯一索引兜底（ER_DUP_ENTRY）
       if (error?.code === 'ER_DUP_ENTRY') {
-        return ResultData.fail(500, '该账号已注册，请直接登录');
+        throw new BusinessException(500, '该账号已注册，请直接登录');
       }
       throw error;
     }
@@ -266,24 +276,23 @@ export class AuthService {
    * 注册验证方式校验：
    * - 已配置邮件服务（邮箱验证码注册开启）→ 校验邮箱验证码；验证通过不删码，注册失败可凭原码重试
    * - 未配置 → 图片验证码（原 @Captcha('user','always') 行为）
-   * @returns null 表示校验通过，否则返回失败的 ResultData
+   * 校验不通过直接 throw BusinessException
    */
-  private async validateRegisterVerification(user: RegisterDto): Promise<ResultData | null> {
+  private async validateRegisterVerification(user: RegisterDto): Promise<void> {
     if (this.mailService.isEnabled()) {
-      if (!user.email) return ResultData.fail(500, '请输入邮箱');
-      if (!user.emailCode) return ResultData.fail(500, '请输入邮箱验证码');
+      if (!user.email) throw new BusinessException(500, '请输入邮箱');
+      if (!user.emailCode) throw new BusinessException(500, '请输入邮箱验证码');
       const code = await this.redisService.get(CacheEnum.EMAIL_CODE_KEY + user.email);
-      if (!code) return ResultData.fail(500, '邮箱验证码已过期，请重新获取');
-      if (String(code) !== String(user.emailCode)) return ResultData.fail(500, '邮箱验证码错误');
-      return null;
+      if (!code) throw new BusinessException(500, '邮箱验证码已过期，请重新获取');
+      if (String(code) !== String(user.emailCode)) throw new BusinessException(500, '邮箱验证码错误');
+      return;
     }
-    if (!user.code) return ResultData.fail(500, '请输入验证码');
+    if (!user.code) throw new BusinessException(500, '请输入验证码');
     const code = await this.redisService.get(CacheEnum.CAPTCHA_CODE_KEY + user.uuid);
-    if (!code) return ResultData.fail(500, '验证码已过期');
-    if (String(code) !== String(user.code)) return ResultData.fail(500, '验证码错误');
+    if (!code) throw new BusinessException(500, '验证码已过期');
+    if (String(code) !== String(user.code)) throw new BusinessException(500, '验证码错误');
     // 图片验证码一次性使用，校验通过后立即作废
     await this.redisService.del(CacheEnum.CAPTCHA_CODE_KEY + user.uuid);
-    return null;
   }
 
   /**
@@ -315,29 +324,29 @@ export class AuthService {
    */
   async sendEmailCode(email: string, ipaddr: string) {
     if (!this.mailService.isEnabled()) {
-      return ResultData.fail(500, '邮箱验证码注册未开启');
+      throw new BusinessException(500, '邮箱验证码注册未开启');
     }
     // 邮箱已被注册时提前拦截，不消耗发送冷却
     const emailRes = await this.checkEmailRegistered(email);
     if (emailRes.data?.exists) {
-      return ResultData.fail(500, `该邮箱已被其他账号使用`);
+      throw new BusinessException(500, `该邮箱已被其他账号使用`);
     }
     // 同一邮箱发码冷却
     const emailCount = await this.redisService.incr(CacheEnum.EMAIL_SEND_RATE_KEY + email, EMAIL_SEND_COOLDOWN);
     if (emailCount > 1) {
       const cooldownSec = (await this.redisService.ttl(CacheEnum.EMAIL_SEND_RATE_KEY + email)) || EMAIL_SEND_COOLDOWN / 1000;
-      return ResultData.fail(429, `验证码发送过于频繁，请 ${Math.max(Math.ceil(cooldownSec), 1)} 秒后再试`);
+      throw new BusinessException(429, `验证码发送过于频繁，请 ${Math.max(Math.ceil(cooldownSec), 1)} 秒后再试`);
     }
     // 同一邮箱每小时发码上限，防止单个邮箱被轰炸触发邮件服务商拦截
     const hourlyCount = await this.redisService.incr(CacheEnum.EMAIL_SEND_HOURLY_KEY + email, EMAIL_SEND_HOURLY_EXPIRESIN);
     if (hourlyCount > EMAIL_SEND_HOURLY_LIMIT) {
       const hourlySec = (await this.redisService.ttl(CacheEnum.EMAIL_SEND_HOURLY_KEY + email)) || EMAIL_SEND_HOURLY_EXPIRESIN / 1000;
-      return ResultData.fail(429, `该邮箱本小时内发码次数已达上限，请 ${Math.max(Math.ceil(hourlySec / 60), 1)} 分钟后再试`);
+      throw new BusinessException(429, `该邮箱本小时内发码次数已达上限，请 ${Math.max(Math.ceil(hourlySec / 60), 1)} 分钟后再试`);
     }
     // 同一 IP 发码频率限制
     const ipCount = await this.redisService.incr(CacheEnum.EMAIL_SEND_IP_KEY + ipaddr, EMAIL_SEND_IP_EXPIRESIN);
     if (ipCount > EMAIL_SEND_IP_LIMIT) {
-      return ResultData.fail(429, '操作过于频繁，请稍后再试');
+      throw new BusinessException(429, '操作过于频繁，请稍后再试');
     }
     // 6 位数字验证码，存 Redis 5 分钟，注册成功后才作废（失败可重试）
     const code = String(randomInt(0, 1000000)).padStart(6, '0');
@@ -348,7 +357,7 @@ export class AuthService {
       console.error('发送注册验证码邮件失败:', error);
       // 发送失败不占用发码冷却，用户可立即重试；每小时上限与 IP 限流照常计数防刷
       await this.redisService.del(CacheEnum.EMAIL_SEND_RATE_KEY + email);
-      return ResultData.fail(500, '验证码发送失败，请稍后重试');
+      throw new BusinessException(500, '验证码发送失败，请稍后重试');
     }
     return ResultData.ok(null, '验证码已发送，请查收邮件');
   }

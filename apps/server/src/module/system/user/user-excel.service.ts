@@ -10,6 +10,7 @@ import * as ExcelJS from 'exceljs';
 import { DelFlagEnum } from 'src/common/enum/index';
 import { SYS_USER_TYPE } from 'src/common/constant/index';
 import { ResultData } from 'src/common/utils/result';
+import { BusinessException } from 'src/common/exceptions/business.exception';
 import { ListUserDto } from './dto/index';
 import { UserType } from './dto/user';
 import { UserDto } from './user.decorator';
@@ -70,7 +71,7 @@ export class UserExcelService {
       const worksheet = workbook.getWorksheet(1); // 获取第一个工作表
 
       if (!worksheet || worksheet.rowCount < 2) {
-        return ResultData.fail(500, 'Excel 文件为空或格式不正确');
+        throw new BusinessException(500, 'Excel 文件为空或格式不正确');
       }
 
       // 定义表头映射（第一行为表头）
@@ -95,7 +96,7 @@ export class UserExcelService {
 
       // 验证必要字段是否存在
       if (!headerMapping || Object.keys(headerMapping).length === 0) {
-        return ResultData.fail(500, 'Excel 表头格式不正确，请检查是否包含必要的列');
+        throw new BusinessException(500, 'Excel 表头格式不正确，请检查是否包含必要的列');
       }
 
       const successData: any[] = [];
@@ -273,7 +274,8 @@ export class UserExcelService {
 
       return ResultData.ok(result, `导入成功，共 ${successData.length} 条记录`);
     } catch (error) {
-      return ResultData.fail(500, `导入失败：${error.message}`);
+      // 导入为逐行写入的"部分成功"设计（无事务），此路径不回滚已写入行——与原 return fail 行为一致
+      throw new BusinessException(500, `导入失败：${error.message}`);
     }
   }
 

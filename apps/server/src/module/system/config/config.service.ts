@@ -3,6 +3,7 @@ import { Response } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
+import { BusinessException } from 'src/common/exceptions/business.exception';
 import { applyLike, paginate } from 'src/common/query';
 import { ExportTable } from 'src/common/utils/export';
 import { CreateConfigDto, UpdateConfigDto, ListConfigDto } from './dto/index';
@@ -109,7 +110,7 @@ export class ConfigService {
     });
     const item = list.find((item) => item.configType === 'Y');
     if (item) {
-      return ResultData.fail(500, `内置参数【${item.configKey}】不能删除`);
+      throw new BusinessException(500, `内置参数【${item.configKey}】不能删除`);
     }
     const data = await this.sysConfigEntityRep.update(
       { configId: In(configIds) },

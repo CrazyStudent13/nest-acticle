@@ -10,6 +10,7 @@ import { UploadService } from 'src/module/upload/upload.service';
 import { CreateUserDto, UpdateUserDto, ListUserDto, ChangeStatusDto, ResetPwdDto, UpdateProfileDto, UpdatePwdDto } from './dto/index';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ResultData } from 'src/common/utils/result';
+import { BusinessException } from 'src/common/exceptions/business.exception';
 import { User, UserDto, UserTool, UserToolType } from 'src/module/system/user/user.decorator';
 import { BusinessType } from 'src/common/constant/business.constant';
 import { Operlog } from 'src/common/decorators/operlog.decorator';
@@ -56,7 +57,7 @@ export class UserController {
   @UseInterceptors(FileInterceptor('avatarfile', { limits: { fileSize: UPLOAD_MAX_SIZE_BYTES } }))
   async avatar(@UploadedFile() avatarfile: Express.Multer.File, @User() user: UserDto) {
     if (!avatarfile) {
-      return ResultData.fail(500, '请上传头像文件');
+      throw new BusinessException(500, '请上传头像文件');
     }
     // 传递作者名（使用用户昵称或用户名）
     const authorName = user.user.nickName || user.user.userName;
