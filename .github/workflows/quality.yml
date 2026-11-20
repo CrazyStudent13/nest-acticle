@@ -29,9 +29,9 @@ jobs:
       - name: 安装依赖（frozen lockfile）
         run: pnpm install --frozen-lockfile
 
-      # shared/utils 的 types 指向 dist 构建产物，client typecheck 与 server build 的模块解析都依赖它，必须先构建
+      # shared/utils/markdown 的 types 指向 dist 构建产物，client typecheck 与 server/admin build 的模块解析都依赖它，必须先构建
       - name: 构建 workspace 共享包
-        run: pnpm --filter @nest-acticle/shared --filter @nest-acticle/utils build
+        run: pnpm --filter @nest-acticle/shared --filter @nest-acticle/utils --filter @nest-acticle/markdown build
 
       - name: lint（server + admin eslint）
         run: pnpm lint

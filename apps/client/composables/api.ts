@@ -1,6 +1,6 @@
 // 后端统一请求封装：拼 apiBase、携带 token、解析 { code, msg, data } 信封
 // 页面级数据请求仍走 useFetch（可 SSR），此处供事件触发的交互型请求（登录等）使用
-// 后端约定：HTTP 状态恒为 200，业务错误体现在 body.code（401/404/500）
+// 后端约定：错误协议已迁移——业务异常抛真实 HTTP 状态码，由 AllExceptionsFilter 统一出 { code, msg, data } 信封（body.code 与 HTTP 状态一致）
 // 信封契约类型来自 @nest-acticle/shared（server ResultData 的镜像）
 import type { ApiResponse } from '@nest-acticle/shared'
 
