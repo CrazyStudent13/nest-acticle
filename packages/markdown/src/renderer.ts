@@ -1,9 +1,14 @@
 import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
+import { katex as katexPlugin } from '@mdit/plugin-katex'
 
 export interface MarkdownRendererOptions {
   /** 代码块右上角是否生成复制按钮（默认 true）；按钮的点击事件由组件壳用 ClipboardJS 绑定，包只产出带 data 属性的 HTML */
   copyButton?: boolean
+  /** 是否渲染行内 $...$ 与块级 $$...$$ 数学公式（默认 true，katex）。插件对"$ 后紧跟数字"的计价文案做了规避（如 价格 $5 和 $10 保持字面） */
+  math?: boolean
+  /** 是否把 ```mermaid 代码块输出为待渲染的 .mermaid 容器（默认 true）；容器由宿主调 renderMermaidDiagrams 懒加载渲染，不含图表的文章零加载成本 */
+  mermaid?: boolean
 }
 
 export interface MarkdownRenderer {
@@ -31,7 +36,7 @@ const normalizeContent = (value: string) => {
 // 渲染配置逐字取自重构前 client MdViewer（等价性基准见 CODE-REVIEW-2026-11-20.md 第四节 P2-5）：
 // 代码块复制按钮 + 行号占位 + 语言名标注，HTML 结构不可改动（两端壳的 CSS 与 ClipboardJS 都依赖这些类名）
 export function createMarkdownRenderer(options: MarkdownRendererOptions = {}): MarkdownRenderer {
-  const { copyButton = true } = options
+  const { copyButton = true, math = true, mermaid: withMermaid = true } = options
 
   const md = new MarkdownIt({
     html: true,
@@ -70,6 +75,24 @@ export function createMarkdownRenderer(options: MarkdownRendererOptions = {}): M
       return `<pre class="hljs"><code>${html}</code>${linesNum}</pre><textarea style="position:absolute;top:-9999px;left:-9999px;z-index:-9999;" id="copy${codeIndex}">${escapeTextarea(str)}</textarea>`
     }
   })
+
+  // 数学公式：行内 $...$ / 块级 $$...$$（katex 渲染为带 .katex 类的 HTML，样式随包 style.css 分发）
+  if (math) {
+    md.use(katexPlugin, { throwOnError: false })
+  }
+
+  // mermaid：仅改写该语言的 fence 为 .mermaid 容器（宿主经 renderMermaidDiagrams 懒加载渲染），
+  // 其余语言委托默认 fence（复制按钮/行号/highlight 逻辑不受影响）
+  if (withMermaid) {
+    const defaultFence = md.renderer.rules.fence
+    md.renderer.rules.fence = (tokens, idx, mdOptions, env, self) => {
+      const token = tokens[idx]
+      if (token.info.trim() === 'mermaid') {
+        return `<div class="mermaid">${md.utils.escapeHtml(token.content)}</div>\n`
+      }
+      return defaultFence!(tokens, idx, mdOptions, env, self)
+    }
+  }
 
   return {
     render(source: string) {

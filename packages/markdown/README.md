@@ -21,7 +21,10 @@ const html = renderer.render(source) // 兼容引号包裹内容与字面 \n
 
 - `createMarkdownRenderer(options?)` → `{ render(source): string }`
   - `options.copyButton`（默认 `true`）：是否生成代码块复制按钮 HTML。
+  - `options.math`（默认 `true`）：渲染行内 $...$ 与块级 $$...$$ 数学公式（katex）。插件对"$ 后紧跟数字"的计价文案做了规避（如 `价格 $5 和 $10` 保持字面）。
+  - `options.mermaid`（默认 `true`）：```mermaid 代码块输出为待渲染的 `.mermaid` 容器（不产出普通代码块）。
+- `renderMermaidDiagrams(root: Element)` → `Promise<number>`：把 root 下所有 `.mermaid` 容器渲染为 SVG。内部动态 import mermaid（约 3MB 依赖闭包独立分包），宿主在挂载/内容更新后按需调用；重复调用幂等（`data-processed` 跳过）。典型用法见两端 MdViewer 壳。
 
 ## 样式
 
-`dist/style.css` = highlight.js github-dark 主题 + github-markdown 基础样式 + 站点补丁/代码块增强，层叠顺序与原 client 壳一致。所有自定义规则收在 `.markdown-body` 命名空间下；颜色走宿主 CSS 变量（`--color-text-1` / `--color-surface` / `--color-primary`）并提供回退默认值，宿主可在更高层级覆盖。源码 less 在 `src/styles/`，由 `scripts/build-styles.mjs` 编译。
+`dist/style.css` = highlight.js github-dark 主题 + github-markdown 基础样式 + 站点补丁/代码块增强 + katex 公式样式（字体随包 `dist/fonts/`，打包器按 url() 引用自动发射），层叠顺序与原 client 壳一致。所有自定义规则收在 `.markdown-body` 命名空间下；颜色走宿主 CSS 变量（`--color-text-1` / `--color-surface` / `--color-primary`）并提供回退默认值，宿主可在更高层级覆盖。源码 less 在 `src/styles/`，由 `scripts/build-styles.mjs` 编译。

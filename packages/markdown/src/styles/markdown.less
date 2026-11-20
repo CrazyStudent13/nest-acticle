@@ -178,3 +178,13 @@
     }
   }
 }
+
+// mermaid 图表容器（fence 标记产物，渲染后的 svg 由 mermaid 注入）
+.markdown-body .mermaid {
+  text-align: center;
+  overflow-x: auto;
+
+  svg {
+    max-width: 100%;
+  }
+}
