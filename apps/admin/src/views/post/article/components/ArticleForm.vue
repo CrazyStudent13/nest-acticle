@@ -6,55 +6,52 @@
         <el-button v-if="formData.id || formData.articleId" type="primary" :icon="Edit" @click="handleOpenEditor">在编辑器中打开</el-button>
       </div>
     </template>
-    <el-tabs v-model="activeTab">
-      <!-- 基本信息 Tab -->
-      <el-tab-pane label="基本信息" name="basic">
-        <el-form ref="formRef" v-no-enter label-width="120px" :model="formData" :rules="formRules">
-          <el-row :gutter="20">
-            <el-col :span="12">
-              <el-form-item label="文章标题" prop="title">
-                <el-input v-model="formData.title" clearable maxlength="100" placeholder="请输入文章标题" show-word-limit @blur="handleTitleBlur" />
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="所属专栏" prop="subjectId">
-                <el-select v-model="formData.subjectId" clearable placeholder="请选择专栏" style="width: 100%">
-                  <el-option v-for="item in subjectList" :key="item.id" :label="item.title" :value="item.id" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-          </el-row>
-          <el-form-item label="文章简介" prop="desc">
-            <el-input v-model="formData.desc" maxlength="500" placeholder="请输入文章简介" :autosize="{ minRows: 5, maxRows: 8 }" :show-word-limit="true" type="textarea" @blur="handleDescBlur" />
+    <!-- 收敛为元数据快速编辑：正文统一在编辑器页 editor.vue 维护（唯一内容编辑链路） -->
+    <el-form ref="formRef" v-no-enter label-width="120px" :model="formData" :rules="formRules">
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item label="文章标题" prop="title">
+            <el-input v-model="formData.title" clearable maxlength="100" placeholder="请输入文章标题" show-word-limit @blur="handleTitleBlur" />
           </el-form-item>
-          <el-form-item label="封面图片" prop="cover">
-            <ImageUploadCover v-model="formData.cover" path="article" :max-size="5" :quality="0.85" :before-upload-check="validateBeforeUpload" width="400px" aspect-ratio="16 / 9" />
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="所属专栏" prop="subjectId">
+            <el-select v-model="formData.subjectId" clearable placeholder="请选择专栏" style="width: 100%">
+              <el-option v-for="item in subjectList" :key="item.id" :label="item.title" :value="item.id" />
+            </el-select>
           </el-form-item>
-          <el-form-item label="作者">
-            <span class="author-display">{{ authorDisplay }}</span>
+        </el-col>
+      </el-row>
+      <el-form-item label="文章简介" prop="desc">
+        <el-input v-model="formData.desc" maxlength="500" placeholder="请输入文章简介" :autosize="{ minRows: 5, maxRows: 8 }" :show-word-limit="true" type="textarea" @blur="handleDescBlur" />
+      </el-form-item>
+      <el-form-item label="正文">
+        <div class="content-guide">
+          <span>正文请在编辑器中维护，本抽屉仅作元数据快速编辑（不回传正文）</span>
+          <el-button type="primary" link @click="handleOpenEditor">打开编辑器</el-button>
+        </div>
+      </el-form-item>
+      <el-form-item label="封面图片" prop="cover">
+        <ImageUploadCover v-model="formData.cover" path="article" :max-size="5" :quality="0.85" :before-upload-check="validateBeforeUpload" width="400px" aspect-ratio="16 / 9" />
+      </el-form-item>
+      <el-form-item label="作者">
+        <span class="author-display">{{ authorDisplay }}</span>
+      </el-form-item>
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item label="文章来源" prop="source">
+            <el-select v-model="formData.source" clearable placeholder="请选择文章来源" style="width: 100%">
+              <el-option v-for="dict in post_article_source" :key="dict.value" :label="dict.label" :value="dict.value" />
+            </el-select>
           </el-form-item>
-          <el-row :gutter="20">
-            <el-col :span="12">
-              <el-form-item label="文章来源" prop="source">
-                <el-select v-model="formData.source" clearable placeholder="请选择文章来源" style="width: 100%">
-                  <el-option v-for="dict in post_article_source" :key="dict.value" :label="dict.label" :value="dict.value" />
-                </el-select>
-              </el-form-item>
-            </el-col>
-            <el-col :span="12">
-              <el-form-item label="排序" prop="sort">
-                <el-input-number v-model="formData.sort" :min="0" controls-position="right" placeholder="请输入排序" style="width: 100%" />
-              </el-form-item>
-            </el-col>
-          </el-row>
-        </el-form>
-      </el-tab-pane>
-
-      <!-- 文章展示 Tab -->
-      <el-tab-pane label="文章展示" name="content">
-        <MdViewer :model-value="formData.content || ''" />
-      </el-tab-pane>
-    </el-tabs>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="排序" prop="sort">
+            <el-input-number v-model="formData.sort" :min="0" controls-position="right" placeholder="请输入排序" style="width: 100%" />
+          </el-form-item>
+        </el-col>
+      </el-row>
+    </el-form>
     <template #footer>
       <div class="dialog-footer">
         <el-button type="primary" @click="handleSubmit">确 定</el-button>
@@ -70,7 +67,6 @@ import { useRouter } from 'vue-router';
 
 import { addArticle, updateArticle } from '@/api/post/article';
 import ImageUploadCover from '@/components/ImageUploadCover/index.vue';
-import MdViewer from '@/components/MdViewer/index.vue';
 import { useDict } from '@/composables/useDict';
 
 const router = useRouter();
@@ -100,14 +96,12 @@ const { post_article_source } = useDict('post_article_source');
 
 const formRef = ref(null);
 const open = ref(false);
-const activeTab = ref('basic'); // 默认激活基本信息tab
 const formData = reactive({
   id: undefined,
   articleId: undefined,
   title: undefined,
   subjectId: undefined,
   desc: undefined,
-  content: undefined,
   cover: undefined,
   author: undefined,
   source: undefined,
@@ -119,9 +113,13 @@ const formData = reactive({
 // 服务端不可写字段（create 服务端写死、update DTO 已剥离）：发布/审核状态经 /publish 与 /audit
 // 端点流转，计数由点赞/评论事务维护，publishTime 由发布端点落库——详情回填时剔除，payload 不携带
 const READONLY_FIELDS = ['publishStatus', 'auditStatus', 'publishTime', 'likeNum', 'readNum', 'commentNum'];
+// 正文不经抽屉回传：抽屉只做元数据快速编辑，正文统一在编辑器页 editor.vue 维护。
+// payload 不带 content 时服务端 repo.update 跳过 undefined 字段、原正文不受影响；
+// 同时避免列表详情快照把编辑器里的最新正文覆盖回旧值
+const DRAWER_SKIP_FIELDS = [...READONLY_FIELDS, 'content'];
 const mergeFormData = (data) => {
   const filtered = { ...data };
-  READONLY_FIELDS.forEach((key) => delete filtered[key]);
+  DRAWER_SKIP_FIELDS.forEach((key) => delete filtered[key]);
   Object.assign(formData, filtered);
 };
 
@@ -169,7 +167,6 @@ const resetForm = () => {
     title: undefined,
     subjectId: undefined,
     desc: undefined,
-    content: undefined,
     cover: undefined,
     author: undefined,
     source: undefined,
@@ -179,7 +176,6 @@ const resetForm = () => {
   if (formRef.value) {
     formRef.value.resetFields();
   }
-  activeTab.value = 'basic'; // 重置时回到基本信息tab
 };
 
 // 取消操作
@@ -291,5 +287,14 @@ const handleOpenEditor = () => {
   line-height: 32px;
   font-size: 14px;
   color: var(--el-text-color-regular);
+}
+
+.content-guide {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  font-size: 13px;
+  color: var(--el-text-color-secondary);
 }
 </style>
