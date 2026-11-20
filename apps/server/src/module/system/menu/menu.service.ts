@@ -6,6 +6,7 @@ import { SysMenuEntity } from './entities/menu.entity';
 import { SysRoleWithMenuEntity } from '../role/entities/role-width-menu.entity';
 import { CreateMenuDto, UpdateMenuDto, ListDeptDto } from './dto/index';
 import { ListToTree, Uniq } from 'src/common/utils/index';
+import { applyLike } from 'src/common/query';
 import { UserService } from '../user/user.service';
 import { buildMenus } from './utils';
 import { RedisService } from 'src/module/common/redis/redis.service';
@@ -31,9 +32,7 @@ export class MenuService {
     const entity = this.sysMenuEntityRep.createQueryBuilder('entity');
     entity.where('entity.delFlag = :delFlag', { delFlag: '0' });
 
-    if (query.menuName) {
-      entity.andWhere('entity.menuName LIKE :menuName', { menuName: `%${query.menuName}%` });
-    }
+    applyLike(entity, 'entity.menuName', query.menuName);
     if (query.status) {
       entity.andWhere('entity.status = :status', { status: query.status });
     }

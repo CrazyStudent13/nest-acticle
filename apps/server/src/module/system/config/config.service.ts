@@ -3,6 +3,7 @@ import { Response } from 'express';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
+import { applyLike, paginate } from 'src/common/query';
 import { ExportTable } from 'src/common/utils/export';
 import { CreateConfigDto, UpdateConfigDto, ListConfigDto } from './dto/index';
 import { SysConfigEntity } from './entities/config.entity';
@@ -29,13 +30,8 @@ export class ConfigService {
     const entity = this.sysConfigEntityRep.createQueryBuilder('entity');
     entity.where('entity.delFlag = :delFlag', { delFlag: '0' });
 
-    if (query.configName) {
-      entity.andWhere('entity.configName LIKE :configName', { configName: `%${query.configName}%` });
-    }
-
-    if (query.configKey) {
-      entity.andWhere('entity.configKey LIKE :configKey', { configKey: `%${query.configKey}%` });
-    }
+    applyLike(entity, 'entity.configName', query.configName);
+    applyLike(entity, 'entity.configKey', query.configKey);
 
     if (query.configType) {
       entity.andWhere('entity.configType = :configType', { configType: query.configType });
@@ -45,9 +41,7 @@ export class ConfigService {
       entity.andWhere('entity.createTime BETWEEN :start AND :end', { start: query.params.beginTime, end: query.params.endTime });
     }
 
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
+    paginate(entity, query);
 
     const [list, total] = await entity.getManyAndCount();
 
