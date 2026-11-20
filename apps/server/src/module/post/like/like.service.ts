@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
+import { applyLike, paginate } from 'src/common/query';
 import { PublishStatusEnum, SortRuleEnum } from '@nest-acticle/shared';
 import { PostLikeEntity } from './entities/like.entity';
 import { PostArticleEntity } from '../article/entities/article.entity';
@@ -120,13 +121,9 @@ export class PostLikeService {
       .andWhere('article.delFlag = :delFlag', { delFlag: '0' })
       .andWhere('article.publishStatus = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED });
 
-    if (query.title) {
-      entity.andWhere('article.title LIKE :title', { title: `%${query.title}%` });
-    }
+    applyLike(entity, 'article.title', query.title);
 
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
+    paginate(entity, query);
 
     // 排序方向：ascending → 升序，其余（descending 或未传）→ 降序；isAsc 在 DTO 层已被 @IsEnum(SortRuleEnum) 约束，非枚举值进不到这里
     entity.orderBy('like.createTime', query.isAsc === SortRuleEnum.ASCENDING ? 'ASC' : 'DESC');
@@ -168,9 +165,7 @@ export class PostLikeService {
       .andWhere('article.publishStatus = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED })
       .andWhere('like.userId <> :userId');
 
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
+    paginate(entity, query);
 
     entity.orderBy('like.createTime', 'DESC');
 
@@ -204,13 +199,8 @@ export class PostLikeService {
       .addSelect(['article.title', 'article.cover', 'user.nickName'])
       .where('1 = 1');
 
-    if (query.title) {
-      entity.andWhere('article.title LIKE :title', { title: `%${query.title}%` });
-    }
-
-    if (query.nickName) {
-      entity.andWhere('user.nickName LIKE :nickName', { nickName: `%${query.nickName}%` });
-    }
+    applyLike(entity, 'article.title', query.title);
+    applyLike(entity, 'user.nickName', query.nickName);
 
     if (query.params?.beginTime && query.params?.endTime) {
       entity.andWhere('like.createTime BETWEEN :start AND :end', {
@@ -219,9 +209,7 @@ export class PostLikeService {
       });
     }
 
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
+    paginate(entity, query);
 
     entity.orderBy('like.createTime', 'DESC');
 
