@@ -30,9 +30,6 @@ export class PostArticleService {
     // 从当前登录用户信息中获取 userId
     const userId = user.user.userId;
 
-    console.log('📝 [创建文章] 当前登录用户ID:', userId);
-    console.log('📝 [创建文章] 前端提交的DTO:', JSON.stringify(createDto));
-
     // 数据验证：检查描述字段是否过长或重复
     if (createDto.desc && createDto.desc.length > 255) {
       console.warn('⚠️ [创建文章] 描述字段过长，已截断');
@@ -45,8 +42,6 @@ export class PostArticleService {
       subjectId: createDto.subjectId ?? 0,
       userId: userId, // 这里会覆盖 createDto 中可能存在的 userId
     });
-
-    console.log('📝 [创建文章] 最终保存的文章数据 userId:', article.userId);
 
     await this.postArticleRepository.save(article);
     return ResultData.ok({ id: article.id });
