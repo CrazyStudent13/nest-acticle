@@ -123,6 +123,9 @@ importers:
 
   apps/client:
     dependencies:
+      '@nest-acticle/editor':
+        specifier: workspace:*
+        version: link:../../packages/editor
       '@nest-acticle/markdown':
         specifier: workspace:*
         version: link:../../packages/markdown
