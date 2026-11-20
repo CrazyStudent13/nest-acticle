@@ -39,9 +39,10 @@ export class PostArticleService {
       createDto.desc = createDto.desc.substring(0, 255);
     }
 
-    // 创建文章实体，并设置 userId（强制覆盖前端传来的任何userId）
+    // 创建文章实体，并设置 userId（强制覆盖前端传来的任何userId）；未选专栏存 0 表示未归类
     const article = this.postArticleRepository.create({
       ...createDto,
+      subjectId: createDto.subjectId ?? 0,
       userId: userId, // 这里会覆盖 createDto 中可能存在的 userId
     });
 

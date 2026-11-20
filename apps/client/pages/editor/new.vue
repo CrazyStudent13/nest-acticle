@@ -171,7 +171,8 @@
           <!-- 上传前提示限制，超限时顶部 toast 提醒 -->
           <p class="upload-hint">封面支持 JPG、PNG，不超过 5M</p>
 
-          <label class="modal-row">
+          <!-- 没有任何已发布专栏时整行隐藏，发布不再强制选专栏 -->
+          <label v-if="subjectsLoading || subjects.length" class="modal-row">
             <span class="row-label">专栏</span>
             <span class="row-field">
               <select v-model="publishForm.subjectId" class="form-input">
@@ -639,8 +640,9 @@ const fetchSubjects = async () => {
     })
     subjects.value = res.data?.list || []
   } catch {
+    // 拉取失败按无专栏处理：行隐藏、允许继续发布，仅提示可稍后归类
     subjects.value = []
-    publishTip.value = '专栏列表加载失败，请稍后重试'
+    showToast('专栏列表加载失败，文章将暂不归入专栏', 'warning')
   } finally {
     subjectsLoading.value = false
   }
@@ -700,7 +702,8 @@ const handleCoverChange = async (event: Event) => {
 }
 
 const confirmPublish = async () => {
-  if (!publishForm.subjectId) {
+  // 有可选专栏时必须选择；列表为空时跳过后端会存为 0（未归类）
+  if (subjects.value.length && !publishForm.subjectId) {
     publishTip.value = '请选择专栏'
     return
   }
@@ -708,12 +711,14 @@ const confirmPublish = async () => {
   publishTip.value = ''
   const body: Record<string, any> = {
     title: title.value.trim(),
-    subjectId: Number(publishForm.subjectId),
     desc: publishForm.desc.trim() || undefined,
     content: content.value,
     cover: publishForm.cover || undefined,
     source: '0',
     publishStatus: '2'
+  }
+  if (publishForm.subjectId) {
+    body.subjectId = Number(publishForm.subjectId)
   }
   if (editId.value) {
     // 更新：PUT 幂等携带 id，publishTime 不传则保留原发布时间
@@ -733,6 +738,7 @@ const confirmPublish = async () => {
       persistDrafts()
     }
     publishOpen.value = false
+    showToast(editId.value ? '保存成功' : '发布成功', 'success')
     return navigateTo({ path: '/article/detail', query: { id: String(newId) } })
   } catch (error: any) {
     publishTip.value = error?.message || '保存失败，请稍后重试'

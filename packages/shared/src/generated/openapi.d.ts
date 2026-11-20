@@ -2499,8 +2499,8 @@ export interface components {
             title: string;
             /** @description 文章简介 */
             desc?: string;
-            /** @description 专栏ID */
-            subjectId: number;
+            /** @description 专栏ID（无可用专栏时可省略，落库为 0 表示未归类） */
+            subjectId?: number;
             /** @description 文章内容 */
             content?: string;
             /** @description 封面图片 */
@@ -2546,8 +2546,8 @@ export interface components {
             title: string;
             /** @description 文章简介 */
             desc?: string;
-            /** @description 专栏ID */
-            subjectId: number;
+            /** @description 专栏ID（无可用专栏时可省略，落库为 0 表示未归类） */
+            subjectId?: number;
             /** @description 文章内容 */
             content?: string;
             /** @description 封面图片 */
