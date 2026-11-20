@@ -7,9 +7,10 @@ import { computed, nextTick } from 'vue';
 import type { Ref } from 'vue';
 
 export const useMarkdownEditor = (content: Ref<string>, taRef: Ref<HTMLTextAreaElement | null>) => {
-  // 字数（去空白字符）/ 行数统计
+  // 字数（去空白字符）/ 行数统计 / 预计阅读时长（中文口径约 400 字/分钟）
   const charCount = computed(() => content.value.replace(/\s/g, '').length);
   const lineCount = computed(() => (content.value ? content.value.split('\n').length : 0));
+  const readingMinutes = computed(() => Math.ceil(charCount.value / 400) || 0);
 
   // 选区替换：优先 execCommand('insertText') 写入——它走浏览器的输入路径，保留 textarea 原生撤销栈
   // （Ctrl+Z 可撤销工具栏插入/包裹操作），直接赋值 v-model 会清空撤销历史；execCommand 不可用时
@@ -112,20 +113,6 @@ export const useMarkdownEditor = (content: Ref<string>, taRef: Ref<HTMLTextAreaE
     });
   };
 
-  // 链接：选中文本作为标题，弹窗输入地址
-  const insertLink = () => {
-    const el = taRef.value;
-    if (!el) {
-      return;
-    }
-    const selected = el.value.slice(el.selectionStart, el.selectionEnd);
-    const url = window.prompt('请输入链接地址', 'https://');
-    if (!url || url === 'https://') {
-      return;
-    }
-    wrapInline('[', `](${url})`, selected || '链接标题');
-  };
-
   // 代码块
   const insertCodeBlock = () => {
     const el = taRef.value;
@@ -160,8 +147,60 @@ export const useMarkdownEditor = (content: Ref<string>, taRef: Ref<HTMLTextAreaE
     replaceRange(el.selectionStart, el.selectionEnd, '\n\n---\n\n');
   };
 
-  // 快捷键：Ctrl+B / Ctrl+I
+  // Tab 缩进：无选区/单行选区在光标处插两空格；跨行选区扩到整行后逐行加缩进（选区覆盖缩进后的整块）
+  const indentSelection = () => {
+    const el = taRef.value;
+    if (!el) {
+      return;
+    }
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const value = el.value;
+    if (start === end || !value.slice(start, end).includes('\n')) {
+      replaceRange(start, end, '  ');
+      return;
+    }
+    let lineStart = start;
+    while (lineStart > 0 && value[lineStart - 1] !== '\n') {
+      lineStart--;
+    }
+    const lines = value.slice(lineStart, end).split('\n');
+    const text = lines.map((line) => `  ${line}`).join('\n');
+    replaceRange(lineStart, end, text, lineStart, lineStart + text.length);
+  };
+
+  // Shift+Tab 反缩进：逐行去掉最多两个行首空格（无可去内容的行保持原样）
+  const unindentSelection = () => {
+    const el = taRef.value;
+    if (!el) {
+      return;
+    }
+    const start = el.selectionStart;
+    const end = el.selectionEnd;
+    const value = el.value;
+    let lineStart = start;
+    while (lineStart > 0 && value[lineStart - 1] !== '\n') {
+      lineStart--;
+    }
+    const lines = value.slice(lineStart, end).split('\n');
+    const text = lines.map((line) => line.replace(/^ {1,2}/, '')).join('\n');
+    if (text === lines.join('\n')) {
+      return;
+    }
+    replaceRange(lineStart, end, text, lineStart, lineStart + text.length);
+  };
+
+  // 快捷键：Tab 缩进（阻止默认焦点跳转）+ Ctrl+B / Ctrl+I
   const handleShortcut = (event: KeyboardEvent) => {
+    if (event.key === 'Tab') {
+      event.preventDefault();
+      if (event.shiftKey) {
+        unindentSelection();
+      } else {
+        indentSelection();
+      }
+      return;
+    }
     if (!(event.ctrlKey || event.metaKey)) {
       return;
     }
@@ -178,12 +217,12 @@ export const useMarkdownEditor = (content: Ref<string>, taRef: Ref<HTMLTextAreaE
   return {
     charCount,
     lineCount,
+    readingMinutes,
     replaceRange,
     wrapInline,
     cycleHeading,
     toggleLinePrefix,
     toggleOrderedList,
-    insertLink,
     insertCodeBlock,
     insertTable,
     insertHr,
