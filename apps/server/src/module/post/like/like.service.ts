@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { In, Repository } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
+import { BusinessException } from 'src/common/exceptions/business.exception';
 import { applyLike, paginate } from 'src/common/query';
 import { PublishStatusEnum, SortRuleEnum } from '@nest-acticle/shared';
 import { PostLikeEntity } from './entities/like.entity';
@@ -34,7 +35,7 @@ export class PostLikeService {
         where: { id: articleId, delFlag: '0', publishStatus: PublishStatusEnum.PUBLISHED },
       });
       if (!article) {
-        return ResultData.fail(500, '文章不存在或未发布');
+        throw new BusinessException(500, '文章不存在或未发布');
       }
 
       // 参数化 INSERT IGNORE + 唯一索引：并发重复点赞静默忽略，天然幂等（affectedRows=0 表示已赞过）
@@ -63,7 +64,7 @@ export class PostLikeService {
         where: { id: articleId, delFlag: '0' },
       });
       if (!article) {
-        return ResultData.fail(500, '文章不存在');
+        throw new BusinessException(500, '文章不存在');
       }
 
       const removed = await manager.delete(PostLikeEntity, { articleId, userId });
