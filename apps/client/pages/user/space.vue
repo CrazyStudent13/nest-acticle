@@ -205,6 +205,10 @@ const avatarFallback = computed(() => profileName.value.slice(0, 1))
 // 性别标签走数据字典（0男 1女 2未知），字典未加载或未设置时不在昵称后展示
 const sexOptions = useDict('sys_user_sex')
 const sexTag = computed(() => {
+  // 他人空间只有公开昵称/头像,性别仅本人在自己的空间展示
+  if (!isSelf.value) {
+    return ''
+  }
   const sex = user.value?.sex ?? ''
   if (!sex) {
     return ''

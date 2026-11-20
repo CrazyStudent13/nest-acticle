@@ -74,7 +74,7 @@
                 >
                   {{ row.articleTitle || '文章已删除' }}
                 </NuxtLink>
-                <time class="notice-time">{{ formatTime(row.createTime) }}</time>
+                <time class="notice-time">{{ formatRelativeTime(row.createTime) }}</time>
                 <button class="comment-del" type="button" :disabled="deletingId === row.id" @click="removeMyComment(row)">
                   {{ deletingId === row.id ? '删除中…' : '删除' }}
                 </button>
@@ -113,6 +113,7 @@
 
 <script setup lang="ts">
 import dayjs from 'dayjs'
+import { formatRelativeTime } from '@nest-acticle/utils'
 import type { MyCommentItem } from '@nest-acticle/shared'
 
 interface NoticeItem {
@@ -279,20 +280,17 @@ const removeMyComment = async (row: MyCommentItem) => {
   }
 }
 
-watch(
-  activeTab,
-  (tab) => {
-    if (tab === 'system') {
-      page.value = 1
-      loadNotices()
-    }
-    if (tab === 'comment') {
-      commentPage.value = 1
-      loadMyComments()
-    }
-  },
-  { immediate: true }
-)
+// 首屏加载放到登录守卫之后（onMounted），避免未登录先发一轮必然 401 的请求
+watch(activeTab, (tab) => {
+  if (tab === 'system') {
+    page.value = 1
+    loadNotices()
+  }
+  if (tab === 'comment') {
+    commentPage.value = 1
+    loadMyComments()
+  }
+})
 
 watch(page, loadNotices)
 watch(commentPage, loadMyComments)
@@ -331,6 +329,11 @@ onMounted(() => {
   if (!getToken()) {
     openLogin()
     return navigateTo('/')
+  }
+  if (activeTab.value === 'system') {
+    loadNotices()
+  } else if (activeTab.value === 'comment') {
+    loadMyComments()
   }
 })
 </script>
