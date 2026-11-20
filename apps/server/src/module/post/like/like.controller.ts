@@ -1,7 +1,7 @@
 import { Controller, Delete, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PostLikeService } from './like.service';
-import { ListGuestLikeDto, ListLikeDto } from './dto/index';
+import { ListGuestLikeDto, ListLikeDto, ListMyLikeDto } from './dto/index';
 import { RequirePermission } from 'src/common/decorators/require-premission.decorator';
 import { NotRequireAuth, User, UserDto } from 'src/module/system/user/user.decorator';
 
@@ -25,6 +25,15 @@ export class PostLikeController {
   @Get('/guest/list')
   findGuestList(@Query() query: ListGuestLikeDto) {
     return this.likeService.findUserList(query.userId, query);
+  }
+
+  /**
+   * 当前登录用户的点赞文章列表（通知中心「赞和收藏」栏，服务端按登录态过滤）
+   */
+  @ApiOperation({ summary: '点赞-我的点赞列表' })
+  @Get('/my/list')
+  findMyList(@Query() query: ListMyLikeDto, @User() user: UserDto) {
+    return this.likeService.findUserList(user.userId, query);
   }
 
   /**

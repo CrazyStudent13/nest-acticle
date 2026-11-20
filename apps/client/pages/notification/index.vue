@@ -1,4 +1,4 @@
-<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知）+ 右侧列表；系统通知接 /api/system/notice/list（Markdown 内容超 3 行收起、就地展开，分页）；评论栏接 /api/post/comment/my/list（我发表的评论与回复，类型徽标区分，支持删除）；赞和收藏/新增粉丝后端未建占位空态；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
+<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知）+ 右侧列表；系统通知接 /api/system/notice/list（Markdown 内容超 3 行收起、就地展开，分页）；评论栏接 /api/post/comment/my/list（我发表的评论与回复，类型徽标区分，支持删除）；赞和收藏接 /api/post/like/my/list（我点赞过的文章，收藏功能未建）；新增粉丝后端未建占位空态；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
 <template>
   <div class="notification-page">
     <div class="notice-panel">
@@ -104,6 +104,22 @@
           <CommonEmptyState v-else>暂无评论或回复，去文章页说两句吧</CommonEmptyState>
         </template>
 
+        <!-- 赞和收藏：我点赞过的文章（服务端按当前登录人过滤；收藏功能未建，先只列点赞，复用信息流行卡） -->
+        <template v-else-if="activeTab === 'like'">
+          <template v-if="likedArticles.length">
+            <article-card
+              v-for="item in likedArticles"
+              :key="item.id"
+              :card-info="item"
+              @click="goLikedArticle(item)"
+            />
+            <CommonPagination v-model:page="likedPage" :total="likedTotal" :page-size="PAGE_SIZE" />
+          </template>
+          <CommonEmptyState v-else-if="likedLoading" text="加载中…" />
+          <CommonEmptyState v-else-if="likedError">{{ likedError }}</CommonEmptyState>
+          <CommonEmptyState v-else>还没有点赞过文章，去信息流给好内容点个赞吧</CommonEmptyState>
+        </template>
+
         <!-- 其余分类：互动功能未建，占位空态 -->
         <CommonEmptyState v-else>{{ activeCat.label }}功能即将上线，敬请期待</CommonEmptyState>
       </section>
@@ -114,7 +130,7 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
 import { formatRelativeTime } from '@nest-acticle/utils'
-import type { MyCommentItem } from '@nest-acticle/shared'
+import type { LikedArticleItem, MyCommentItem } from '@nest-acticle/shared'
 
 interface NoticeItem {
   noticeId: number
@@ -280,6 +296,34 @@ const removeMyComment = async (row: MyCommentItem) => {
   }
 }
 
+// ---------- 我的点赞列表（赞和收藏 tab）：服务端按登录态过滤，点赞时间倒序 ----------
+const likedArticles = ref<LikedArticleItem[]>([])
+const likedPage = ref(1)
+const likedTotal = ref(0)
+const likedLoading = ref(false)
+const likedError = ref('')
+
+const loadLikedArticles = async () => {
+  likedLoading.value = true
+  likedError.value = ''
+  try {
+    const res = await apiFetch<{ list?: LikedArticleItem[]; total?: number }>('/api/post/like/my/list', {
+      query: { pageNum: likedPage.value, pageSize: PAGE_SIZE }
+    })
+    likedArticles.value = res.data?.list || []
+    likedTotal.value = res.data?.total || 0
+  } catch (error: any) {
+    likedArticles.value = []
+    likedTotal.value = 0
+    likedError.value = error?.message || '点赞列表加载失败'
+  } finally {
+    likedLoading.value = false
+  }
+}
+
+const goLikedArticle = (item: LikedArticleItem) =>
+  navigateTo({ path: '/article/detail', query: { id: String(item.id) } })
+
 // 首屏加载放到登录守卫之后（onMounted），避免未登录先发一轮必然 401 的请求
 watch(activeTab, (tab) => {
   if (tab === 'system') {
@@ -290,10 +334,15 @@ watch(activeTab, (tab) => {
     commentPage.value = 1
     loadMyComments()
   }
+  if (tab === 'like') {
+    likedPage.value = 1
+    loadLikedArticles()
+  }
 })
 
 watch(page, loadNotices)
 watch(commentPage, loadMyComments)
+watch(likedPage, loadLikedArticles)
 
 // ---------- 内容展开/收起：Markdown 长文默认收起（72px），渲染后量 scrollHeight 决定是否出「展开」按钮 ----------
 const expandedMap = ref<Record<number, boolean>>({})
@@ -334,6 +383,8 @@ onMounted(() => {
     loadNotices()
   } else if (activeTab.value === 'comment') {
     loadMyComments()
+  } else if (activeTab.value === 'like') {
+    loadLikedArticles()
   }
 })
 </script>
