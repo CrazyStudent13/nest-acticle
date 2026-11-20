@@ -1,4 +1,4 @@
-import { Module, Global } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { AuthModule } from './auth/auth.module';
 import { SysConfigModule } from './config/config.module';
 import { DictModule } from './dict/dict.module';
@@ -7,7 +7,6 @@ import { NoticeModule } from './notice/notice.module';
 import { RoleModule } from './role/role.module';
 import { UserModule } from './user/user.module';
 
-@Global()
 @Module({
   imports: [
     AuthModule,

@@ -1,4 +1,4 @@
-import { Module, Global } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { ConfigModule, ConfigService } from '@nestjs/config';
 import { TypeOrmModule, TypeOrmModuleOptions } from '@nestjs/typeorm';
 import configuration from './config/index';
@@ -12,8 +12,8 @@ import { SystemModule } from './module/system/system.module';
 import { CommonModule } from './module/common/common.module';
 import { MonitorModule } from './module/monitor/monitor.module';
 import { PostModule } from './module/post/post.module';
+import { AuthModule } from './module/system/auth/auth.module';
 
-@Global()
 @Module({
   imports: [
     // 配置模块
@@ -44,6 +44,8 @@ import { PostModule } from './module/post/post.module';
     SystemModule,
     MonitorModule,
     PostModule,
+    // JwtAuthGuard 以 APP_GUARD 注册在根模块，需显式取得 AuthService（AuthModule 不再 @Global）
+    AuthModule,
   ],
   providers: [
     {

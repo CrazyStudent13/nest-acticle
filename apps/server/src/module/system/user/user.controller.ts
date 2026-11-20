@@ -2,11 +2,9 @@ import { Controller, Get, Post, Body, Put, Param, Query, Res, Delete, Request, U
 import { ApiTags, ApiOperation, ApiBody, ApiConsumes, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { UserExcelService } from './user-excel.service';
-import { AuthService } from '../auth/auth.service';
 import { Response } from 'express';
 import { RequirePermission } from 'src/common/decorators/require-premission.decorator';
 import { RequireRole } from 'src/common/decorators/require-role.decorator';
-import { UploadService } from 'src/module/upload/upload.service';
 import { CreateUserDto, UpdateUserDto, ListUserDto, ChangeStatusDto, ResetPwdDto, UpdateProfileDto, UpdatePwdDto } from './dto/index';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ResultData } from 'src/common/utils/result';
@@ -23,8 +21,6 @@ export class UserController {
   constructor(
     private readonly userService: UserService,
     private readonly userExcelService: UserExcelService,
-    private readonly authService: AuthService,
-    private readonly uploadService: UploadService,
   ) {}
 
   @ApiOperation({
@@ -59,15 +55,9 @@ export class UserController {
     if (!avatarfile) {
       throw new BusinessException(500, '请上传头像文件');
     }
-    // 传递作者名（使用用户昵称或用户名）
+    // 传递作者名（使用用户昵称或用户名）；文件落地 + 头像落库 + 会话刷新收口在 user.service.uploadAvatar
     const authorName = user.user.nickName || user.user.userName;
-    // 上传失败（超限/类型不合规）由 singleFileUpload throw BusinessException 统一出信封，不再有失败信封返回值
-    const res = await this.uploadService.singleFileUpload(avatarfile, 'avatar', authorName);
-
-    const imgUrl = res.url;
-
-    // 将头像 URL 保存到用户信息表，并传入当前 token
-    await this.userService.updateUserAvatar(user.user.userId, imgUrl, user.token);
+    const imgUrl = await this.userService.uploadAvatar(user.user.userId, avatarfile, authorName, user.token);
 
     return ResultData.ok({ imgUrl });
   }
@@ -167,7 +157,7 @@ export class UserController {
     const uuid = user.token;
 
     const result = await this.userService.update(updateUserDto, userId);
-    await this.authService.updateRedisUserRolesAndPermissions(uuid, userId);
+    await this.userService.updateRedisUserRolesAndPermissions(uuid, userId);
 
     return result;
   }

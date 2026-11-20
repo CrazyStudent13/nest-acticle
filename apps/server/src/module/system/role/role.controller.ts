@@ -6,16 +6,12 @@ import { CreateRoleDto, UpdateRoleDto, ListRoleDto, ChangeStatusDto, AuthUserCan
 import { AllocatedListDto } from '../user/dto/index';
 import { RequirePermission } from 'src/common/decorators/require-premission.decorator';
 
-import { UserService } from '../user/user.service';
 import { User, UserDto } from 'src/module/system/user/user.decorator';
 
 @ApiTags('角色管理')
 @Controller('system/role')
 export class RoleController {
-  constructor(
-    private readonly roleService: RoleService,
-    private readonly userService: UserService,
-  ) {}
+  constructor(private readonly roleService: RoleService) {}
 
   @ApiOperation({
     summary: '角色管理-创建',
@@ -95,7 +91,7 @@ export class RoleController {
   @RequirePermission('system:role:query')
   @Get('authUser/allocatedList')
   authUserAllocatedList(@Query() query: AllocatedListDto) {
-    return this.userService.allocatedList(query);
+    return this.roleService.allocatedList(query);
   }
 
   @ApiOperation({
@@ -108,7 +104,7 @@ export class RoleController {
   @RequirePermission('system:role:query')
   @Get('authUser/unallocatedList')
   authUserUnAllocatedList(@Query() query: AllocatedListDto) {
-    return this.userService.unallocatedList(query);
+    return this.roleService.unallocatedList(query);
   }
 
   @ApiOperation({
@@ -121,7 +117,7 @@ export class RoleController {
   @RequirePermission('system:role:edit')
   @Put('authUser/cancel')
   authUserCancel(@Body() body: AuthUserCancelDto) {
-    return this.userService.authUserCancel(body);
+    return this.roleService.authUserCancel(body);
   }
 
   @ApiOperation({
@@ -134,7 +130,7 @@ export class RoleController {
   @RequirePermission('system:role:edit')
   @Put('authUser/cancelAll')
   authUserCancelAll(@Body() body: AuthUserCancelAllDto) {
-    return this.userService.authUserCancelAll(body);
+    return this.roleService.authUserCancelAll(body);
   }
 
   @ApiOperation({
@@ -147,7 +143,7 @@ export class RoleController {
   @RequirePermission('system:role:edit')
   @Put('authUser/selectAll')
   authUserSelectAll(@Body() body: AuthUserSelectAllDto) {
-    return this.userService.authUserSelectAll(body);
+    return this.roleService.authUserSelectAll(body);
   }
 
   @ApiOperation({ summary: '导出角色管理xlsx文件' })

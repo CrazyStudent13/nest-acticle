@@ -370,20 +370,8 @@ export class AuthService {
     return ResultData.ok(menus);
   }
 
-  /**
-   * 更新redis中用户权限和角色信息
-   */
-  async updateRedisUserRolesAndPermissions(uuid: string, userId: number) {
-    const userData = await this.userService.getUserinfo(userId);
-
-    const permissions = await this.userService.getUserPermissions(userId);
-    const roles = userData.roles.map((item) => item.roleKey);
-
-    await this.updateRedisToken(uuid, {
-      permissions: permissions,
-      roles: roles,
-    });
-  }
+  // updateRedisUserRolesAndPermissions 已下沉到 user.service（管理端改角色后的会话刷新属用户域，
+  // 原先 user.controller 经本方法间接调 user.service，@Global 拆除后不再跨模块绕行）
 
   /**
    * 更新redis中的元数据

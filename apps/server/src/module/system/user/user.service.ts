@@ -2,16 +2,16 @@ import { Repository, In, Not, DataSource } from 'typeorm';
 import { Injectable, BadRequestException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { RedisService } from 'src/module/common/redis/redis.service';
+import { UploadService } from 'src/module/upload/upload.service';
 import * as bcrypt from 'bcryptjs';
 import { Uniq } from 'src/common/utils/index';
 
 import { CacheEnum, DelFlagEnum, StatusEnum } from 'src/common/enum/index';
-import { SYS_USER_TYPE } from 'src/common/constant/index';
+import { SYS_USER_TYPE, LOGIN_TOKEN_EXPIRESIN } from 'src/common/constant/index';
 import { ResultData } from 'src/common/utils/result';
 import { BusinessException } from 'src/common/exceptions/business.exception';
 import { applyLike, paginate } from 'src/common/query';
-import { CreateUserDto, UpdateUserDto, ListUserDto, ChangeStatusDto, ResetPwdDto, AllocatedListDto, UpdateProfileDto, UpdatePwdDto } from './dto/index';
-import { AuthUserCancelDto, AuthUserCancelAllDto, AuthUserSelectAllDto } from '../role/dto/index';
+import { CreateUserDto, UpdateUserDto, ListUserDto, ChangeStatusDto, ResetPwdDto, UpdateProfileDto, UpdatePwdDto } from './dto/index';
 
 import { UserEntity } from './entities/sys-user.entity';
 import { SysUserWithRoleEntity } from './entities/user-width-role.entity';
@@ -32,6 +32,7 @@ export class UserService {
     private readonly roleService: RoleService,
     private readonly redisService: RedisService,
     private readonly dataSource: DataSource,
+    private readonly uploadService: UploadService,
   ) {}
   /**
    * 后台创建用户
@@ -370,7 +371,7 @@ export class UserService {
     });
 
     const roleIds = await this.getRoleIds([userId]);
-    //TODO flag用来给前端表格标记选中状态，后续优化
+    // flag 给前端表格标记选中状态
     // 原写法 filter 两分支都 return true（恒真），语义实为「全量标记 flag」：改 forEach 只做标记
     allRoles.forEach((item) => {
       if (roleIds.includes(item.roleId)) {
@@ -444,113 +445,39 @@ export class UserService {
   }
 
   /**
-   * 获取角色已分配用户
-   * @param query
-   * @returns
+   * 更新 Redis 会话中的角色/权限快照
+   * 管理端修改用户角色后调用，使新授权对在线会话即刻生效（原下沉自 auth.service，会话刷新统一收口到本服务）
+   * @param uuid 当前会话 token
+   * @param userId 被更新的用户 ID
    */
-  async allocatedList(query: AllocatedListDto) {
-    const roleWidthRoleList = await this.sysUserWithRoleEntityRep.find({
-      where: {
-        roleId: +query.roleId,
-      },
-      select: ['userId'],
-    });
-    if (roleWidthRoleList.length === 0) {
-      return ResultData.ok({
-        list: [],
-        total: 0,
-      });
+  async updateRedisUserRolesAndPermissions(uuid: string, userId: number) {
+    const userData = await this.getUserinfo(userId);
+
+    const permissions = await this.getUserPermissions(userId);
+    const roles = userData.roles.map((item) => item.roleKey);
+
+    const cacheKey = `${CacheEnum.LOGIN_TOKEN_KEY}${uuid}`;
+    const oldMetaData = await this.redisService.get(cacheKey);
+    const newMetaData = { permissions, roles };
+    if (oldMetaData) {
+      Object.assign(oldMetaData, newMetaData);
     }
-    const userIds = roleWidthRoleList.map((item) => item.userId);
-    const entity = this.userRepo.createQueryBuilder('user');
-    entity.where('user.delFlag = :delFlag', { delFlag: '0' });
-    entity.andWhere('user.status = :status', { status: '0' });
-    entity.andWhere('user.userId IN (:...userIds)', { userIds: userIds });
-    applyLike(entity, 'user.userName', query.userName);
-    applyLike(entity, 'user.phonenumber', query.phonenumber);
-    entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    const [list, total] = await entity.getManyAndCount();
-    const safeList = list.map(({ password: _password, ...user }) => user);
-    return ResultData.ok({
-      list: safeList,
-      total,
-    });
+    await this.redisService.set(cacheKey, oldMetaData ?? newMetaData, LOGIN_TOKEN_EXPIRESIN);
   }
 
   /**
-   * 获取角色未分配用户
-   * @param query
-   * @returns
+   * 个人中心 - 上传头像：文件落地（复用 upload 模块）+ 头像字段落库 + 刷新当前会话快照
+   * @param userId 用户 ID
+   * @param file 头像文件（FileInterceptor 挂到 /profile/avatar）
+   * @param authorName 上传记录的作者名（用户昵称或用户名）
+   * @param token 当前用户的 token（可选）
+   * @returns 头像访问 URL
    */
-  async unallocatedList(query: AllocatedListDto) {
-    const roleWidthRoleList = await this.sysUserWithRoleEntityRep.find({
-      where: {
-        roleId: +query.roleId,
-      },
-      select: ['userId'],
-    });
-
-    const userIds = roleWidthRoleList.map((item) => item.userId);
-    const entity = this.userRepo.createQueryBuilder('user');
-    entity.where('user.delFlag = :delFlag', { delFlag: '0' });
-    entity.andWhere('user.status = :status', { status: '0' });
-    entity.andWhere({
-      userId: Not(In(userIds)),
-    });
-    applyLike(entity, 'user.userName', query.userName);
-    applyLike(entity, 'user.phonenumber', query.phonenumber);
-    entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    const [list, total] = await entity.getManyAndCount();
-    const safeList = list.map(({ password: _password, ...user }) => user);
-    return ResultData.ok({
-      list: safeList,
-      total,
-    });
-  }
-
-  /**
-   * 用户解绑角色
-   * @param data
-   * @returns
-   */
-  async authUserCancel(data: AuthUserCancelDto) {
-    await this.sysUserWithRoleEntityRep.delete({
-      userId: data.userId,
-      roleId: data.roleId,
-    });
-    return ResultData.ok();
-  }
-
-  /**
-   * 用户批量解绑角色
-   * @param data
-   * @returns
-   */
-  async authUserCancelAll(data: AuthUserCancelAllDto) {
-    const userIds = data.userIds.split(',').map((id) => +id);
-    await this.sysUserWithRoleEntityRep.delete({
-      userId: In(userIds),
-      roleId: +data.roleId,
-    });
-    return ResultData.ok();
-  }
-
-  /**
-   * 用户批量绑定角色
-   * @param data
-   * @returns
-   */
-  async authUserSelectAll(data: AuthUserSelectAllDto) {
-    const userIds = data.userIds.split(',');
-    const entitys = userIds.map((userId) => {
-      const sysDeptEntityEntity = new SysUserWithRoleEntity();
-      return Object.assign(sysDeptEntityEntity, {
-        userId: userId,
-        roleId: +data.roleId,
-      });
-    });
-    await this.sysUserWithRoleEntityRep.save(entitys);
-    return ResultData.ok();
+  async uploadAvatar(userId: number, file: Express.Multer.File, authorName: string, token?: string): Promise<string> {
+    // 上传失败（超限/类型不合规）由 singleFileUpload throw BusinessException 统一出信封，不再有失败信封返回值
+    const res = await this.uploadService.singleFileUpload(file, 'avatar', authorName);
+    await this.updateUserAvatar(userId, res.url, token);
+    return res.url;
   }
 
   /**
