@@ -124,7 +124,8 @@ export class PostCommentService {
     entity
       .leftJoin(PostArticleEntity, 'article', 'article.id = comment.articleId')
       .leftJoin(UserEntity, 'user', 'user.userId = comment.userId')
-      .addSelect(['article.title', 'user.nickName'])
+      .leftJoin(UserEntity, 'replyUser', 'replyUser.userId = comment.replyUserId')
+      .addSelect(['article.title', 'user.nickName', 'replyUser.nickName'])
       .where('1 = 1');
 
     if (query.title) {
@@ -164,7 +165,8 @@ export class PostCommentService {
       content: row.comment_content,
       createTime: row.comment_create_time,
       parentId: row.comment_parent_id,
-      replyNickName: row.reply_user_nick_name || null,
+      // raw 键保留别名大小写：replyUser → replyUser_nick_name
+      replyNickName: row.replyUser_nick_name || null,
     }));
 
     return ResultData.ok({ list, total });
@@ -259,7 +261,8 @@ export class PostCommentService {
           .where('id = :id', { id: articleId })
           .execute();
       }
-      return ResultData.ok();
+      // 回抛实际删除条数（含未加载的级联后代），前端据此精确回减计数
+      return ResultData.ok({ removed: ids.length });
     });
   }
 
