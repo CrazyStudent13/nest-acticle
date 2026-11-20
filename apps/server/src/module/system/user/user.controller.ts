@@ -61,16 +61,10 @@ export class UserController {
     }
     // 传递作者名（使用用户昵称或用户名）
     const authorName = user.user.nickName || user.user.userName;
+    // 上传失败（超限/类型不合规）由 singleFileUpload throw BusinessException 统一出信封，不再有失败信封返回值
     const res = await this.uploadService.singleFileUpload(avatarfile, 'avatar', authorName);
 
-    // 检查是否上传失败（返回的是错误信息）
-    if (res.code && res.code !== 200) {
-      return res; // 返回错误信息
-    }
-
-    // TypeScript 类型守卫：确保 res 是 UploadResult 类型
-    const uploadResult = res as any;
-    const imgUrl = uploadResult.url;
+    const imgUrl = res.url;
 
     // 将头像 URL 保存到用户信息表，并传入当前 token
     await this.userService.updateUserAvatar(user.user.userId, imgUrl, user.token);
