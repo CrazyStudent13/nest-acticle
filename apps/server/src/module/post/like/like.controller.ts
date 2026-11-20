@@ -28,12 +28,12 @@ export class PostLikeController {
   }
 
   /**
-   * 当前登录用户的点赞文章列表（通知中心「赞和收藏」栏，服务端按登录态过滤）
+   * 收到的赞列表（通知中心「赞和收藏」栏：他人点赞我发布的文章，服务端按登录态过滤）
    */
-  @ApiOperation({ summary: '点赞-我的点赞列表' })
-  @Get('/my/list')
-  findMyList(@Query() query: ListMyLikeDto, @User() user: UserDto) {
-    return this.likeService.findUserList(user.userId, query);
+  @ApiOperation({ summary: '点赞-收到的赞列表' })
+  @Get('/received/list')
+  findReceivedList(@Query() query: ListMyLikeDto, @User() user: UserDto) {
+    return this.likeService.findReceivedList(user.userId, query);
   }
 
   /**

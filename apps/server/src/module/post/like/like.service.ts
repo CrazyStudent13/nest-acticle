@@ -153,6 +153,45 @@ export class PostLikeService {
   }
 
   /**
+   * 收到的赞（通知中心：他人点赞我发布的文章），联点赞人公开信息与文章标题封面，最新在前
+   * 只取已发布未删除的文章；自己给自己点的赞不算接收通知
+   */
+  async findReceivedList(userId: number, query: ListMyLikeDto) {
+    const entity = this.likeRepo.createQueryBuilder('like');
+    entity
+      .innerJoin(PostArticleEntity, 'article', 'article.id = like.articleId')
+      .leftJoin(UserEntity, 'liker', 'liker.userId = like.userId')
+      .addSelect(['article.title', 'article.cover', 'liker.nickName', 'liker.avatar'])
+      .where('article.userId = :userId', { userId })
+      .andWhere('article.delFlag = :delFlag', { delFlag: '0' })
+      .andWhere('article.publishStatus = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED })
+      .andWhere('like.userId <> :userId');
+
+    if (query.pageSize && query.pageNum) {
+      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
+    }
+
+    entity.orderBy('like.createTime', 'DESC');
+
+    const { raw } = await entity.getRawAndEntities();
+    const total = await entity.getCount();
+
+    // raw 键格式为「别名_数据库列名」，别名保留原大小写（liker → liker_nick_name）
+    const list = raw.map((row: Record<string, any>) => ({
+      id: row.like_id,
+      userId: row.like_user_id,
+      nickName: row.liker_nick_name || '',
+      avatar: row.liker_avatar || null,
+      articleId: row.article_id,
+      articleTitle: row.article_title || null,
+      articleCover: row.article_cover || null,
+      createTime: row.like_create_time,
+    }));
+
+    return ResultData.ok({ list, total });
+  }
+
+  /**
    * 点赞管理列表（管理端，联文章标题与点赞人昵称）
    * 取数走 getRawAndEntities：like 实体 + join 出的文章/用户展示列手动拼平
    */

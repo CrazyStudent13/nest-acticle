@@ -1957,15 +1957,15 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/post/like/my/list": {
+    "/api/post/like/received/list": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** 点赞-我的点赞列表 */
-        get: operations["PostLikeController_findMyList"];
+        /** 点赞-收到的赞列表 */
+        get: operations["PostLikeController_findReceivedList"];
         put?: never;
         post?: never;
         delete?: never;
@@ -5440,7 +5440,7 @@ export interface operations {
             };
         };
     };
-    PostLikeController_findMyList: {
+    PostLikeController_findReceivedList: {
         parameters: {
             query?: {
                 /** @description 当前分页 */

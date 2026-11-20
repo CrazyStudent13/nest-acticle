@@ -25,3 +25,22 @@ export interface LikedArticleItem extends Article {
   /** 当前用户这条点赞记录的时间 */
   likeTime?: string | null;
 }
+
+/**
+ * 「收到的赞」通知行（通知中心赞和收藏栏）：他人点赞了我发布的文章
+ * 文章已删除或下架时不出现在列表中，标题由文章表联查
+ */
+export interface ReceivedLikeItem {
+  /** 点赞记录 id（列表 key） */
+  id: number;
+  /** 点赞人 userID（跳个人空间） */
+  userId: number;
+  nickName: string;
+  avatar?: string | null;
+  /** 被点赞的文章 */
+  articleId: number;
+  articleTitle: string | null;
+  articleCover?: string | null;
+  /** 点赞时间 */
+  createTime: string;
+}

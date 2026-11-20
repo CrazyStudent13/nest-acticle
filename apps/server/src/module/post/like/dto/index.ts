@@ -21,7 +21,7 @@ export class ListLikeDto extends PagingDto {
 }
 
 /**
- * 我的点赞列表查询 DTO（个人空间点赞栏，按登录态返回本人点赞记录）
+ * 我的/收到的点赞列表查询 DTO（个人空间点赞栏与通知中心赞和收藏栏共用）
  * 排序固定按点赞时间，方向走 PagingDto.isAsc（ascending/descending）
  */
 export class ListMyLikeDto extends PagingDto {

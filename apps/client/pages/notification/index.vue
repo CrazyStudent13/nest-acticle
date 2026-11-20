@@ -1,4 +1,4 @@
-<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知）+ 右侧列表；系统通知接 /api/system/notice/list（Markdown 内容超 3 行收起、就地展开，分页）；评论栏接 /api/post/comment/my/list（我发表的评论与回复，类型徽标区分，支持删除）；赞和收藏接 /api/post/like/my/list（我点赞过的文章，收藏功能未建）；新增粉丝后端未建占位空态；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
+<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知）+ 右侧列表；系统通知接 /api/system/notice/list（Markdown 内容超 3 行收起、就地展开，分页）；评论栏接 /api/post/comment/my/list（我发表的评论与回复，类型徽标区分，支持删除）；赞和收藏接 /api/post/like/received/list（他人点赞我发布的文章，掘金式接收流；收藏与评论点赞功能未建）；新增粉丝后端未建占位空态；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
 <template>
   <div class="notification-page">
     <div class="notice-panel">
@@ -104,20 +104,39 @@
           <CommonEmptyState v-else>暂无评论或回复，去文章页说两句吧</CommonEmptyState>
         </template>
 
-        <!-- 赞和收藏：我点赞过的文章（服务端按当前登录人过滤；收藏功能未建，先只列点赞，复用信息流行卡） -->
+        <!-- 赞和收藏：他人点赞我发布的文章（掘金式接收流：左头像、中间文案+相对时间、右文章封面） -->
         <template v-else-if="activeTab === 'like'">
-          <template v-if="likedArticles.length">
-            <article-card
-              v-for="item in likedArticles"
-              :key="item.id"
-              :card-info="item"
-              @click="goLikedArticle(item)"
-            />
-            <CommonPagination v-model:page="likedPage" :total="likedTotal" :page-size="PAGE_SIZE" />
+          <template v-if="receivedLikes.length">
+            <article v-for="row in receivedLikes" :key="row.id" class="notice-item like-item">
+              <NuxtLink class="like-avatar" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                <img v-if="row.avatar" :src="coverUrl(row.avatar)" :alt="row.nickName" loading="lazy" />
+                <span v-else class="avatar-fallback">{{ (row.nickName || '用').slice(0, 1) }}</span>
+              </NuxtLink>
+              <div class="like-main">
+                <p class="like-text">
+                  <NuxtLink class="like-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                    {{ row.nickName || '用户' }}
+                  </NuxtLink>
+                  赞了你的文章
+                  <NuxtLink class="like-article" :to="{ path: '/article/detail', query: { id: String(row.articleId) } }">
+                    《{{ row.articleTitle || '文章已删除' }}》
+                  </NuxtLink>
+                </p>
+                <time class="like-time">{{ formatRelativeTime(row.createTime) }}</time>
+              </div>
+              <NuxtLink
+                v-if="row.articleCover"
+                class="like-thumb"
+                :to="{ path: '/article/detail', query: { id: String(row.articleId) } }"
+              >
+                <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
+              </NuxtLink>
+            </article>
+            <CommonPagination v-model:page="likePage" :total="likeTotal" :page-size="PAGE_SIZE" />
           </template>
-          <CommonEmptyState v-else-if="likedLoading" text="加载中…" />
-          <CommonEmptyState v-else-if="likedError">{{ likedError }}</CommonEmptyState>
-          <CommonEmptyState v-else>还没有点赞过文章，去信息流给好内容点个赞吧</CommonEmptyState>
+          <CommonEmptyState v-else-if="likeLoading" text="加载中…" />
+          <CommonEmptyState v-else-if="likeError">{{ likeError }}</CommonEmptyState>
+          <CommonEmptyState v-else>还没有收到点赞，发布优质文章就会有互动了</CommonEmptyState>
         </template>
 
         <!-- 其余分类：互动功能未建，占位空态 -->
@@ -130,7 +149,7 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
 import { formatRelativeTime } from '@nest-acticle/utils'
-import type { LikedArticleItem, MyCommentItem } from '@nest-acticle/shared'
+import type { MyCommentItem, ReceivedLikeItem } from '@nest-acticle/shared'
 
 interface NoticeItem {
   noticeId: number
@@ -168,7 +187,11 @@ const noticeCats = [
 type NoticeTab = (typeof noticeCats)[number]['key']
 
 const route = useRoute()
+const config = useRuntimeConfig()
 const { openLogin } = useAuthModal()
+
+// 头像/封面统一补全服务端前缀（相对路径直出会 404）
+const coverUrl = (path?: string | null) => toCoverUrl(config.public.apiBase, path)
 
 // ---------- tab 状态：?tab= 同步（非法值回落系统通知），铃铛下拉可带分类直达 ----------
 const normalizeTab = (value: unknown): NoticeTab => {
@@ -296,33 +319,30 @@ const removeMyComment = async (row: MyCommentItem) => {
   }
 }
 
-// ---------- 我的点赞列表（赞和收藏 tab）：服务端按登录态过滤，点赞时间倒序 ----------
-const likedArticles = ref<LikedArticleItem[]>([])
-const likedPage = ref(1)
-const likedTotal = ref(0)
-const likedLoading = ref(false)
-const likedError = ref('')
+// ---------- 收到的赞（赞和收藏 tab）：他人点赞我发布的文章，服务端按登录态过滤，最新在前 ----------
+const receivedLikes = ref<ReceivedLikeItem[]>([])
+const likePage = ref(1)
+const likeTotal = ref(0)
+const likeLoading = ref(false)
+const likeError = ref('')
 
-const loadLikedArticles = async () => {
-  likedLoading.value = true
-  likedError.value = ''
+const loadReceivedLikes = async () => {
+  likeLoading.value = true
+  likeError.value = ''
   try {
-    const res = await apiFetch<{ list?: LikedArticleItem[]; total?: number }>('/api/post/like/my/list', {
-      query: { pageNum: likedPage.value, pageSize: PAGE_SIZE }
+    const res = await apiFetch<{ list?: ReceivedLikeItem[]; total?: number }>('/api/post/like/received/list', {
+      query: { pageNum: likePage.value, pageSize: PAGE_SIZE }
     })
-    likedArticles.value = res.data?.list || []
-    likedTotal.value = res.data?.total || 0
+    receivedLikes.value = res.data?.list || []
+    likeTotal.value = res.data?.total || 0
   } catch (error: any) {
-    likedArticles.value = []
-    likedTotal.value = 0
-    likedError.value = error?.message || '点赞列表加载失败'
+    receivedLikes.value = []
+    likeTotal.value = 0
+    likeError.value = error?.message || '点赞列表加载失败'
   } finally {
-    likedLoading.value = false
+    likeLoading.value = false
   }
 }
-
-const goLikedArticle = (item: LikedArticleItem) =>
-  navigateTo({ path: '/article/detail', query: { id: String(item.id) } })
 
 // 首屏加载放到登录守卫之后（onMounted），避免未登录先发一轮必然 401 的请求
 watch(activeTab, (tab) => {
@@ -335,14 +355,14 @@ watch(activeTab, (tab) => {
     loadMyComments()
   }
   if (tab === 'like') {
-    likedPage.value = 1
-    loadLikedArticles()
+    likePage.value = 1
+    loadReceivedLikes()
   }
 })
 
 watch(page, loadNotices)
 watch(commentPage, loadMyComments)
-watch(likedPage, loadLikedArticles)
+watch(likePage, loadReceivedLikes)
 
 // ---------- 内容展开/收起：Markdown 长文默认收起（72px），渲染后量 scrollHeight 决定是否出「展开」按钮 ----------
 const expandedMap = ref<Record<number, boolean>>({})
@@ -384,7 +404,7 @@ onMounted(() => {
   } else if (activeTab.value === 'comment') {
     loadMyComments()
   } else if (activeTab.value === 'like') {
-    loadLikedArticles()
+    loadReceivedLikes()
   }
 })
 </script>
@@ -471,6 +491,87 @@ onMounted(() => {
 
   & + .notice-item {
     border-top: 1px solid var(--color-border-light);
+  }
+}
+
+// 赞和收藏：掘金式接收流——左头像、中间「谁赞了哪篇」+相对时间、右文章封面
+.like-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+
+  .like-avatar {
+    flex-shrink: 0;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    overflow: hidden;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .avatar-fallback {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 100%;
+      height: 100%;
+      background-color: var(--color-primary-light);
+      font-size: 16px;
+      color: var(--color-primary);
+    }
+  }
+
+  .like-main {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .like-text {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 15px;
+    line-height: 22px;
+    color: var(--color-text-1);
+  }
+
+  // 昵称与文章标题走主题蓝，悬浮加下划线；文章已删时仍可点（详情页有空态）
+  .like-user,
+  .like-article {
+    color: var(--color-primary);
+    transition: color 0.2s ease;
+
+    &:hover {
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+  }
+
+  .like-time {
+    display: block;
+    margin-top: 10px;
+    font-size: 13px;
+    color: var(--color-text-3);
+  }
+
+  .like-thumb {
+    flex-shrink: 0;
+    width: 72px;
+    height: 72px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
   }
 }
 
