@@ -69,10 +69,11 @@ export default defineConfig(({ mode, command }: ConfigEnv): UserConfig => {
     },
     build: {
       assetsDir: 'static',
-      // 构建警告阈值（kib）。当前最大合法 chunk 为 md-editor（约 1.9M，内嵌
-      // katex/mermaid/codemirror，仅文章编辑页懒加载）与 echarts（约 1M），阈值略高于
-      // 最大合法件保证"已知良好状态零警告"——超阈值即意外膨胀，需人工甄别，禁止调高了事
-      chunkSizeWarningLimit: 2000,
+      // 构建警告阈值（kib）。原约 1.9M 的富文本编辑器依赖（编辑器已统一到 @nest-acticle/editor）
+      // 移除后，最大合法 chunk 为 vendor（markdown-it/highlight.js 等第三方库兜底分组，约 1.1M）
+      // 与 echarts（约 1M），阈值略高于最大合法件保证"已知良好状态零警告"——超阈值即意外膨胀，
+      // 需人工甄别，禁止调高了事
+      chunkSizeWarningLimit: 1200,
       // build时启用/禁用 CSS 代码拆分
       cssCodeSplit: true,
       // 生产环境构建文件的目录名
@@ -111,12 +112,6 @@ export default defineConfig(({ mode, command }: ConfigEnv): UserConfig => {
                 name: 'echarts',
                 test: /node_modules[\\/](echarts|zrender)[\\/]/,
                 priority: 3
-              },
-              {
-                // 富文本编辑器及其独占依赖（codemirror/markdown-it 系），体积大且极少变更，独立分包利于缓存
-                name: 'md-editor',
-                test: /node_modules[\\/](md-editor-v3|medium-zoom|markdown-it[a-z-]*|@codemirror|codemirror|@lezer|@vavt|@lucide|xss)[\\/]/,
-                priority: 2
               },
               {
                 name: 'vue-vendor',
