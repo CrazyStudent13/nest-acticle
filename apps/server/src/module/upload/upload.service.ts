@@ -248,7 +248,8 @@ export class UploadService {
     const stats = fs.statSync(targetFile);
 
     if (!this.isLocal) {
-      this.uploadLargeFileCos(targetFile, key);
+      // COS 分支与本地分支一致：上传完成（或失败抛出）后再落记录与响应，避免请求先于上传返回、失败变成 unhandledRejection
+      await this.uploadLargeFileCos(targetFile, key);
       data.url = this.joinUrl(this.config.get('cos.domain'), key);
       // 写入上传记录
       await this.sysUploadEntityRep.save({ uploadId, ...data, ext: path.extname(data.newFileName), size: stats.size, status: '0' });
@@ -471,10 +472,11 @@ export class UploadService {
         Key: targetFile,
         FilePath: sourceFile,
         SliceSize: 1024 * 1024 * 5 /* 触发分块上传的阈值，超过5MB使用分块上传，非必须 */,
-        onProgress: function (progressData) {
+        // 箭头函数保住 service 的 this；条件字段用实体属性 fileName（此前误拼 filName 匹配不到任何记录）
+        onProgress: (progressData) => {
           /* 非必须 */
           if (progressData.percent === 1) {
-            this.sysUploadEntityRep.update({ filName: targetFile }, { status: 0 });
+            this.sysUploadEntityRep.update({ fileName: targetFile }, { status: '0' });
           }
         },
       });
