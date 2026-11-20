@@ -151,9 +151,13 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
 
+// 登录守卫走 auth middleware：未登录弹登录框并回首页，token 失效恢复失败同样回首页
+definePageMeta({
+  middleware: 'auth'
+})
+
 const config = useRuntimeConfig()
-const { user, fetchUserInfo, updateProfile, updateAvatar, updatePassword } = useUser()
-const { openLogin } = useAuthModal()
+const { user, updateProfile, updateAvatar, updatePassword } = useUser()
 const { mode, setMode } = useTheme()
 
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)+[A-Za-z]{2,}$/
@@ -177,20 +181,7 @@ const menus = [
 ]
 const activeMenu = ref('profile')
 
-// ---------- 页面守卫 + 数据恢复（主题初始化由 plugins/theme.client 全局负责） ----------
-onMounted(async () => {
-  if (!getToken()) {
-    openLogin()
-    return navigateTo('/')
-  }
-  if (!user.value) {
-    try {
-      await fetchUserInfo()
-    } catch {
-      return navigateTo('/')
-    }
-  }
-})
+// 页面守卫与登录态恢复已由 auth middleware 先行（主题初始化由 plugins/theme.client 全局负责）
 
 // ---------- 个人资料 ----------
 const avatarUrl = computed(() => toCoverUrl(config.public.apiBase, user.value?.avatar))

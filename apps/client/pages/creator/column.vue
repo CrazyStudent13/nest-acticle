@@ -44,7 +44,10 @@
 import type { Subject } from '@nest-acticle/shared'
 
 definePageMeta({
-  layout: 'creator'
+  layout: 'creator',
+  middleware: 'auth',
+  authNoToken: 'stay',
+  authRestoreFail: 'stay'
 })
 
 // 行数据契约见 @nest-acticle/shared 的 Subject（articleCount 为该专栏下文章数）

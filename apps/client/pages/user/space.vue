@@ -132,10 +132,15 @@
 import dayjs from 'dayjs'
 import type { LikedArticleItem, PageResult, Subject } from '@nest-acticle/shared'
 
+// 登录守卫走 auth middleware：未登录/恢复失败回首页；带 ?id= 看他人空间时走 guest 旁路公开可看（authGuestQuery）
+definePageMeta({
+  middleware: 'auth',
+  authGuestQuery: 'id'
+})
+
 const config = useRuntimeConfig()
 const route = useRoute()
-const { user, fetchUserInfo } = useUser()
-const { openLogin } = useAuthModal()
+const { user } = useUser()
 const { fetchUserLikedArticles } = useLike()
 
 // 签名：取用户资料，未设置时给占位文案
@@ -155,7 +160,7 @@ const isSelf = computed(() => !!user.value?.userId && user.value.userId === targ
 const spaceProfile = ref<{ nickName?: string; avatar?: string }>({})
 const spaceStats = ref({ total: 0, reads: 0, likes: 0 })
 
-// ---------- 页面初始化：自己的空间要求登录，他人空间公开可看 ----------
+// ---------- 页面初始化：自己的空间要求登录，他人空间公开可看（两种情形都由 auth middleware 判定先行） ----------
 const initSpace = () => {
   // 切换空间时清掉搜索词与点赞列表，避免上一位的过滤条件/数据带到下一位
   keyword.value = ''
@@ -167,23 +172,8 @@ const initSpace = () => {
 }
 
 onMounted(() => {
-  if (route.query.id && !isSelf.value) {
-    initSpace()
-    return
-  }
-  if (!getToken()) {
-    openLogin()
-    return navigateTo('/')
-  }
-  if (!user.value) {
-    fetchUserInfo()
-      .then(initSpace)
-      .catch(() => {
-        navigateTo('/')
-      })
-  } else {
-    initSpace()
-  }
+  // middleware 已保证：登录态就绪（自己的空间）或 guest 旁路放行（他人空间）
+  initSpace()
 })
 
 // SPA 内切换不同用户空间时重载

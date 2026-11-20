@@ -213,19 +213,21 @@
 import dayjs from 'dayjs'
 
 // 写文章是独立全屏流程：ssr 关闭（依赖 token），使用 editor 布局（无站头站脚）
+// 登录守卫走 auth middleware：未登录原地弹登录框不跳页（authNoToken: 'stay'，掘金式），恢复失败回首页
 definePageMeta({
-  layout: 'editor'
+  layout: 'editor',
+  middleware: 'auth',
+  authNoToken: 'stay'
 })
 
 const config = useRuntimeConfig()
 const route = useRoute()
-const { user, fetchUserInfo } = useUser()
-const { openLogin } = useAuthModal()
+const { user } = useUser()
 
 // 编辑模式：带 ?id= 时载入已有文章，发布改为保存修改（后端 PUT /api/post/article 只允许改自己的文章）
 const editId = ref('')
 
-// ---------- 登录守卫：未登录弹框留在本页，登录成功后自动初始化（掘金式原地继续写） ----------
+// ---------- 初始化：登录守卫已由 auth middleware 先行（未登录会原地弹登录框、token 失效已回首页） ----------
 const initEditor = () => {
   if (route.query.id) {
     editId.value = String(route.query.id)
@@ -240,17 +242,8 @@ const initEditor = () => {
 }
 
 onMounted(() => {
-  if (!getToken()) {
-    openLogin()
-    return
-  }
-  if (!user.value) {
-    fetchUserInfo()
-      .then(initEditor)
-      .catch(() => {
-        navigateTo('/')
-      })
-  } else {
+  // 未登录时 middleware 已原地弹登录框，这里不初始化，等登录成功由下方 watch 续起
+  if (user.value) {
     initEditor()
   }
 })

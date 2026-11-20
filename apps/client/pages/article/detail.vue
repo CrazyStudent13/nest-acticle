@@ -179,7 +179,7 @@ const scrollToComments = () => {
 }
 
 // 编辑/删除入口：仅当前登录用户是文章作者时可见
-const { user, fetchUserInfo } = useUser()
+const { user, ensureUserRestored } = useUser()
 const canEdit = computed(
   () => !!user.value?.userId && !!article.value.userInfo?.userId && user.value.userId === article.value.userInfo.userId
 )
@@ -208,11 +208,9 @@ const removeArticle = async () => {
   }
 }
 
-// 登录态恢复（编辑按钮依赖 user.userId 比对）
+// 登录态恢复（编辑按钮依赖 user.userId 比对；逻辑在 useUser.ensureUserRestored，与 auth middleware 共用）
 onMounted(() => {
-  if (getToken() && !user.value) {
-    fetchUserInfo().catch(() => {})
-  }
+  ensureUserRestored()
 })
 
 // 右侧目录开关：文章带标题大纲才展示
