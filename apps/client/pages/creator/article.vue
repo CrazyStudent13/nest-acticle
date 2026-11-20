@@ -44,7 +44,7 @@
 </template>
 
 <script setup lang="ts">
-import type { ApiResponse, Article, PageResult } from '@nest-acticle/shared'
+import type { Article } from '@nest-acticle/shared'
 
 definePageMeta({
   layout: 'creator',
@@ -56,6 +56,8 @@ definePageMeta({
 // 行数据契约见 @nest-acticle/shared 的 Article（publishStatus/auditStatus 取值注释也在包内）
 
 const { user, isLoggedIn } = useUser()
+const { fetchArticles, updateArticle, deleteArticle } = useArticleManage()
+const { fetchSubjects } = useSubject()
 
 const PAGE_SIZE = 20
 // 审核中 tab 的合并查询拉取上限：后端 auditStatus 仅支持单值，两个状态各拉一次在前端合并分页
@@ -93,9 +95,7 @@ const loadCounts = async () => {
   try {
     const base = { userId: user.value.userId, pageNum: 1, pageSize: 1 }
     const countQuery = (overrides: Record<string, any>) =>
-      apiFetch<{ list?: Article[]; total?: number }>('/api/post/article/list', {
-        query: { ...base, ...overrides }
-      }).then((res) => res.data?.total ?? 0)
+      fetchArticles({ ...base, ...overrides }).then((data) => data.total ?? 0)
     const [all, published, draft, offline, auditing, rejected] = await Promise.all([
       countQuery({}),
       countQuery({ publishStatus: '2' }),
@@ -110,10 +110,10 @@ const loadCounts = async () => {
   }
 }
 
-// 组装基础查询条件（userId 固定只查自己的文章）
+// 组装基础查询条件（userId 固定只查自己的文章；调用点均在 user 就绪守卫之后）
 const buildQuery = (overrides: Record<string, any>) => {
   return {
-    userId: user.value?.userId,
+    userId: user.value!.userId,
     pageNum: pageNum.value,
     pageSize: PAGE_SIZE,
     orderByColumn: 'createTime',
@@ -140,24 +140,18 @@ const loadList = async () => {
         ...(searchKeyword.value ? { title: searchKeyword.value } : {})
       }
       const [auditing, rejected] = await Promise.all([
-        apiFetch<{ list?: Article[]; total?: number }>('/api/post/article/list', {
-          query: { ...base, auditStatus: '1' }
-        }),
-        apiFetch<{ list?: Article[]; total?: number }>('/api/post/article/list', {
-          query: { ...base, auditStatus: '3' }
-        })
+        fetchArticles({ ...base, auditStatus: '1' }),
+        fetchArticles({ ...base, auditStatus: '3' })
       ])
-      const merged = [...(auditing.data?.list || []), ...(rejected.data?.list || [])].sort((a, b) =>
+      const merged = [...(auditing.list || []), ...(rejected.list || [])].sort((a, b) =>
         (b.createTime || '').localeCompare(a.createTime || '')
       )
       total.value = merged.length
       rows.value = merged.slice((pageNum.value - 1) * PAGE_SIZE, pageNum.value * PAGE_SIZE)
     } else {
-      const res = await apiFetch<{ list?: Article[]; total?: number }>('/api/post/article/list', {
-        query: buildQuery(activeTab.value === 'all' ? {} : { publishStatus: activeTab.value })
-      })
-      rows.value = res.data?.list || []
-      total.value = res.data?.total ?? rows.value.length
+      const data = await fetchArticles(buildQuery(activeTab.value === 'all' ? {} : { publishStatus: activeTab.value }))
+      rows.value = data.list || []
+      total.value = data.total ?? rows.value.length
     }
   } catch (error: any) {
     loadError.value = error?.message || '加载失败，请稍后重试'
@@ -211,12 +205,12 @@ const loadSubjects = async () => {
     return
   }
   try {
-    const res = await apiFetch<{ list?: { id: number; title: string }[] }>('/api/post/subject/list', {
-      query: { userId: user.value.userId, pageNum: 1, pageSize: 100 }
-    })
+    const data = await fetchSubjects({ userId: user.value.userId, pageNum: 1, pageSize: 100 })
     const map: Record<number, string> = {}
-    for (const item of res.data?.list || []) {
-      map[item.id] = item.title
+    for (const item of data.list || []) {
+      if (item.id !== undefined) {
+        map[item.id] = item.title ?? ''
+      }
     }
     subjectMap.value = map
   } catch {
@@ -268,10 +262,7 @@ const goEdit = (row: Article) => {
 const togglePublish = async (row: Article) => {
   const target = row.publishStatus === '2' ? '3' : '2'
   try {
-    await apiFetch('/api/post/article', {
-      method: 'PUT',
-      body: { id: row.id, title: row.title, subjectId: row.subjectId, publishStatus: target }
-    })
+    await updateArticle({ id: row.id!, title: row.title ?? '', subjectId: row.subjectId, publishStatus: target })
     loadCounts()
     return loadList()
   } catch (error: any) {
@@ -291,7 +282,7 @@ const removeRow = async (row: Article) => {
     return
   }
   try {
-    await apiFetch(`/api/post/article/${row.id}`, { method: 'DELETE' })
+    await deleteArticle(row.id!)
     loadCounts()
     return loadList()
   } catch (error: any) {

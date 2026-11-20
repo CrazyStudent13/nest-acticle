@@ -211,6 +211,7 @@
 
 <script setup lang="ts">
 import dayjs from 'dayjs'
+import type { Article, Subject } from '@nest-acticle/shared'
 
 // 写文章是独立全屏流程：ssr 关闭（依赖 token），使用 editor 布局（无站头站脚）
 // 登录守卫走 auth middleware：未登录原地弹登录框不跳页（authNoToken: 'stay'，掘金式），恢复失败回首页
@@ -223,6 +224,7 @@ definePageMeta({
 const config = useRuntimeConfig()
 const route = useRoute()
 const { user } = useUser()
+const { fetchGuestSubjects } = useSubject()
 
 // 编辑模式：带 ?id= 时载入已有文章，发布改为保存修改（后端 PUT /api/post/article 只允许改自己的文章）
 const editId = ref('')
@@ -258,13 +260,13 @@ watch(user, (val, old) => {
 // 编辑模式预填：guest detail 只放行已发布文章，草稿走本地草稿箱
 const loadArticle = async (id: string) => {
   try {
-    const res = await $fetch<any>(`${config.public.apiBase}/api/post/article/guest/detail`, {
+    const res = await apiFetch<Article>('/api/post/article/guest/detail', {
       query: { id }
     })
-    if (res.code !== 200 || !res.data) {
+    const model = res.data
+    if (!model) {
       throw new Error(res.msg || '文章不存在或已下架')
     }
-    const model = res.data
     title.value = model.title || ''
     content.value = model.content || ''
     publishForm.subjectId = model.subjectId ? String(model.subjectId) : ''
@@ -605,7 +607,7 @@ const onDocClick = (event: MouseEvent) => {
 const publishOpen = ref(false)
 const publishing = ref(false)
 const publishTip = ref('')
-const subjects = ref<any[]>([])
+const subjects = ref<Subject[]>([])
 const subjectsLoading = ref(false)
 const publishForm = reactive({ subjectId: '', cover: '', desc: '' })
 const coverInput = ref<HTMLInputElement | null>(null)
@@ -628,10 +630,8 @@ const autoDesc = () => {
 const fetchSubjects = async () => {
   subjectsLoading.value = true
   try {
-    const res = await apiFetch<{ list?: any[] }>('/api/post/subject/guest/list', {
-      query: { pageNum: 1, pageSize: 50 }
-    })
-    subjects.value = res.data?.list || []
+    const data = await fetchGuestSubjects({ pageNum: 1, pageSize: 50 })
+    subjects.value = data.list || []
   } catch {
     // 拉取失败按无专栏处理：行隐藏、允许继续发布，仅提示可稍后归类
     subjects.value = []
