@@ -85,9 +85,11 @@ export class UploadService {
    * @returns
    */
   async singleFileUpload(file: Express.Multer.File, customPath?: string, authorName?: string): Promise<UploadResult | any> {
-    const fileSize = (file.size / 1024 / 1024).toFixed(2);
-    if (fileSize > this.config.get('app.file.maxSize')) {
-      return ResultData.fail(500, `文件大小不能超过${this.config.get('app.file.maxSize')}MB`);
+    // 数值比较后再格式化展示：先 toFixed(2) 会变字符串且舍入（如 10.004MB 被舍成 10.00 放行）
+    const fileSizeMb = file.size / 1024 / 1024;
+    const maxSizeMb = Number(this.config.get('app.file.maxSize'));
+    if (fileSizeMb > maxSizeMb) {
+      return ResultData.fail(500, `文件大小不能超过${maxSizeMb}MB`);
     }
 
     // 扩展名白名单：拒绝 .html/.svg 等可内联执行类型，防止经静态服务造成存储型 XSS（头像上传复用此方法一并生效）

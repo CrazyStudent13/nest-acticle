@@ -379,14 +379,13 @@ export class UserService {
 
     const roleIds = await this.getRoleIds([userId]);
     //TODO flag用来给前端表格标记选中状态，后续优化
-    user['roles'] = allRoles.filter((item) => {
+    // 原写法 filter 两分支都 return true（恒真），语义实为「全量标记 flag」：改 forEach 只做标记
+    allRoles.forEach((item) => {
       if (roleIds.includes(item.roleId)) {
         item['flag'] = true;
-        return true;
-      } else {
-        return true;
       }
     });
+    user['roles'] = allRoles;
 
     return ResultData.ok({
       roles: allRoles,

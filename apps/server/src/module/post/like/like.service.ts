@@ -128,6 +128,7 @@ export class PostLikeService {
       entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
     }
 
+    // 排序方向：ascending → 升序，其余（descending 或未传）→ 降序；isAsc 在 DTO 层已被 @IsEnum(SortRuleEnum) 约束，非枚举值进不到这里
     entity.orderBy('like.createTime', query.isAsc === SortRuleEnum.ASCENDING ? 'ASC' : 'DESC');
 
     const { raw } = await entity.getRawAndEntities();
