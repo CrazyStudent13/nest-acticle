@@ -17,7 +17,7 @@ export const UserTool = createParamDecorator((data: unknown, ctx: ExecutionConte
 
   const injectCreate = (data: any) => {
     if (data.createBy) {
-      return;
+      return data;
     }
     data.createBy = userName;
 
