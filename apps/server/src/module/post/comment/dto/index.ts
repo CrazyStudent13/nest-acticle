@@ -14,6 +14,8 @@ export class CreateCommentDto {
   articleId: number;
 
   @ApiProperty({ required: true, description: '评论内容（1-500 字）' })
+  // 先 trim 再校验，纯空白内容不入库
+  @Transform(({ value }) => (typeof value === 'string' ? value.trim() : value))
   @IsString()
   @Length(1, 500, { message: '评论内容需为 1 到 500 字' })
   content: string;
