@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
+import { applyLike, assertOwnership, attachUserInfo, paginate } from 'src/common/query';
 import { PostArticleEntity } from './entities/article.entity';
 import { CreatePostArticleDto, UpdatePostArticleDto, ListPostArticleDto, AuditPostArticleDto, PublishStatusEnum, AuditStatusEnum } from './dto/index';
 import { UserDto } from 'src/module/system/user/user.decorator';
@@ -63,78 +64,11 @@ export class PostArticleService {
    * @returns 文章列表和总数
    */
   async findAll(query: ListPostArticleDto) {
-    const entity = this.postArticleRepository.createQueryBuilder('article');
-    entity.where('article.delFlag = :delFlag', { delFlag: '0' });
-
-    // 按标题模糊搜索
-    if (query.title) {
-      entity.andWhere('article.title LIKE :title', { title: `%${query.title}%` });
-    }
-
-    // 按专栏ID筛选
-    if (query.subjectId) {
-      entity.andWhere('article.subjectId = :subjectId', { subjectId: query.subjectId });
-    }
-
-    // 按作者ID筛选
-    if (query.userId) {
-      entity.andWhere('article.userId = :userId', { userId: query.userId });
-    }
-
-    // 按发布状态筛选
-    if (query.publishStatus) {
-      entity.andWhere('article.publishStatus = :publishStatus', { publishStatus: query.publishStatus });
-    }
-
-    // 按审核状态筛选
-    if (query.auditStatus) {
-      entity.andWhere('article.auditStatus = :auditStatus', { auditStatus: query.auditStatus });
-    }
-
-    // 按文章来源筛选
-    if (query.source) {
-      entity.andWhere('article.source = :source', { source: query.source });
-    }
-
-    // 排序（校验排序字段是否为文章实体的合法属性，防止 ORDER BY 注入）
-    if (query.orderByColumn && query.isAsc && this.isArticleField(query.orderByColumn)) {
-      const key = query.isAsc === 'ascending' ? 'ASC' : 'DESC';
-      entity.orderBy(`article.${query.orderByColumn}`, key);
-    }
-
-    // 分页
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
-
+    const entity = this.buildListQuery(query, false);
     const [list, total] = await entity.getManyAndCount();
 
-    // 为每篇文章关联查询用户信息
-    const processedList = await Promise.all(
-      list.map(async (item: any) => {
-        let userInfo = null;
-
-        if (item.userId) {
-          const user = await this.userRepository.findOne({
-            where: { userId: item.userId },
-            select: ['userId', 'nickName', 'avatar'],
-          });
-
-          if (user) {
-            userInfo = {
-              userId: user.userId,
-              nickName: user.nickName,
-              avatar: user.avatar,
-            };
-          }
-        }
-
-        return {
-          ...item,
-          userInfo,
-        };
-      }),
-    );
+    // 批量为文章关联查询用户信息（一次 IN 查询替代逐行 findOne）
+    const processedList = await attachUserInfo(list, this.userRepository);
 
     return ResultData.ok({
       list: processedList,
@@ -191,14 +125,18 @@ export class PostArticleService {
   }
 
   /**
-   * 查询文章列表（游客，仅返回已发布文章，不包含审核信息等内部数据）
-   * @param query 查询参数
-   * @returns 文章列表和总数
+   * 构建文章列表查询（findAll/findGuestAll 公共部分，合并原先两套复制的 where 构造）：
+   * where 条件、排序、分页收口为一处。
+   * guest 版差异：仅 select 公开列（不含审核信息等内部数据）、写死仅返回已发布、
+   * 不接收 publishStatus/auditStatus 查询参数、默认按发布时间倒序
+   * @param guest true 游客版 / false 管理端版
    */
-  async findGuestAll(query: ListPostArticleDto) {
+  private buildListQuery(query: ListPostArticleDto, guest: boolean) {
     const entity = this.postArticleRepository.createQueryBuilder('article');
-    entity
-      .select([
+
+    // 游客版仅返回公开列，不包含审核信息等内部数据
+    if (guest) {
+      entity.select([
         'article.id',
         'article.title',
         'article.desc',
@@ -212,14 +150,18 @@ export class PostArticleService {
         'article.readNum',
         'article.commentNum',
         'article.createTime',
-      ])
-      .where('article.delFlag = :delFlag', { delFlag: '0' })
-      .andWhere('article.publishStatus = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED });
+      ]);
+    }
+
+    entity.where('article.delFlag = :delFlag', { delFlag: '0' });
+
+    // 游客版仅返回已发布文章
+    if (guest) {
+      entity.andWhere('article.publishStatus = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED });
+    }
 
     // 按标题模糊搜索
-    if (query.title) {
-      entity.andWhere('article.title LIKE :title', { title: `%${query.title}%` });
-    }
+    applyLike(entity, 'article.title', query.title);
 
     // 按专栏ID筛选
     if (query.subjectId) {
@@ -231,52 +173,45 @@ export class PostArticleService {
       entity.andWhere('article.userId = :userId', { userId: query.userId });
     }
 
+    // 按发布/审核状态筛选（仅管理端查询参数，游客版不接收这两个过滤条件）
+    if (!guest) {
+      if (query.publishStatus) {
+        entity.andWhere('article.publishStatus = :publishStatus', { publishStatus: query.publishStatus });
+      }
+
+      if (query.auditStatus) {
+        entity.andWhere('article.auditStatus = :auditStatus', { auditStatus: query.auditStatus });
+      }
+    }
+
     // 按文章来源筛选
     if (query.source) {
       entity.andWhere('article.source = :source', { source: query.source });
     }
 
-    // 排序（字段走实体属性校验，防止 ORDER BY 注入），默认按发布时间倒序
+    // 排序（校验排序字段是否为文章实体的合法属性，防止 ORDER BY 注入）；游客版默认按发布时间倒序
     if (query.orderByColumn && query.isAsc && this.isArticleField(query.orderByColumn)) {
       const key = query.isAsc === 'ascending' ? 'ASC' : 'DESC';
       entity.orderBy(`article.${query.orderByColumn}`, key);
-    } else {
+    } else if (guest) {
       entity.orderBy('article.publishTime', 'DESC');
     }
 
     // 分页
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
+    return paginate(entity, query);
+  }
 
+  /**
+   * 查询文章列表（游客，仅返回已发布文章，不包含审核信息等内部数据）
+   * @param query 查询参数
+   * @returns 文章列表和总数
+   */
+  async findGuestAll(query: ListPostArticleDto) {
+    const entity = this.buildListQuery(query, true);
     const [list, total] = await entity.getManyAndCount();
 
-    // 为每篇文章关联查询作者公开信息（仅昵称与头像）
-    const processedList = await Promise.all(
-      list.map(async (item: any) => {
-        let userInfo = null;
-
-        if (item.userId) {
-          const user = await this.userRepository.findOne({
-            where: { userId: item.userId },
-            select: ['userId', 'nickName', 'avatar'],
-          });
-
-          if (user) {
-            userInfo = {
-              userId: user.userId,
-              nickName: user.nickName,
-              avatar: user.avatar,
-            };
-          }
-        }
-
-        return {
-          ...item,
-          userInfo,
-        };
-      }),
-    );
+    // 批量为文章关联查询作者公开信息（仅昵称与头像，一次 IN 查询替代逐行 findOne）
+    const processedList = await attachUserInfo(list, this.userRepository);
 
     return ResultData.ok({
       list: processedList,
@@ -360,10 +295,7 @@ export class PostArticleService {
     }
 
     // 权限验证：只能更新自己的文章（管理员除外）
-    const currentUserId = user.user.userId;
-    const isAdmin = user.roles?.includes('admin');
-
-    if (!isAdmin && article.userId !== currentUserId) {
+    if (!assertOwnership(user, article)) {
       return ResultData.fail(403, '无权修改此文章');
     }
 
@@ -408,16 +340,10 @@ export class PostArticleService {
       return ResultData.fail(500, '未找到可删除的文章');
     }
 
-    // 权限验证：只能删除自己的文章（管理员除外）
-    const currentUserId = user.user.userId;
-    const isAdmin = user.roles?.includes('admin');
-
-    if (!isAdmin) {
-      // 检查是否有不属于当前用户的文章
-      const unauthorizedArticles = articles.filter((article) => article.userId !== currentUserId);
-      if (unauthorizedArticles.length > 0) {
-        return ResultData.fail(403, '无权删除部分文章');
-      }
+    // 权限验证：只能删除自己的文章（管理员除外）；检查是否有不属于当前用户的文章
+    const unauthorizedArticles = articles.filter((article) => !assertOwnership(user, article));
+    if (unauthorizedArticles.length > 0) {
+      return ResultData.fail(403, '无权删除部分文章');
     }
 
     // 批量软删除
@@ -471,10 +397,7 @@ export class PostArticleService {
     }
 
     // 权限验证：只能提交自己的文章进行审核
-    const currentUserId = user.user.userId;
-    const isAdmin = user.roles?.includes('admin');
-
-    if (!isAdmin && article.userId !== currentUserId) {
+    if (!assertOwnership(user, article)) {
       return ResultData.fail(403, '无权操作此文章');
     }
 
@@ -504,10 +427,7 @@ export class PostArticleService {
     }
 
     // 权限验证：只能发布自己的文章（管理员除外）
-    const currentUserId = user.user.userId;
-    const isAdmin = user.roles?.includes('admin');
-
-    if (!isAdmin && article.userId !== currentUserId) {
+    if (!assertOwnership(user, article)) {
       return ResultData.fail(403, '无权发布此文章');
     }
 
