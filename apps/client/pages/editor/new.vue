@@ -702,13 +702,14 @@ const confirmPublish = async () => {
   }
   publishing.value = true
   publishTip.value = ''
+  // publishStatus 不再发送：服务端 DTO 已剥离该字段（BUG-6），发布状态由服务端 create() 写死、
+  // 更新分支同样忽略该字段，发送等于死字段（上下架走 creator 文章管理，不在此处）
   const body: Record<string, any> = {
     title: title.value.trim(),
     desc: publishForm.desc.trim() || undefined,
     content: content.value,
     cover: publishForm.cover || undefined,
-    source: '0',
-    publishStatus: '2'
+    source: '0'
   }
   if (publishForm.subjectId) {
     body.subjectId = Number(publishForm.subjectId)
