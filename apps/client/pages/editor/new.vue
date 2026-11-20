@@ -1,5 +1,5 @@
-<!-- 写文章页（独立全屏流程）：编辑区为 @nest-acticle/editor 共享 MarkdownEditor（工具栏/快捷键/预览/粘贴上传在包内，与 admin 编辑体验同源）；上传经回调走"先裁剪再上传"，插入时机由组件在回调前捕获的选区决定；草稿箱 localStorage 自动保存（800ms 防抖、按 userId 隔离，编辑已有文章不写草稿）；发布弹窗：封面 16:9 裁剪/选专栏/简介自动取正文前 100 字；带 ?id= 为编辑模式（按钮变"保存"），未登录原地弹登录框。
-     职责拆分：工具栏操作/字数统计/预览 → @nest-acticle/editor；草稿箱 → useDraftBox + EditorDraftPanel；发布弹窗 → usePublish + EditorPublishModal；本页保留主流程编排（初始化/编辑模式加载/图片上传回调）。 -->
+<!-- 写文章页（独立全屏流程）：编辑区为 @nest-acticle/editor 共享 MarkdownEditor（工具栏/快捷键/预览/粘贴上传在包内，与 admin 编辑体验同源）；上传经回调走"先裁剪再上传"，插入时机由组件在回调前捕获的选区决定；草稿箱 localStorage 自动保存（800ms 防抖、按 userId 隔离：新建写草稿箱草稿，编辑线上文章按 articleId 写本地快照并在载入时提示恢复）；发布弹窗：封面 16:9 裁剪/选专栏/简介自动取正文前 100 字；带 ?id= 为编辑模式（按钮变"保存"），未登录原地弹登录框。
+     职责拆分：工具栏操作/字数统计/预览 → @nest-acticle/editor；草稿箱 → useDraftBox + EditorDraftPanel；发布弹窗 → usePublish + EditorPublishModal；本页保留主流程编排（初始化/编辑模式加载与快照恢复/图片上传回调）。 -->
 <template>
   <div class="editor-page">
     <!-- 顶栏：返回站点 + 标题 + 草稿箱 + 发布 -->
@@ -37,6 +37,13 @@
     </header>
     <p v-if="topTip" class="top-tip">{{ topTip }}</p>
 
+    <!-- 编辑模式：检测到该文章的本地未保存快照时提示恢复/丢弃（新建模式无此语义；开始编辑后自动收起） -->
+    <div v-if="restorePending && editDraftItem" class="restore-banner">
+      <span class="restore-text">检测到本地未保存的修改（{{ formatDraftTime(editDraftItem.updateTime) }}）</span>
+      <button class="restore-btn primary" type="button" @click="restoreEditDraft">恢复修改</button>
+      <button class="restore-btn" type="button" @click="discardEditDraft">丢弃</button>
+    </div>
+
     <!-- 编辑区（共享 MarkdownEditor：左写右预览 + 状态栏字数/行数；草稿提示经 status-extra 插槽并入同一条状态栏） -->
     <div class="editor-surface">
       <MarkdownEditor
@@ -57,6 +64,7 @@
 
 <script setup lang="ts">
 import type { Article } from '@nest-acticle/shared'
+import dayjs from 'dayjs'
 import { MarkdownEditor } from '@nest-acticle/editor'
 import '@nest-acticle/editor/style.css'
 // 预览区的 markdown-body 样式与文章详情页同源（组件包不重复打包渲染样式，由宿主引入）
@@ -126,6 +134,43 @@ const handleUploadImage = (file: File): Promise<string> => {
 // ---------- 草稿箱（localStorage 自动保存） ----------
 const draft = useDraftBox({ title, content, editId })
 
+// 编辑模式恢复横幅：载入线上文章后若存在该文章的本地快照则提示恢复/丢弃；
+// 用户一旦开始修改内容（偏离载入时的指纹）自动收起，不干扰正常编辑
+const editDraftItem = computed(() => draft.currentEditDraft)
+const restorePending = ref(false)
+const restoreFingerprint = ref('')
+
+const formatDraftTime = (time: number) => dayjs(time).format('MM-DD HH:mm')
+
+const restoreEditDraft = () => {
+  const item = draft.currentEditDraft
+  if (!item) {
+    return
+  }
+  title.value = item.title
+  content.value = item.content
+  draft.markSavedBaseline()
+  restorePending.value = false
+  setTopTip('已恢复本地未保存的修改')
+}
+
+const discardEditDraft = () => {
+  const item = draft.currentEditDraft
+  if (item) {
+    draft.removeDraft(item)
+  }
+  draft.markSavedBaseline()
+  restorePending.value = false
+  setTopTip('已丢弃本地修改快照')
+}
+
+// 用户开始编辑后收起恢复横幅（载入赋值与指纹一致不触发；快照由自动保存持续更新，无需提示）
+watch([title, content], () => {
+  if (restorePending.value && `${title.value}\u0000${content.value}` !== restoreFingerprint.value) {
+    restorePending.value = false
+  }
+})
+
 // ---------- 发布弹窗（校验/专栏/封面/提交） ----------
 const publish = usePublish({ title, content, editId, setTopTip, clearCurrentDraft: draft.clearCurrentDraft })
 
@@ -186,6 +231,10 @@ const loadArticle = async (id: string) => {
     publish.publishForm.subjectId = model.subjectId ? String(model.subjectId) : ''
     publish.publishForm.cover = model.cover || ''
     publish.publishForm.desc = model.desc || ''
+    // 载入完成记录基线（防载入动作本身产生等值快照），有本地快照则亮出恢复横幅
+    draft.markSavedBaseline()
+    restoreFingerprint.value = `${title.value}\u0000${content.value}`
+    restorePending.value = !!draft.currentEditDraft
   } catch (error: any) {
     setTopTip(error?.message || '文章加载失败')
     return navigateTo('/')
@@ -281,6 +330,46 @@ const loadArticle = async (id: string) => {
   font-size: 12px;
   color: #d1242f;
   background-color: var(--color-surface);
+}
+
+// 编辑模式本地快照恢复横幅
+.restore-banner {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 20px;
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-border-light);
+  font-size: 12px;
+  color: var(--color-text-2);
+
+  .restore-text {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .restore-btn {
+    flex-shrink: 0;
+    padding: 3px 12px;
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-sm);
+    background-color: transparent;
+    font-size: 12px;
+    color: var(--color-text-1);
+    cursor: pointer;
+    transition: opacity 0.2s ease;
+
+    &:hover {
+      opacity: 0.8;
+    }
+
+    &.primary {
+      background-color: var(--color-primary);
+      border-color: var(--color-primary);
+      color: #fff;
+    }
+  }
 }
 
 // ---------- 编辑区容器（共享编辑器内部自带工具栏/预览/状态栏样式） ----------
