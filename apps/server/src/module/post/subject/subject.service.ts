@@ -2,6 +2,7 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
+import { BusinessException } from 'src/common/exceptions/business.exception';
 import { applyLike, paginate } from 'src/common/query';
 import { PostSubjectEntity } from './entities/subject.entity';
 import { PostArticleEntity } from '../article/entities/article.entity';
@@ -76,7 +77,7 @@ export class PostSubjectService {
     });
 
     if (!subject) {
-      return ResultData.fail(500, '专栏不存在');
+      throw new BusinessException(500, '专栏不存在');
     }
 
     return ResultData.ok(subject);
@@ -191,7 +192,7 @@ export class PostSubjectService {
   async findGuestOne(id: number) {
     const subjectId = Number(id);
     if (!subjectId) {
-      return ResultData.fail(500, '专栏不存在');
+      throw new BusinessException(500, '专栏不存在');
     }
 
     const subject = await this.postSubjectRepository.findOne({
@@ -200,7 +201,7 @@ export class PostSubjectService {
     });
 
     if (!subject) {
-      return ResultData.fail(500, '专栏不存在');
+      throw new BusinessException(500, '专栏不存在');
     }
 
     const articleCount = await this.countGuestArticles(subjectId);
@@ -213,7 +214,7 @@ export class PostSubjectService {
     const subject = await this.postSubjectRepository.findOne({ where: { id, delFlag: '0' } });
 
     if (!subject) {
-      return ResultData.fail(500, '专栏不存在');
+      throw new BusinessException(500, '专栏不存在');
     }
 
     await this.postSubjectRepository.update({ id }, updateData);
@@ -225,7 +226,7 @@ export class PostSubjectService {
     const idList = Array.isArray(ids) ? ids : [ids];
 
     if (!idList || idList.length === 0) {
-      return ResultData.fail(400, '请选择要删除的专栏');
+      throw new BusinessException(400, '请选择要删除的专栏');
     }
 
     // 获取所有要删除的专栏
@@ -237,7 +238,7 @@ export class PostSubjectService {
     });
 
     if (subjects.length === 0) {
-      return ResultData.fail(500, '未找到可删除的专栏');
+      throw new BusinessException(500, '未找到可删除的专栏');
     }
 
     // 批量软删除
