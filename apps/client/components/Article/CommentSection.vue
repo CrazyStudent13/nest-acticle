@@ -216,7 +216,9 @@ const loadComments = async (page = 1) => {
       comments.value = data.list || []
       expandedThreads.value = new Set()
     } else {
-      comments.value = [...comments.value, ...(data.list || [])]
+      // 新评论本地插到头部后再翻页,offset 会与已加载行重叠:按 id 去重
+      const seen = new Set(comments.value.map((item) => item.id))
+      comments.value = [...comments.value, ...(data.list || []).filter((item) => !seen.has(item.id))]
     }
     commentTotal.value = data.total || 0
     commentPageNum.value = page
@@ -369,11 +371,11 @@ const removeComment = async (item: CommentItem) => {
   }
   commentDeletingId.value = item.id
   try {
-    await deleteComment(item.id)
+    const serverRemoved = await deleteComment(item.id)
     const doomed = collectDoomedIds(item.id)
     comments.value = comments.value.filter((c) => !doomed.has(c.id))
-    // 计数按实际移除条数回退;未加载的后代只体现在服务端计数,整页刷新后对齐
-    const removed = doomed.size
+    // 以服务端实际删除条数为准（含未加载的级联后代），接口无回抛时退回本地统计
+    const removed = serverRemoved || doomed.size
     commentTotal.value = Math.max(0, commentTotal.value - removed)
     emit('update:commentNum', Math.max(0, props.commentNum - removed))
     // 回复目标被删（含级联）时退出回复模式

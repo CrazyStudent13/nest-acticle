@@ -25,8 +25,10 @@ export const useComment = () => {
     return res.data ?? null
   }
 
-  const deleteComment = async (id: number | string) => {
-    await apiFetch(`/api/post/comment/${id}`, { method: 'DELETE' })
+  // 返回服务端实际删除条数（含级联后代），供调用方精确回减计数
+  const deleteComment = async (id: number | string): Promise<number> => {
+    const res = await apiFetch<{ removed?: number }>(`/api/post/comment/${id}`, { method: 'DELETE' })
+    return res.data?.removed ?? 0
   }
 
   return { fetchComments, addComment, deleteComment }
