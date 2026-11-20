@@ -2,6 +2,7 @@ import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { EntityManager, In, Repository } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
+import { applyLike, paginate } from 'src/common/query';
 import { PublishStatusEnum } from '@nest-acticle/shared';
 import { PostCommentEntity } from './entities/comment.entity';
 import { PostArticleEntity } from '../article/entities/article.entity';
@@ -97,9 +98,7 @@ export class PostCommentService {
       .andWhere('article.delFlag = :delFlag', { delFlag: '0' })
       .andWhere('article.publishStatus = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED });
 
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
+    paginate(entity, query);
 
     entity.orderBy('comment.createTime', 'DESC');
 
@@ -136,17 +135,9 @@ export class PostCommentService {
       .addSelect(['article.title', 'user.nickName', 'replyUser.nickName'])
       .where('1 = 1');
 
-    if (query.title) {
-      entity.andWhere('article.title LIKE :title', { title: `%${query.title}%` });
-    }
-
-    if (query.nickName) {
-      entity.andWhere('user.nickName LIKE :nickName', { nickName: `%${query.nickName}%` });
-    }
-
-    if (query.content) {
-      entity.andWhere('comment.content LIKE :content', { content: `%${query.content}%` });
-    }
+    applyLike(entity, 'article.title', query.title);
+    applyLike(entity, 'user.nickName', query.nickName);
+    applyLike(entity, 'comment.content', query.content);
 
     if (query.params?.beginTime && query.params?.endTime) {
       entity.andWhere('comment.createTime BETWEEN :start AND :end', {
@@ -155,9 +146,7 @@ export class PostCommentService {
       });
     }
 
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
+    paginate(entity, query);
 
     entity.orderBy('comment.createTime', 'DESC');
 
@@ -192,13 +181,9 @@ export class PostCommentService {
       .addSelect(['article.title', 'replyUser.nickName'])
       .where('comment.userId = :userId', { userId });
 
-    if (query.title) {
-      entity.andWhere('article.title LIKE :title', { title: `%${query.title}%` });
-    }
+    applyLike(entity, 'article.title', query.title);
 
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
+    paginate(entity, query);
 
     entity.orderBy('comment.createTime', 'DESC');
 
