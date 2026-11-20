@@ -1,5 +1,5 @@
 <template>
-  <MdEditor v-model="editorValue" :theme="theme" :preview="preview" :previewTheme="previewTheme" :codeTheme="codeTheme" :showCodeRowNumber="true" :toolbars="toolbars" :placeholder="placeholder" :height="height" :style="{ minHeight }" @onChange="handleChange" @onUploadImg="handleUploadImg" />
+  <MdEditor v-model="editorValue" :theme="theme" :preview="preview" :previewTheme="previewTheme" :codeTheme="codeTheme" :showCodeRowNumber="true" :toolbars="toolbars" :placeholder="placeholder" :height="height" :style="{ minHeight }" :disabled="uploading" @onChange="handleChange" @onUploadImg="handleUploadImg" />
 </template>
 
 <script setup lang="ts">
@@ -10,6 +10,7 @@
  */
 import { MdEditor } from 'md-editor-v3';
 import 'md-editor-v3/lib/style.css';
+import request from '@/composables/useRequest';
 
 const props = defineProps({
   modelValue: {
@@ -92,21 +93,43 @@ const handleChange = (text, html) => {
   emit('change', { text, html });
 };
 
-// 图片上传事件
-const handleUploadImg = async (files, callback) => {
-  // 默认处理：将图片转为 Base64
-  try {
-    const file = files[0];
-    if (!file) return;
+// 图片上传状态：上传期间禁用编辑器，防止继续编辑造成插入位置错乱
+const uploading = ref(false);
 
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const base64 = e.target.result;
-      callback([base64]);
-    };
-    reader.readAsDataURL(file);
+// 大小上限与服务端对齐（apps/server app.file.maxSize / UPLOAD_MAX_SIZE_MB，均为 10MB）
+const MAX_IMG_SIZE_MB = 10;
+
+// 图片上传事件：走统一上传端点回填 URL，不再 Base64 内嵌正文
+const handleUploadImg = async (files: File[], callback: (urls: string[]) => void) => {
+  const file = files[0];
+  if (!file) return;
+
+  if (!file.type.startsWith('image/')) {
+    ElMessage.error('仅支持上传图片文件');
+    return;
+  }
+  if (file.size > MAX_IMG_SIZE_MB * 1024 * 1024) {
+    ElMessage.error(`图片大小不能超过 ${MAX_IMG_SIZE_MB}MB`);
+    return;
+  }
+
+  uploading.value = true;
+  try {
+    const formData = new FormData();
+    formData.append('file', file);
+    // 默认 axios 超时 10s 对大图上传偏紧，单独放宽
+    const res = await request({ url: '/common/upload', method: 'post', data: formData, timeout: 60000 });
+    const url = res?.data?.url;
+    if (!url) {
+      ElMessage.error('上传失败：未获取到图片地址');
+      return;
+    }
+    callback([url]);
   } catch (error) {
+    // 失败信封已由 useRequest 拦截器统一 message 提示，这里不往正文插入内容
     console.error('图片上传失败:', error);
+  } finally {
+    uploading.value = false;
   }
 };
 </script>
