@@ -20,6 +20,8 @@
     "gen:api": "pnpm --filter @nest-acticle/shared gen:api",
     "build": "pnpm -r build",
     "typecheck": "pnpm --filter client typecheck",
+    "lint": "pnpm --filter server lint && pnpm --filter admin lint",
+    "test": "pnpm --filter server test",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f"
