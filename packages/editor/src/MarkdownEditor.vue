@@ -73,8 +73,11 @@
         @paste="handlePaste"
       />
       <div v-if="preview" class="na-md-editor-preview">
-        <!-- 预览 HTML 由 @nest-acticle/markdown 产出（宿主需引入其 style.css），与文章详情页渲染同源 -->
-        <div v-html="previewHtml"></div>
+        <!-- 预览 HTML 由 @nest-acticle/markdown 产出（宿主需引入其 style.css），与文章详情页渲染同源；
+             markdown 包全部样式命名空间在 .markdown-body 下，必须像两端 MdViewer 壳一样挂该类 -->
+        <div class="markdown-body">
+          <div v-html="previewHtml"></div>
+        </div>
       </div>
     </div>
 
