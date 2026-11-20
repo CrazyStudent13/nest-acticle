@@ -94,6 +94,27 @@ export function createMarkdownRenderer(options: MarkdownRendererOptions = {}): M
     }
   }
 
+  // 站外链接新窗口打开（markdown 显式链接与 linkify 自动链接同走 link_open 规则）；
+  // 站内相对链接保持当前页跳转。rel 带 noopener 防 tabnabbing
+  const defaultLinkOpen = md.renderer.rules.link_open
+  md.renderer.rules.link_open = (tokens, idx, mdOptions, env, self) => {
+    const token = tokens[idx]
+    const href = token.attrGet('href') || ''
+    if (/^https?:\/\//i.test(href)) {
+      token.attrSet('target', '_blank')
+      token.attrSet('rel', 'noopener noreferrer')
+    }
+    return defaultLinkOpen ? defaultLinkOpen(tokens, idx, mdOptions, env, self) : self.renderToken(tokens, idx, mdOptions)
+  }
+
+  // 图片懒加载：长文多图首屏不再被图片阻塞（loading=lazy）+ 异步解码
+  const defaultImage = md.renderer.rules.image
+  md.renderer.rules.image = (tokens, idx, mdOptions, env, self) => {
+    tokens[idx].attrSet('loading', 'lazy')
+    tokens[idx].attrSet('decoding', 'async')
+    return defaultImage ? defaultImage(tokens, idx, mdOptions, env, self) : self.renderToken(tokens, idx, mdOptions)
+  }
+
   return {
     render(source: string) {
       return md.render(normalizeContent(source))
