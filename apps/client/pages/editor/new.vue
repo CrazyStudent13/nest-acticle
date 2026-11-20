@@ -148,6 +148,19 @@ onMounted(() => {
   if (user.value) {
     initEditor()
   }
+  // Ctrl/Cmd+S 手动存草稿：仅新建模式生效（编辑模式不写本地草稿，与自动保存同一语义）
+  document.addEventListener('keydown', handleSaveShortcut)
+})
+
+const handleSaveShortcut = (event: KeyboardEvent) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+    event.preventDefault()
+    draft.saveCurrentDraft()
+  }
+}
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleSaveShortcut)
 })
 
 // 弹窗登录成功 → user state 填充 → 触发初始化

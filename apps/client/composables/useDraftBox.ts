@@ -121,6 +121,7 @@ export const useDraftBox = (options: { title: Ref<string>; content: Ref<string>;
     loadDrafts,
     loadDraft,
     removeDraft,
-    clearCurrentDraft
+    clearCurrentDraft,
+    saveCurrentDraft
   })
 }
