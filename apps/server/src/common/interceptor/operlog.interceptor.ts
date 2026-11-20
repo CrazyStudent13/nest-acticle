@@ -5,6 +5,7 @@ import { Reflector } from '@nestjs/core';
 
 import { OperlogConfig } from '../decorators/operlog.decorator';
 import { OperlogService } from 'src/module/monitor/operlog/operlog.service';
+import { BusinessException } from 'src/common/exceptions/business.exception';
 
 @Injectable()
 export class OperlogInterceptor implements NestInterceptor {
@@ -38,10 +39,28 @@ export class OperlogInterceptor implements NestInterceptor {
       .pipe(
         catchError((err) => {
           const costTime = Date.now() - now;
-          this.safeLogAction({ costTime, errorMsg: err.response, handlerName, title: summary, businessType: logConfig?.businessType });
+          this.safeLogAction({ costTime, errorMsg: this.extractErrorMsg(err), handlerName, title: summary, businessType: logConfig?.businessType });
           return throwError(() => err);
         }),
       );
+  }
+
+  /**
+   * 从异常中提取可落库的错误信息字符串（兼容双协议）：
+   * - BusinessException（throw 协议）：response 是 {code,msg,data} 对象，取 msg；
+   * - 其余 HttpException（guard/ValidationPipe）：response.message（数组取首项，与 all-exceptions-filter 口径一致）；
+   * 此前把 err.response 整个对象塞给 errorMsg（varchar），落库失败致操作日志丢失，现统一归一为字符串
+   */
+  private extractErrorMsg(err: any): string {
+    if (err instanceof BusinessException) {
+      return err.msg;
+    }
+    const response = err?.response;
+    if (typeof response === 'string') {
+      return response;
+    }
+    const message = response?.message ?? err?.message;
+    return Array.isArray(message) ? message[0] : message;
   }
 
   /**
