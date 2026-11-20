@@ -161,7 +161,7 @@ export class PostLikeService {
     entity
       .innerJoin(PostArticleEntity, 'article', 'article.id = like.articleId')
       .leftJoin(UserEntity, 'liker', 'liker.userId = like.userId')
-      .addSelect(['article.title', 'article.cover', 'liker.nickName', 'liker.avatar'])
+      .addSelect(['article.id', 'article.title', 'article.cover', 'liker.nickName', 'liker.avatar'])
       .where('article.userId = :userId', { userId })
       .andWhere('article.delFlag = :delFlag', { delFlag: '0' })
       .andWhere('article.publishStatus = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED })
