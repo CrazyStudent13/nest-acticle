@@ -72,7 +72,7 @@
         @keydown="handleShortcut"
         @paste="handlePaste"
       />
-      <div v-if="preview" class="na-md-editor-preview">
+      <div v-if="preview" ref="previewRef" class="na-md-editor-preview">
         <!-- 预览 HTML 由 @nest-acticle/markdown 产出（宿主需引入其 style.css），与文章详情页渲染同源；
              markdown 包全部样式命名空间在 .markdown-body 下，必须像两端 MdViewer 壳一样挂该类 -->
         <div class="markdown-body">
@@ -92,9 +92,9 @@
 
 <script setup lang="ts">
 import ClipboardJS from 'clipboard';
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue';
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-import { createMarkdownRenderer } from '@nest-acticle/markdown';
+import { createMarkdownRenderer, renderMermaidDiagrams } from '@nest-acticle/markdown';
 
 import { useMarkdownEditor } from './composables/useMarkdownEditor';
 
@@ -145,9 +145,56 @@ const {
   handleShortcut
 } = useMarkdownEditor(content, taRef);
 
-// ---------- 预览：渲染器与前台文章页同源 ----------
+// ---------- 预览：渲染器与前台文章页同源，200ms 防抖（输入即时性由 textarea 本身保证，长文每键全量渲染会卡） ----------
 const renderer = createMarkdownRenderer();
-const previewHtml = computed(() => (props.modelValue ? renderer.render(props.modelValue) : ''));
+const previewHtml = ref('');
+const previewRef = ref<HTMLElement | null>(null);
+
+let previewTimer: ReturnType<typeof setTimeout> | null = null;
+
+const tryRenderMermaid = () => {
+  if (typeof window === 'undefined') {
+    return;
+  }
+  nextTick(async () => {
+    const host = previewRef.value;
+    if (!host || !host.querySelector('.mermaid')) {
+      return;
+    }
+    try {
+      await renderMermaidDiagrams(host);
+    } catch (error) {
+      console.warn('[MarkdownEditor] mermaid 渲染失败:', error);
+    }
+  });
+};
+
+const schedulePreviewRender = () => {
+  if (previewTimer) {
+    clearTimeout(previewTimer);
+    previewTimer = null;
+  }
+  if (!props.preview) {
+    previewHtml.value = '';
+    return;
+  }
+  const renderNow = () => {
+    previewHtml.value = props.modelValue ? renderer.render(props.modelValue) : '';
+  };
+  // SSR 环境无定时器语义，直接同步渲染（当前两端消费场景均为客户端，防御性兜底）
+  if (typeof window === 'undefined') {
+    renderNow();
+    return;
+  }
+  previewTimer = setTimeout(() => {
+    previewTimer = null;
+    renderNow();
+    tryRenderMermaid();
+  }, 200);
+};
+
+watch(() => props.modelValue, schedulePreviewRender, { immediate: true });
+watch(() => props.preview, schedulePreviewRender);
 
 // 预览代码块复制按钮：与两端 MdViewer 壳一致的绑定与反馈（ClipboardJS 全局委托，卸载销毁）
 let clipboard: ClipboardJS | null = null;
@@ -173,6 +220,10 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  if (previewTimer) {
+    clearTimeout(previewTimer);
+    previewTimer = null;
+  }
   clipboard?.destroy();
   clipboard = null;
 });

@@ -11,10 +11,28 @@ export const useMarkdownEditor = (content: Ref<string>, taRef: Ref<HTMLTextAreaE
   const charCount = computed(() => content.value.replace(/\s/g, '').length);
   const lineCount = computed(() => (content.value ? content.value.split('\n').length : 0));
 
-  // 选区替换：写回 v-model 并在渲染后恢复焦点与光标
+  // 选区替换：优先 execCommand('insertText') 写入——它走浏览器的输入路径，保留 textarea 原生撤销栈
+  // （Ctrl+Z 可撤销工具栏插入/包裹操作），直接赋值 v-model 会清空撤销历史；execCommand 不可用时
+  // 回退直赋值（牺牲撤销保插入成功），此时需在 nextTick 等 v-model 回写后再恢复焦点与光标
   const replaceRange = (start: number, end: number, text: string, caretStart?: number, caretEnd?: number) => {
     const el = taRef.value;
     if (!el) {
+      return;
+    }
+    el.focus();
+    el.setSelectionRange(start, end);
+    let inserted = false;
+    try {
+      inserted = document.execCommand('insertText', false, text);
+    } catch {
+      inserted = false;
+    }
+    if (inserted) {
+      // execCommand 同步更新 DOM 值并经 input 事件驱动 v-model，直接恢复光标
+      // （包裹类操作要把选区落回包裹内容，如加粗后选中粗体文本便于继续输入）
+      const s = caretStart ?? start + text.length;
+      const e = caretEnd ?? start + text.length;
+      el.setSelectionRange(s, e);
       return;
     }
     content.value = el.value.slice(0, start) + text + el.value.slice(end);
