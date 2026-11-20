@@ -20,9 +20,10 @@ export class CreatePostArticleDto {
   @IsString()
   desc?: string;
 
-  @ApiProperty({ required: true, description: '专栏ID' })
+  @ApiProperty({ required: false, description: '专栏ID（无可用专栏时可省略，落库为 0 表示未归类）' })
+  @IsOptional()
   @IsNumber()
-  subjectId: number;
+  subjectId?: number;
 
   @ApiProperty({ required: false, description: '文章内容' })
   @IsOptional()
