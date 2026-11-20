@@ -90,7 +90,7 @@
               </el-col>
             </el-row>
             <el-form-item label="文章内容" prop="noticeContent" label-position="top" class="editor-form-item">
-              <MdEditor v-model="notice.form.noticeContent" height="60vh" @change="handleContentChange" />
+              <MarkdownEditor v-model="notice.form.noticeContent" height="60vh" />
             </el-form-item>
           </el-form>
         </div>
@@ -107,9 +107,13 @@
 
 <script setup name="Notice">
 import { Delete, Edit, Plus, Refresh, Search } from '@element-plus/icons-vue';
+import { MarkdownEditor } from '@nest-acticle/editor';
 
 import { listNotice, getNotice, delNotice, addNotice, updateNotice } from '@/api/system/notice';
-import MdEditor from '@/components/MdEditor';
+import '@nest-acticle/editor/style.css';
+// 预览区 markdown-body 样式与前台文章页同源（组件包不重复打包渲染样式，由宿主引入）
+import '@nest-acticle/markdown/style.css';
+
 import { useCrud } from '@/composables/useCrud';
 import { useDict } from '@/composables/useDict';
 
@@ -136,11 +140,6 @@ const notice = useCrud({
   queryRef,
   formRef: noticeFormRef
 });
-
-// Markdown 内容变化
-const handleContentChange = ({ text, html }) => {
-  // 内容变化时的处理逻辑
-};
 
 // 初始化加载
 notice.getList();
@@ -214,7 +213,7 @@ notice.getList();
   }
 }
 
-:deep(.md-editor) {
+:deep(.na-md-editor) {
   height: 100% !important;
   flex: 1;
   min-height: 300px;
