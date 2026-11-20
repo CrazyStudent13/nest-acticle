@@ -1,7 +1,7 @@
 import { Controller, Delete, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PostLikeService } from './like.service';
-import { ListGuestLikeDto, ListLikeDto, ListMyLikeDto } from './dto/index';
+import { ListGuestLikeDto, ListLikeDto } from './dto/index';
 import { RequirePermission } from 'src/common/decorators/require-premission.decorator';
 import { NotRequireAuth, User, UserDto } from 'src/module/system/user/user.decorator';
 
@@ -18,16 +18,7 @@ export class PostLikeController {
   constructor(private readonly likeService: PostLikeService) {}
 
   /**
-   * 我的点赞文章列表（个人空间点赞栏，按登录态返回本人数据）
-   */
-  @ApiOperation({ summary: '点赞-我的点赞文章列表' })
-  @Get('/my/list')
-  findMyList(@Query() query: ListMyLikeDto, @User() user: UserDto) {
-    return this.likeService.findUserList(user.userId, query);
-  }
-
-  /**
-   * 他人点赞文章列表（公开：个人空间点赞栏对访客开放）
+   * 指定用户的点赞文章列表（公开：个人空间点赞栏本人/访客共用）
    */
   @ApiOperation({ summary: '点赞-指定用户的公开点赞列表' })
   @NotRequireAuth()

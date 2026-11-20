@@ -36,15 +36,19 @@ export class PostLikeService {
         return ResultData.fail(500, '文章不存在或未发布');
       }
 
-      const existing = await manager.findOne(PostLikeEntity, { where: { articleId, userId } });
-      if (existing) {
-        // 并发重复点赞：唯一索引兜底，这里直接按幂等返回
-        return ResultData.ok({ liked: true, likeNum: article.likeNum });
+      // 参数化 INSERT IGNORE + 唯一索引：并发重复点赞静默忽略，天然幂等（affectedRows=0 表示已赞过）
+      // 不用 query builder 的 orIgnore：TypeORM 0.3 对实体插入被忽略时仍回写自增 id，会抛错
+      const inserted: any = await manager.query('INSERT IGNORE INTO post_like (article_id, user_id) VALUES (?, ?)', [
+        articleId,
+        userId,
+      ]);
+      if (inserted?.affectedRows) {
+        await manager.increment(PostArticleEntity, { id: articleId }, 'likeNum', 1);
       }
 
-      await manager.insert(PostLikeEntity, { articleId, userId });
-      await manager.increment(PostArticleEntity, { id: articleId }, 'likeNum', 1);
-      return ResultData.ok({ liked: true, likeNum: article.likeNum + 1 });
+      // 回读最新计数，避免并发下返回过期值
+      const fresh = await manager.findOne(PostArticleEntity, { where: { id: articleId }, select: ['likeNum'] });
+      return ResultData.ok({ liked: true, likeNum: fresh?.likeNum ?? article.likeNum });
     });
     return result;
   }
@@ -66,8 +70,15 @@ export class PostLikeService {
         return ResultData.ok({ liked: false, likeNum: article.likeNum });
       }
 
-      await manager.decrement(PostArticleEntity, { id: articleId }, 'likeNum', 1);
-      return ResultData.ok({ liked: false, likeNum: Math.max(0, article.likeNum - 1) });
+      // 下限 0，防计数漂移后减成负数
+      await manager
+        .createQueryBuilder()
+        .update(PostArticleEntity)
+        .set({ likeNum: () => 'GREATEST(like_num - 1, 0)' })
+        .where('id = :id', { id: articleId })
+        .execute();
+      const fresh = await manager.findOne(PostArticleEntity, { where: { id: articleId }, select: ['likeNum'] });
+      return ResultData.ok({ liked: false, likeNum: fresh?.likeNum ?? Math.max(0, article.likeNum - 1) });
     });
   }
 
@@ -83,7 +94,7 @@ export class PostLikeService {
   }
 
   /**
-   * 指定用户的点赞文章列表（个人空间点赞栏，本人走 /my/list、访客走 /guest/list）
+   * 指定用户的点赞文章列表（个人空间点赞栏，本人/访客共用 guest/list）
    * 排序按点赞时间；行形状对齐 shared 的 LikedArticleItem（文章公开字段 + likeTime）
    */
   async findUserList(userId: number, query: ListMyLikeDto) {

@@ -1940,23 +1940,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/post/like/my/list": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 点赞-我的点赞文章列表 */
-        get: operations["PostLikeController_findMyList"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/post/like/guest/list": {
         parameters: {
             query?: never;
@@ -5398,34 +5381,6 @@ export interface operations {
             path: {
                 ids: string;
             };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    PostLikeController_findMyList: {
-        parameters: {
-            query?: {
-                /** @description 当前分页 */
-                pageNum?: number;
-                /** @description 每页数量 */
-                pageSize?: number;
-                /** @description 排序字段 */
-                orderByColumn?: string;
-                /** @description 排序规则 */
-                isAsc?: string;
-                /** @description 文章标题（模糊搜索） */
-                title?: string;
-            };
-            header?: never;
-            path?: never;
             cookie?: never;
         };
         requestBody?: never;
