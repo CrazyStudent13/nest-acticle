@@ -2531,27 +2531,6 @@ export interface components {
             source?: "0" | "1" | "2" | "3" | "4";
             /**
              * Format: date-time
-             * @description 发布时间
-             */
-            publishTime?: string;
-            /** @description 点赞数 */
-            likeNum?: number;
-            /** @description 阅读数 */
-            readNum?: number;
-            /** @description 评论数 */
-            commentNum?: number;
-            /**
-             * @description 发布状态
-             * @enum {string}
-             */
-            publishStatus?: "0" | "1" | "2" | "3";
-            /**
-             * @description 审核状态
-             * @enum {string}
-             */
-            auditStatus?: "0" | "1" | "2" | "3";
-            /**
-             * Format: date-time
              * @description 定时发布时间
              */
             scheduledPublishTime?: string;
@@ -2576,27 +2555,6 @@ export interface components {
              * @enum {string}
              */
             source?: "0" | "1" | "2" | "3" | "4";
-            /**
-             * Format: date-time
-             * @description 发布时间
-             */
-            publishTime?: string;
-            /** @description 点赞数 */
-            likeNum?: number;
-            /** @description 阅读数 */
-            readNum?: number;
-            /** @description 评论数 */
-            commentNum?: number;
-            /**
-             * @description 发布状态
-             * @enum {string}
-             */
-            publishStatus?: "0" | "1" | "2" | "3";
-            /**
-             * @description 审核状态
-             * @enum {string}
-             */
-            auditStatus?: "0" | "1" | "2" | "3";
             /**
              * Format: date-time
              * @description 定时发布时间
