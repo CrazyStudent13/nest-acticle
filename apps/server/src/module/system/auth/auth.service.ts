@@ -209,7 +209,7 @@ export class AuthService {
       select: ['userName'],
     });
     if (checkUserNameUnique) {
-      return ResultData.fail(500, `保存用户'${user.username}'失败，注册账号已存在`);
+      return ResultData.fail(500, '该账号已注册，请直接登录');
     }
     // 邮箱占用查重（sys_user.email 无唯一索引，应用层兜底；未填邮箱时跳过）
     if (user.email) {
@@ -235,7 +235,7 @@ export class AuthService {
     } catch (error) {
       // 并发注册撞车时前置查重拦不住，靠 user_name 唯一索引兜底（ER_DUP_ENTRY）
       if (error?.code === 'ER_DUP_ENTRY') {
-        return ResultData.fail(500, `保存用户'${user.username}'失败，注册账号已存在`);
+        return ResultData.fail(500, '该账号已注册，请直接登录');
       }
       throw error;
     }
