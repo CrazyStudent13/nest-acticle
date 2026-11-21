@@ -1,4 +1,4 @@
-<!-- 全站吸顶导航：品牌+栏目导航+文章搜索（回车跳首页带 title 参数）；已登录创作者中心入口悬停展开面板（250ms 延迟关闭防误消）、点击新窗口进 /creator + 通知铃铛（点击进 /notification、悬停下拉四分类、未读数字红标随登录态轮询刷新）+头像+退出，未登录仅登录/注册按钮 -->
+<!-- 全站吸顶导航：品牌+栏目导航+文章搜索（回车跳首页带 title 参数）；已登录创作者中心入口悬停展开面板（250ms 延迟关闭防误消）、点击新窗口进 /creator + 通知铃铛（点击进 /notification、悬停下拉四分类、未读数字红标在挂载/登录成功时刷新，不做轮询）+头像+退出，未登录仅登录/注册按钮 -->
 <template>
   <header class="header">
     <div class="inner">
@@ -210,9 +210,9 @@ const goNotification = () => {
   return navigateTo('/notification')
 }
 
-// ---------- 铃铛红标：未读计数全局共享（useNotify），登录后立即拉取并周期轮询 ----------
-// 分类计数映射：面板仅互动两分类有数字（粉丝/系统通知未建未接计数）
-const { unread, refreshBadge, startBadgePolling, stopBadgePolling } = useNotify()
+// ---------- 铃铛红标：未读计数全局共享（useNotify）。刷新时机刻意克制——
+// 头部挂载与登录成功各拉一次即可，不做轮询/路由监听（低频辅助信息不值得常驻开销） ----------
+const { unread, refreshBadge } = useNotify()
 
 const catUnread = (key: NoticeCat['key']) => {
   if (key === 'comment' || key === 'like') {
@@ -221,25 +221,12 @@ const catUnread = (key: NoticeCat['key']) => {
   return 0
 }
 
-// 登录态变化驱动红标启停：登录即拉取+轮询，退出即停并清零（refreshBadge 对未登录自清）
+// 登录成功瞬间拉一次（页面刷新场景由 onMounted 覆盖；退出由 refreshBadge 自清）
 watch(isLoggedIn, (loggedIn) => {
   if (loggedIn) {
     refreshBadge()
-    startBadgePolling()
-  } else {
-    stopBadgePolling()
   }
 })
-
-// 路由切换即时刷新一次（浏览期间点赞/评论能较快点亮红标；轮询兜底长停留页面）
-watch(
-  () => route.path,
-  () => {
-    if (isLoggedIn.value && !route.path.startsWith('/notification')) {
-      refreshBadge()
-    }
-  }
-)
 
 const noticeOpen = ref(false)
 let noticeCloseTimer: ReturnType<typeof setTimeout> | null = null
@@ -268,15 +255,10 @@ const avatarFallback = computed(() => (user.value?.nickName || user.value?.userN
 // 页面刷新后恢复登录态：有 token 但还没有用户信息时静默拉取（逻辑在 useUser.ensureUserRestored，与 auth middleware 共用）
 onMounted(() => {
   ensureUserRestored()
-  // 已登录即拉取红标并启动轮询（未登录时 watch(isLoggedIn) 会在恢复完成后触发）
+  // 已登录即拉取红标（token 存在但用户信息未恢复时，watch(isLoggedIn) 会在恢复完成后触发）
   if (isLoggedIn.value) {
     refreshBadge()
-    startBadgePolling()
   }
-})
-
-onBeforeUnmount(() => {
-  stopBadgePolling()
 })
 
 const handleLogout = async () => {

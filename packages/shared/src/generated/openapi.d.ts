@@ -2691,6 +2691,13 @@ export interface components {
             /** @description 被回复的评论 id（回复时传） */
             parentId?: number;
         };
+        MarkReadDto: {
+            /**
+             * @description 通知分类（缺省标记全部互动分类）
+             * @enum {string}
+             */
+            category?: "comment" | "like";
+        };
     };
     responses: never;
     parameters: never;
@@ -5782,7 +5789,11 @@ export interface operations {
             path?: never;
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkReadDto"];
+            };
+        };
         responses: {
             200: {
                 headers: {

@@ -1,4 +1,4 @@
-<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知）+ 右侧列表；系统通知接 /api/system/notice/list（Markdown 内容超 3 行收起、就地展开，分页）；评论栏双子栏——「收到的评论」接 /api/post/comment/received/list（他人评论我的文章/回复我的评论，掘金式接收流，铃铛红标数由本栏承接），「我发表的」接 /api/post/comment/my/list（类型徽标区分，支持删除）；赞和收藏接 /api/post/like/received/list（他人点赞我发布的文章，掘金式接收流；收藏与评论点赞功能未建）；新增粉丝后端未建占位空态；进页即调已读打点清红标；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
+<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知，互动两分类带未读数红标）+ 右侧列表；系统通知接 /api/system/notice/list（Markdown 内容超 3 行收起、就地展开，分页）；评论栏双子栏——「收到的评论」接 /api/post/comment/received/list（他人评论我的文章/回复我的评论，掘金式接收流），「我发表的」接 /api/post/comment/my/list（类型徽标区分，支持删除）；赞和收藏接 /api/post/like/received/list（他人点赞我发布的文章，掘金式接收流；收藏与评论点赞功能未建）；新增粉丝后端未建占位空态；进入互动分类栏即逐栏清该栏红标（水位打点）；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
 <template>
   <div class="notification-page">
     <div class="notice-panel">
@@ -14,6 +14,8 @@
         >
           <span class="menu-icon" v-html="cat.icon" />
           {{ cat.label }}
+          <!-- 未读数：与铃铛同源，进入对应分类栏即清（当前栏会先亮后清，掘金同款） -->
+          <i v-if="catUnread(cat.key) > 0" class="menu-count">{{ catUnread(cat.key) > 99 ? '99+' : catUnread(cat.key) }}</i>
         </button>
       </aside>
 
@@ -73,26 +75,28 @@
                   <span v-else class="avatar-fallback">{{ (row.nickName || '评').slice(0, 1) }}</span>
                 </NuxtLink>
                 <div class="like-main">
-                  <p class="like-text">
-                    <NuxtLink class="like-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
-                      {{ row.nickName || '用户' }}
-                    </NuxtLink>
-                    <!-- 三种文案：回复我的评论 / 回复他人评论 / 直接评论我的文章，尾部统一带文章入口 -->
-                    <template v-if="row.parentId && row.replyUserId === currentUserId">回复了你的评论</template>
-                    <template v-else-if="row.parentId">
-                      回复了
-                      <NuxtLink class="like-user" :to="{ path: '/user/space', query: { id: String(row.replyUserId) } }">
-                        @{{ row.replyNickName || '未知用户' }}
+                  <div class="like-head">
+                    <p class="like-text">
+                      <NuxtLink class="like-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                        {{ row.nickName || '用户' }}
                       </NuxtLink>
-                      的评论
-                    </template>
-                    <template v-else>评论了你的文章</template>
-                    <NuxtLink class="like-article" :to="{ path: '/article/detail', query: { id: String(row.articleId) } }">
-                      《{{ row.articleTitle || '文章已删除' }}》
-                    </NuxtLink>
-                  </p>
+                      <!-- 三种文案：回复我的评论 / 回复他人评论 / 直接评论我的文章，尾部统一带文章入口 -->
+                      <template v-if="row.parentId && row.replyUserId === currentUserId">回复了你的评论</template>
+                      <template v-else-if="row.parentId">
+                        回复了
+                        <NuxtLink class="like-user" :to="{ path: '/user/space', query: { id: String(row.replyUserId) } }">
+                          @{{ row.replyNickName || '未知用户' }}
+                        </NuxtLink>
+                        的评论
+                      </template>
+                      <template v-else>评论了你的文章</template>
+                      <NuxtLink class="like-article" :to="{ path: '/article/detail', query: { id: String(row.articleId) } }">
+                        《{{ row.articleTitle || '文章已删除' }}》
+                      </NuxtLink>
+                    </p>
+                    <time class="like-time">{{ formatRelativeTime(row.createTime) }}</time>
+                  </div>
                   <p class="like-content">{{ row.content }}</p>
-                  <time class="like-time">{{ formatRelativeTime(row.createTime) }}</time>
                 </div>
                 <NuxtLink
                   v-if="row.articleCover"
@@ -166,16 +170,18 @@
                 <span v-else class="avatar-fallback">{{ (row.nickName || '用').slice(0, 1) }}</span>
               </NuxtLink>
               <div class="like-main">
-                <p class="like-text">
-                  <NuxtLink class="like-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
-                    {{ row.nickName || '用户' }}
-                  </NuxtLink>
-                  赞了你的文章
-                  <NuxtLink class="like-article" :to="{ path: '/article/detail', query: { id: String(row.articleId) } }">
-                    《{{ row.articleTitle || '文章已删除' }}》
-                  </NuxtLink>
-                </p>
-                <time class="like-time">{{ formatRelativeTime(row.createTime) }}</time>
+                <div class="like-head">
+                  <p class="like-text">
+                    <NuxtLink class="like-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                      {{ row.nickName || '用户' }}
+                    </NuxtLink>
+                    赞了你的文章
+                    <NuxtLink class="like-article" :to="{ path: '/article/detail', query: { id: String(row.articleId) } }">
+                      《{{ row.articleTitle || '文章已删除' }}》
+                    </NuxtLink>
+                  </p>
+                  <time class="like-time">{{ formatRelativeTime(row.createTime) }}</time>
+                </div>
               </div>
               <NuxtLink
                 v-if="row.articleCover"
@@ -267,11 +273,26 @@ const switchCat = (key: NoticeTab) => {
 
 // ---------- 系统通知列表：分页拉取，status='1'（已关闭）前端过滤；403 等业务错误降级为空态提示 ----------
 const { fetchNotices, fetchMyComments } = useNotice()
-const { markRead, fetchReceivedComments } = useNotify()
+const { unread, markRead, fetchReceivedComments } = useNotify()
 const { user } = useUser()
 
 // 当前登录人 id：收到的评论行判定「回复了我的评论」用
 const currentUserId = computed(() => user.value?.userId ?? null)
+
+// 菜单未读数：与铃铛同源，仅互动两分类有计数
+const catUnread = (key: NoticeTab) => {
+  if (key === 'comment' || key === 'like') {
+    return unread.value[key]
+  }
+  return 0
+}
+
+// 分类栏进入即清该栏红标（水位推至当前）：评论/赞逐栏清，系统通知/新增粉丝无计数
+const onTabEnter = (tab: NoticeTab) => {
+  if (tab === 'comment' || tab === 'like') {
+    markRead(tab).catch(() => {})
+  }
+}
 
 const PAGE_SIZE = 10
 const page = ref(1)
@@ -438,6 +459,7 @@ const loadReceivedLikes = async () => {
 
 // 首屏加载放到登录守卫之后（onMounted），避免未登录先发一轮必然 401 的请求
 watch(activeTab, (tab) => {
+  onTabEnter(tab)
   if (tab === 'system') {
     page.value = 1
     loadNotices()
@@ -494,8 +516,8 @@ const formatTime = (value?: string | null) => {
 
 // ---------- 首屏加载：登录守卫已由 auth middleware 先行（未登录不会到达这里），避免发一轮必然 401 的请求 ----------
 onMounted(() => {
-  // 进通知中心即清铃铛红标：全部互动分类已读水位推至当前（失败静默，下次进入重试）
-  markRead().catch(() => {})
+  // 直达分类栏（?tab=comment/like）时同样逐栏清红标
+  onTabEnter(activeTab.value)
   if (activeTab.value === 'system') {
     loadNotices()
   } else if (activeTab.value === 'comment') {
@@ -575,6 +597,23 @@ onMounted(() => {
         color: var(--color-primary);
       }
     }
+
+    // 未读数：右侧小圆角红标（与铃铛/头部面板同色系）
+    .menu-count {
+      margin-left: auto;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 9px;
+      background-color: #f04142;
+      font-size: 11px;
+      line-height: 18px;
+      font-style: normal;
+      font-weight: 500;
+      color: #fff;
+      text-align: center;
+      box-sizing: border-box;
+    }
   }
 }
 
@@ -620,14 +659,14 @@ onMounted(() => {
 }
 
 .notice-item {
-  padding: 16px 20px;
+  padding: 12px 20px;
 
   & + .notice-item {
     border-top: 1px solid var(--color-border-light);
   }
 }
 
-// 赞和收藏：掘金式接收流——左头像、中间「谁赞了哪篇」+相对时间、右文章封面
+// 赞和收藏：掘金式接收流——左头像、中间「谁赞了哪篇」+时间并首行右侧、右文章封面
 .like-item {
   display: flex;
   align-items: flex-start;
@@ -635,8 +674,8 @@ onMounted(() => {
 
   .like-avatar {
     flex-shrink: 0;
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     overflow: hidden;
 
@@ -654,7 +693,7 @@ onMounted(() => {
       width: 100%;
       height: 100%;
       background-color: var(--color-primary-light);
-      font-size: 16px;
+      font-size: 14px;
       color: var(--color-primary);
     }
   }
@@ -664,7 +703,16 @@ onMounted(() => {
     min-width: 0;
   }
 
+  // 首行：文案占满 + 时间右对齐（时间不再独占一行，行高收紧）
+  .like-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
   .like-text {
+    flex: 1;
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
@@ -691,17 +739,16 @@ onMounted(() => {
   }
 
   .like-time {
-    display: block;
-    margin-top: 10px;
-    font-size: 13px;
+    flex-shrink: 0;
+    font-size: 12px;
     color: var(--color-text-3);
   }
 
   // 收到的评论内容行：可换行的正文（区别于 like-text 的单行文案）
   .like-content {
-    margin: 6px 0 0;
-    font-size: 14px;
-    line-height: 22px;
+    margin: 4px 0 0;
+    font-size: 13px;
+    line-height: 20px;
     color: var(--color-text-1);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
@@ -709,8 +756,8 @@ onMounted(() => {
 
   .like-thumb {
     flex-shrink: 0;
-    width: 72px;
-    height: 72px;
+    width: 64px;
+    height: 64px;
     border-radius: var(--radius-sm);
     overflow: hidden;
 

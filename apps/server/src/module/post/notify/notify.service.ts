@@ -88,12 +88,12 @@ export class PostNotifyService {
   }
 
   /**
-   * 标记已读：把全部互动分类的水位推至当前，角标随即清零
-   * （分类级打点留给未来「只清某一栏」的诉求，当前进通知中心即全清）
+   * 标记已读：把互动分类的水位推至当前，角标随即清零
+   * 带 category 只推该分类（通知中心逐栏进入逐栏清），缺省推平全部互动分类
    */
-  async markRead(userId: number) {
+  async markRead(userId: number, category?: string) {
     const now = new Date();
-    const categories = Object.values(NotifyCategory);
+    const categories = category ? [category] : Object.values(NotifyCategory);
     await this.readRepo.manager.transaction(async (manager) => {
       for (const category of categories) {
         const existing = await manager.findOne(PostNotifyReadEntity, {

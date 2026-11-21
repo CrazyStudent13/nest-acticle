@@ -1,6 +1,7 @@
-import { Controller, Get, HttpCode, Post } from '@nestjs/common';
+import { Body, Controller, Get, HttpCode, Post } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PostNotifyService } from './notify.service';
+import { MarkReadDto } from './dto/index';
 import { User, UserDto } from 'src/module/system/user/user.decorator';
 
 /**
@@ -23,12 +24,12 @@ export class PostNotifyController {
   }
 
   /**
-   * 标记已读（进入通知中心时调用，全部互动分类水位推至当前）
+   * 标记已读（通知中心逐栏清零：带 category 只推该分类，缺省推平全部互动分类）
    */
   @ApiOperation({ summary: '通知-标记已读' })
   @HttpCode(200)
   @Post('/read')
-  markRead(@User() user: UserDto) {
-    return this.notifyService.markRead(user.userId);
+  markRead(@User() user: UserDto, @Body() dto?: MarkReadDto) {
+    return this.notifyService.markRead(user.userId, dto?.category);
   }
 }
