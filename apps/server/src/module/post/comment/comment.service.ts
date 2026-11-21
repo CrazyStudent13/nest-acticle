@@ -89,22 +89,60 @@ export class PostCommentService {
    * 评论 guest 列表（公开：仅已发布文章的评论，联评论人与被回复人公开信息，最新在前，平铺不嵌套）
    */
   async findGuestList(query: ListCommentGuestDto) {
+    // 按线程分页：回复总比根评论新，若按单条评论倒序分页，首页会装满「根评论在后页」的
+    // 回复，前端归组找不到父评论只能让回复暂居根位，翻页后整批重新归组，线程关系跨页错乱。
+    // 改为以根评论为分页单位，每页返回 N 个线程 + 各线程全部后代，线程永不跨页断裂；
+    // total=文章全部评论数（展示口径不变），rootTotal=根评论线程数（前端「查看更多」以此判断）
+    const article = await this.articleRepo.findOne({
+      where: { id: query.articleId, delFlag: '0', publishStatus: PublishStatusEnum.PUBLISHED },
+    });
+    if (!article) {
+      return ResultData.ok({ list: [], total: 0, rootTotal: 0 });
+    }
+
+    const comments = await this.commentRepo.find({ where: { articleId: query.articleId } });
+    const pageNum = query.pageNum ?? 1;
+    const pageSize = query.pageSize ?? 10;
+
+    const roots = comments
+      .filter((item) => !item.parentId)
+      .sort((a, b) => b.createTime.getTime() - a.createTime.getTime());
+    const pageRoots = roots.slice((pageNum - 1) * pageSize, (pageNum - 1) * pageSize + pageSize);
+
+    // 回复可指向回复，沿 childrenOf 逐层收集当前页各线程的全部后代
+    const childrenOf = new Map<number, PostCommentEntity[]>();
+    for (const item of comments) {
+      if (item.parentId) {
+        const bucket = childrenOf.get(item.parentId) ?? [];
+        bucket.push(item);
+        childrenOf.set(item.parentId, bucket);
+      }
+    }
+    const pickedIds: number[] = [];
+    const walk = (id: number) => {
+      for (const child of childrenOf.get(id) ?? []) {
+        pickedIds.push(child.id);
+        walk(child.id);
+      }
+    };
+    for (const root of pageRoots) {
+      pickedIds.push(root.id);
+      walk(root.id);
+    }
+    if (!pickedIds.length) {
+      return ResultData.ok({ list: [], total: comments.length, rootTotal: roots.length });
+    }
+
+    // 行形状与组装口径沿用原实现：联评论人/被回复人昵称头像，raw 键保留别名大小写
     const entity = this.commentRepo.createQueryBuilder('comment');
     entity
       .leftJoin(PostArticleEntity, 'article', 'article.id = comment.articleId')
       .leftJoin(UserEntity, 'user', 'user.userId = comment.userId')
       .leftJoin(UserEntity, 'replyUser', 'replyUser.userId = comment.replyUserId')
       .addSelect(['user.nickName', 'user.avatar', 'replyUser.nickName'])
-      .where('comment.articleId = :articleId', { articleId: query.articleId })
-      .andWhere('article.delFlag = :delFlag', { delFlag: '0' })
-      .andWhere('article.publishStatus = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED });
-
-    paginate(entity, query);
-
-    entity.orderBy('comment.createTime', 'DESC');
+      .where('comment.id IN (:...ids)', { ids: pickedIds });
 
     const { raw } = await entity.getRawAndEntities();
-    const total = await entity.getCount();
 
     // raw 键格式为「别名_数据库列名」，别名保留原大小写（replyUser → replyUser_nick_name）
     const list = raw.map((row: Record<string, any>) => ({
@@ -121,7 +159,7 @@ export class PostCommentService {
       replyNickName: row.replyUser_nick_name || null,
     }));
 
-    return ResultData.ok({ list, total });
+    return ResultData.ok({ list, total: comments.length, rootTotal: roots.length });
   }
 
   /**

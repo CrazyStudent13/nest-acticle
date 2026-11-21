@@ -129,7 +129,7 @@
         </div>
       </div>
 
-      <div v-if="comments.length < commentTotal" class="comment-more">
+      <div v-if="hasMoreThreads" class="comment-more">
         <button class="comment-more-btn" type="button" :disabled="commentLoading" @click="loadMoreComments">
           {{ commentLoading ? '加载中…' : '查看更多评论' }}
         </button>
@@ -200,6 +200,8 @@ const cancelReply = () => {
 // ---------- 列表加载:guest 平铺分页,最新在前 ----------
 const comments = ref<CommentItem[]>([])
 const commentTotal = ref(0)
+// 根评论线程总数（服务端按线程分页的「查看更多」判断依据）
+const rootTotal = ref(0)
 const commentPageNum = ref(1)
 const commentLoading = ref(false)
 /** 已展开回复的线程根 id 集合 */
@@ -221,6 +223,7 @@ const loadComments = async (page = 1) => {
       comments.value = [...comments.value, ...(data.list || []).filter((item) => !seen.has(item.id))]
     }
     commentTotal.value = data.total || 0
+    rootTotal.value = data.rootTotal ?? 0
     commentPageNum.value = page
   } catch {
     if (page === 1) {
@@ -232,6 +235,12 @@ const loadComments = async (page = 1) => {
 }
 
 const loadMoreComments = () => loadComments(commentPageNum.value + 1)
+
+// 线程分页口径：已加载的根评论线程数 < 服务端线程总数时还有更多可拉
+const hasMoreThreads = computed(() => {
+  const loadedRoots = comments.value.filter((item) => !item.parentId).length
+  return loadedRoots < rootTotal.value
+})
 
 // 评论列表依赖文章 id:挂载后客户端补查,文章切换时重拉
 onMounted(() => {
@@ -321,6 +330,9 @@ const submitComment = async () => {
       // 列表为最新在前,新评论插头部后由归组逻辑落到对应线程（根评论则新起线程）
       comments.value = [created, ...comments.value]
       commentTotal.value += 1
+      if (!created.parentId) {
+        rootTotal.value += 1
+      }
       emit('update:commentNum', props.commentNum + 1)
       // 命中已折叠线程时自动展开,保证刚发的回复可见
       const target = threads.value.find((thread) => thread.root.id === created.id || thread.replies.some((reply) => reply.id === created.id))
@@ -377,6 +389,9 @@ const removeComment = async (item: CommentItem) => {
     // 以服务端实际删除条数为准（含未加载的级联后代），接口无回抛时退回本地统计
     const removed = serverRemoved || doomed.size
     commentTotal.value = Math.max(0, commentTotal.value - removed)
+    if (!item.parentId) {
+      rootTotal.value = Math.max(0, rootTotal.value - 1)
+    }
     emit('update:commentNum', Math.max(0, props.commentNum - removed))
     // 回复目标被删（含级联）时退出回复模式
     if (replyTo.value && doomed.has(replyTo.value.id)) {
