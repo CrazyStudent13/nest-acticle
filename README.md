@@ -119,7 +119,8 @@ docker compose down               # 停止全部容器
 
 - `JWT_SECRETKEY`：生产必填（后端 joi 强校验，缺失拒绝启动）
 - `MAIL_*`：可选；`MAIL_ENABLED=true` 且 host/user/pass 齐全时注册启用邮箱验证码
-- `NUXT_PUBLIC_API_BASE`：博客的后端入口地址（浏览器与 SSR 都要可达）
+- `NUXT_PUBLIC_API_BASE`：博客后端入口，默认留空走同源相对路径（nginx 反代 + Nitro 代理）；
+  仅无 nginx 反代的特殊部署才需要填绝对地址
 - `BLOG_PORT` / `ADMIN_PORT`：两个入口 nginx 的对外端口（默认 8888 / 8081）
 
 ## 整合时做过的关键调整
@@ -127,8 +128,9 @@ docker compose down               # 停止全部容器
 1. **API 前缀统一 `/api`**：后端 `dev.yml`/`prod.yml` 设 `prefix: 'api'`，鉴权白名单同步带 `/api`
    （守卫用 `req.route.path` 匹配，含全局前缀）；管理端 vite 代理改写 `/dev-api` → `/api`；
    博客代码本就按 `/api/...` 调用，无需改动。
-2. **博客 `apiBase` 回落值中和**：上游曾硬编码一台服务器 IP，现改为仅从环境变量读取；
-   本地默认值在 `apps/client/.env`。
+2. **博客 `apiBase` 同源化**：上游曾硬编码一台服务器 IP，现默认空串走同源相对路径——浏览器经
+   nginx 反代 `/api`、`/profile`，SSR 相对请求由 Nitro 代理路由转发到 `NUXT_API_PROXY_TARGET`
+   （docker 默认 `http://server:8080`），换网络/换部署机零配置。
 3. **后端配置两份分工**：`dev.example.yml`（入库，compose 本地起步模板）+ `dev.yml`
    （不入库，套用旧项目真实凭据：远程 MySQL/Redis/RustFS/SMTP）；`prod.yml` 存储从 rustfs
    改为 local（docker 全家桶自包含，上传落 `/app/apps/server/upload` 持久卷）。
