@@ -77,18 +77,29 @@
           <button class="preview-close" type="button" @click="previewOpen = false">关闭预览</button>
         </div>
         <div class="preview-scroll">
-          <article class="preview-panel">
-            <h1 class="preview-title">{{ title.trim() || '无标题' }}</h1>
-            <div class="preview-meta">
-              <span class="meta-author">{{ authorName }}</span>
-              <span class="meta-item">发布于 {{ previewTime }}</span>
-              <span v-if="previewSubjectTitle" class="meta-item">{{ previewSubjectTitle }}</span>
-            </div>
-            <img v-if="previewCoverUrl" class="preview-cover" :src="previewCoverUrl" :alt="title.trim() || '封面'" />
-            <div class="preview-body">
-              <MdViewer :value="content" />
-            </div>
-          </article>
+          <div class="preview-layout">
+            <article class="preview-panel">
+              <h1 class="preview-title">{{ title.trim() || '无标题' }}</h1>
+              <div class="preview-meta">
+                <span class="meta-author">{{ authorName }}</span>
+                <span class="meta-item">发布于 {{ previewTime }}</span>
+                <span v-if="previewSubjectTitle" class="meta-item">{{ previewSubjectTitle }}</span>
+              </div>
+              <img v-if="previewCoverUrl" class="preview-cover" :src="previewCoverUrl" :alt="title.trim() || '封面'" />
+              <div class="preview-body">
+                <MdViewer :value="content" />
+              </div>
+            </article>
+            <!-- 发布后的详情页右栏含目录，预览同样呈现（滚动定位/高亮发生在遮罩滚动容器内） -->
+            <aside v-if="previewHasToc" class="preview-aside">
+              <ArticleToc
+                :content="content"
+                container-selector=".preview-overlay .preview-body"
+                scroll-root-selector=".preview-overlay .preview-scroll"
+                :offset-top="24"
+              />
+            </aside>
+          </div>
         </div>
       </div>
     </Teleport>
@@ -215,6 +226,8 @@ const previewSubjectTitle = computed(
   () => publish.subjects.find((s) => String(s.id) === publish.publishForm.subjectId)?.title || ''
 )
 const authorName = computed(() => user.value?.nickName || user.value?.userName || '佚名')
+// 与详情页同口径：文章带标题大纲才展示目录
+const previewHasToc = computed(() => extractMarkdownHeadings(content.value).length > 0)
 
 const openPreview = () => {
   // 时间按打开时刻定格，模拟发布后的展示
@@ -522,13 +535,35 @@ const loadArticle = async (id: string) => {
   padding: 32px 16px 48px;
 }
 
+// 两栏布局对齐详情页：正文卡片 + 右侧目录（窄屏隐藏目录）
+.preview-layout {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  gap: 24px;
+}
+
 .preview-panel {
+  flex: 1;
+  min-width: 0;
   max-width: 820px;
-  margin: 0 auto;
   padding: 36px 44px;
   background-color: var(--color-surface);
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-md);
+}
+
+.preview-aside {
+  position: sticky;
+  top: 24px;
+  flex-shrink: 0;
+  width: 240px;
+}
+
+@media (max-width: 1000px) {
+  .preview-aside {
+    display: none;
+  }
 }
 
 .preview-title {
