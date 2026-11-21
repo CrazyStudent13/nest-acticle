@@ -33,6 +33,14 @@
         @remove="draft.removeDraft"
       />
 
+      <button
+        class="preview-btn"
+        type="button"
+        :disabled="!title.trim() && !content.trim()"
+        @click="openPreview"
+      >
+        预览
+      </button>
       <button class="publish-btn" type="button" @click="publish.openPublish">{{ editId ? '保存' : '发布' }}</button>
     </header>
     <p v-if="topTip" class="top-tip">{{ topTip }}</p>
@@ -59,6 +67,31 @@
 
     <!-- 发布弹窗（显隐 v-model，状态/动作来自 usePublish store） -->
     <EditorPublishModal v-model="publish.open" :publish="publish" :edit-id="editId" />
+
+    <!-- 发布前预览：按详情页版式拼装当前内容（标题/元信息/封面/正文），正文复用 MdViewer——
+         与文章详情页同一渲染栈（复制按钮/图片放大/mermaid 全部一致），所见即发布所得 -->
+    <Teleport to="body">
+      <div v-if="previewOpen" class="preview-overlay">
+        <div class="preview-topbar">
+          <span class="preview-flag">预览 · 发布后的效果</span>
+          <button class="preview-close" type="button" @click="previewOpen = false">关闭预览</button>
+        </div>
+        <div class="preview-scroll">
+          <article class="preview-panel">
+            <h1 class="preview-title">{{ title.trim() || '无标题' }}</h1>
+            <div class="preview-meta">
+              <span class="meta-author">{{ authorName }}</span>
+              <span class="meta-item">发布于 {{ previewTime }}</span>
+              <span v-if="previewSubjectTitle" class="meta-item">{{ previewSubjectTitle }}</span>
+            </div>
+            <img v-if="previewCoverUrl" class="preview-cover" :src="previewCoverUrl" :alt="title.trim() || '封面'" />
+            <div class="preview-body">
+              <MdViewer :value="content" />
+            </div>
+          </article>
+        </div>
+      </div>
+    </Teleport>
   </div>
 </template>
 
@@ -174,6 +207,28 @@ watch([title, content], () => {
 // ---------- 发布弹窗（校验/专栏/封面/提交） ----------
 const publish = usePublish({ title, content, editId, setTopTip, clearCurrentDraft: draft.clearCurrentDraft })
 
+// ---------- 发布前预览：按详情页版式拼装当前内容，正文走 MdViewer（与详情页同一渲染栈） ----------
+const previewOpen = ref(false)
+const previewTime = ref('')
+const previewCoverUrl = computed(() => toCoverUrl(config.public.apiBase, publish.publishForm.cover || ''))
+const previewSubjectTitle = computed(
+  () => publish.subjects.find((s) => String(s.id) === publish.publishForm.subjectId)?.title || ''
+)
+const authorName = computed(() => user.value?.nickName || user.value?.userName || '佚名')
+
+const openPreview = () => {
+  // 时间按打开时刻定格，模拟发布后的展示
+  previewTime.value = dayjs().format('YYYY-MM-DD HH:mm')
+  previewOpen.value = true
+}
+
+// 预览期间锁正文滚动（遮罩自带滚动容器）
+watch(previewOpen, (open) => {
+  if (typeof document !== 'undefined') {
+    document.body.style.overflow = open ? 'hidden' : ''
+  }
+})
+
 // ---------- 初始化：登录守卫已由 auth middleware 先行（未登录会原地弹登录框、token 失效已回首页） ----------
 const initEditor = () => {
   if (route.query.id) {
@@ -193,19 +248,27 @@ onMounted(() => {
   if (user.value) {
     initEditor()
   }
-  // Ctrl/Cmd+S 手动存草稿：仅新建模式生效（编辑模式不写本地草稿，与自动保存同一语义）
-  document.addEventListener('keydown', handleSaveShortcut)
+  // 页面级快捷键：Ctrl/Cmd+S 手动存草稿（仅新建模式生效）；ESC 关闭发布前预览
+  document.addEventListener('keydown', handlePageKeydown)
 })
 
-const handleSaveShortcut = (event: KeyboardEvent) => {
+const handlePageKeydown = (event: KeyboardEvent) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
     event.preventDefault()
     draft.saveCurrentDraft()
+    return
+  }
+  if (event.key === 'Escape' && previewOpen.value) {
+    previewOpen.value = false
   }
 }
 
 onBeforeUnmount(() => {
-  document.removeEventListener('keydown', handleSaveShortcut)
+  document.removeEventListener('keydown', handlePageKeydown)
+  // 兜底还原滚动锁（预览开着时直接路由跳走的情况）
+  if (typeof document !== 'undefined') {
+    document.body.style.overflow = ''
+  }
 })
 
 // 弹窗登录成功 → user state 填充 → 触发初始化
@@ -323,6 +386,30 @@ const loadArticle = async (id: string) => {
       background-color: var(--color-primary-hover);
     }
   }
+
+  .preview-btn {
+    flex-shrink: 0;
+    padding: 6px 16px;
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-sm);
+    background-color: transparent;
+    font-size: 13px;
+    color: var(--color-text-2);
+    cursor: pointer;
+    transition:
+      color 0.2s ease,
+      border-color 0.2s ease;
+
+    &:hover:not(:disabled) {
+      color: var(--color-primary);
+      border-color: var(--color-primary);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
 }
 
 .top-tip {
@@ -381,6 +468,110 @@ const loadArticle = async (id: string) => {
 // 草稿提示并入共享编辑器状态栏（插槽内容在页面作用域，可被页面样式覆盖对齐）
 .status-hint {
   margin-left: auto;
+}
+
+// ---------- 发布前预览遮罩（版式对齐文章详情页；z-index 低于 lightbox，预览里的图片仍可放大） ----------
+.preview-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 2800;
+  display: flex;
+  flex-direction: column;
+  background-color: var(--color-bg);
+}
+
+.preview-topbar {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  padding: 0 20px;
+  background-color: var(--color-surface);
+  border-bottom: 1px solid var(--color-border-light);
+
+  .preview-flag {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--color-text-2);
+  }
+
+  .preview-close {
+    padding: 5px 14px;
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-sm);
+    background-color: transparent;
+    font-size: 13px;
+    color: var(--color-text-2);
+    cursor: pointer;
+    transition:
+      color 0.2s ease,
+      border-color 0.2s ease;
+
+    &:hover {
+      color: var(--color-primary);
+      border-color: var(--color-primary);
+    }
+  }
+}
+
+.preview-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 32px 16px 48px;
+}
+
+.preview-panel {
+  max-width: 820px;
+  margin: 0 auto;
+  padding: 36px 44px;
+  background-color: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+}
+
+.preview-title {
+  font-size: 28px;
+  font-weight: 600;
+  line-height: 1.4;
+  color: var(--color-text-1);
+  margin-bottom: 16px;
+}
+
+.preview-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  padding-bottom: 18px;
+  margin-bottom: 24px;
+  border-bottom: 1px solid var(--color-border-light);
+  font-size: 13px;
+  color: var(--color-text-3);
+
+  .meta-author {
+    font-weight: 600;
+    color: var(--color-text-1);
+  }
+}
+
+.preview-cover {
+  width: 100%;
+  max-height: 440px;
+  object-fit: cover;
+  border-radius: var(--radius-md);
+  margin-bottom: 24px;
+}
+
+@media (max-width: 640px) {
+  .preview-panel {
+    padding: 24px 20px;
+  }
+
+  .preview-title {
+    font-size: 22px;
+  }
 }
 
 @media (max-width: 640px) {
