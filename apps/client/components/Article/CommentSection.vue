@@ -129,13 +129,13 @@
         </div>
       </div>
 
-      <div v-if="hasMoreThreads" class="comment-more">
-        <button class="comment-more-btn" type="button" :disabled="commentLoading" @click="loadMoreComments">
-          {{ commentLoading ? '加载中…' : '查看更多评论' }}
-        </button>
-      </div>
     </div>
     <CommonEmptyState v-else-if="!commentLoading" text="还没有评论，来抢沙发" />
+
+    <!-- 查看更多：常驻视口右下角的悬浮按钮，线程分页还有余量时随时可拉，不必滚到列表末尾找入口 -->
+    <button v-if="hasMoreThreads" class="comment-more-fab" type="button" :disabled="commentLoading" @click="loadMoreComments">
+      {{ commentLoading ? '加载中…' : '查看更多评论' }}
+    </button>
   </div>
 </template>
 
@@ -554,6 +554,38 @@ const removeComment = async (item: CommentItem) => {
     }
   }
 
+  // 查看更多评论：常驻视口右下角的悬浮胶囊按钮（脱离列表流，不随滚动消失；
+  // 放在 .comment-section 直属层级——按钮模板已移出 .comment-list，嵌套选择器会匹配不上）
+  .comment-more-fab {
+    position: fixed;
+    right: 28px;
+    bottom: 28px;
+    z-index: 90;
+    padding: 10px 20px;
+    border: 1px solid var(--color-border-light);
+    border-radius: 999px;
+    background-color: var(--color-surface);
+    font-size: 14px;
+    color: var(--color-text-1);
+    box-shadow: var(--shadow-2);
+    cursor: pointer;
+    transition:
+      color 0.2s ease,
+      border-color 0.2s ease,
+      transform 0.2s ease;
+
+    &:hover:not(:disabled) {
+      color: var(--color-primary);
+      border-color: var(--color-primary);
+      transform: translateY(-1px);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+  }
+
   .comment-list {
     .comment-thread {
       padding: 16px 0;
@@ -758,34 +790,6 @@ const removeComment = async (item: CommentItem) => {
 
         &:hover {
           color: var(--color-primary);
-        }
-      }
-    }
-
-    .comment-more {
-      padding: 16px 0 4px;
-      text-align: center;
-
-      .comment-more-btn {
-        padding: 6px 20px;
-        border: 1px solid var(--color-border-light);
-        border-radius: var(--radius-sm);
-        background-color: transparent;
-        font-size: 13px;
-        color: var(--color-text-2);
-        cursor: pointer;
-        transition:
-          color 0.2s ease,
-          border-color 0.2s ease;
-
-        &:hover {
-          color: var(--color-primary);
-          border-color: var(--color-primary);
-        }
-
-        &:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
         }
       }
     }
