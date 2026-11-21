@@ -90,9 +90,13 @@
                 <MdViewer :value="content" />
               </div>
             </article>
-            <!-- 发布后的详情页右栏含目录，预览同样呈现（滚动定位/高亮发生在遮罩滚动容器内） -->
-            <aside v-if="previewHasToc" class="preview-aside">
+            <!-- 发布后的详情页右栏为作者卡+目录+相关推荐：预览呈现作者卡与目录（相关推荐依赖已发布文章，不预呈现） -->
+            <aside class="preview-aside">
+              <Suspense>
+                <ArticleAuthorCard :author="previewAuthor" />
+              </Suspense>
               <ArticleToc
+                v-if="previewHasToc"
                 :content="content"
                 container-selector=".preview-overlay .preview-body"
                 scroll-root-selector=".preview-overlay .preview-scroll"
@@ -226,6 +230,12 @@ const previewSubjectTitle = computed(
   () => publish.subjects.find((s) => String(s.id) === publish.publishForm.subjectId)?.title || ''
 )
 const authorName = computed(() => user.value?.nickName || user.value?.userName || '佚名')
+// 作者卡片入参（组件内自取 guest 列表聚合 文章/阅读/获赞 统计）；Suspense 包裹消化其异步 setup
+const previewAuthor = computed(() => ({
+  userId: user.value?.userId,
+  nickName: user.value?.nickName || user.value?.userName || '佚名',
+  avatar: user.value?.avatar || ''
+}))
 // 与详情页同口径：文章带标题大纲才展示目录
 const previewHasToc = computed(() => extractMarkdownHeadings(content.value).length > 0)
 
@@ -558,6 +568,9 @@ const loadArticle = async (id: string) => {
   top: 24px;
   flex-shrink: 0;
   width: 240px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
 }
 
 @media (max-width: 1000px) {
