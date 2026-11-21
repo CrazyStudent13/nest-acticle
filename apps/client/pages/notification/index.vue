@@ -1,4 +1,4 @@
-<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知，互动两分类带未读数红标）+ 右侧列表；系统通知接 /api/system/notice/list（Markdown 内容超 3 行收起、就地展开，分页）；评论栏双子栏——「收到的评论」接 /api/post/comment/received/list（他人评论我的文章/回复我的评论，掘金式接收流），「我发表的」接 /api/post/comment/my/list（类型徽标区分，支持删除）；赞和收藏接 /api/post/like/received/list（他人点赞我发布的文章，掘金式接收流；收藏与评论点赞功能未建）；新增粉丝后端未建占位空态；进入互动分类栏即逐栏清该栏红标（水位打点）；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
+<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知，互动两分类带未读数红标）+ 右侧列表；系统通知接 /api/system/notice/list（Markdown 内容超 3 行收起、就地展开，分页）；评论栏双子栏——「收到的评论」接 /api/post/comment/received/list（他人评论我的文章/回复我的评论，掘金式四行结构：动作短句/内容/文章引用行/时间），「我发表的」接 /api/post/comment/my/list（类型徽标区分，支持删除）；赞和收藏接 /api/post/like/received/list（同款结构；收藏与评论点赞功能未建）；新增粉丝后端未建占位空态；进入互动分类栏即逐栏清该栏红标（水位打点）；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
 <template>
   <div class="notification-page">
     <div class="notice-panel">
@@ -66,45 +66,36 @@
             <button class="box-tab" :class="{ active: commentBox === 'mine' }" type="button" @click="switchCommentBox('mine')">我发表的</button>
           </div>
 
-          <!-- 收到的评论：掘金式接收流（左头像、中间文案+内容+相对时间、右文章封面） -->
+          <!-- 收到的评论：掘金式接收流（头像+动作短句 / 评论内容 / 文章引用行 / 时间） -->
           <template v-if="commentBox === 'received'">
             <template v-if="receivedComments.length">
-              <article v-for="row in receivedComments" :key="row.id" class="notice-item like-item">
-                <NuxtLink class="like-avatar" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+              <article v-for="row in receivedComments" :key="row.id" class="notice-item notify-item">
+                <NuxtLink class="notify-avatar" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
                   <img v-if="row.avatar" :src="coverUrl(row.avatar)" :alt="row.nickName" loading="lazy" />
                   <span v-else class="avatar-fallback">{{ (row.nickName || '评').slice(0, 1) }}</span>
                 </NuxtLink>
-                <div class="like-main">
-                  <div class="like-head">
-                    <p class="like-text">
-                      <NuxtLink class="like-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
-                        {{ row.nickName || '用户' }}
+                <div class="notify-main">
+                  <p class="notify-head">
+                    <NuxtLink class="notify-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                      {{ row.nickName || '用户' }}
+                    </NuxtLink>
+                    <!-- 三种动作文案：回复我的评论 / 回复他人评论 / 直接评论我的文章，文章由引用行承载 -->
+                    <template v-if="row.parentId && row.replyUserId === currentUserId">回复了你的评论</template>
+                    <template v-else-if="row.parentId">
+                      回复了
+                      <NuxtLink class="notify-user" :to="{ path: '/user/space', query: { id: String(row.replyUserId) } }">
+                        @{{ row.replyNickName || '未知用户' }}
                       </NuxtLink>
-                      <!-- 三种文案：回复我的评论 / 回复他人评论 / 直接评论我的文章，尾部统一带文章入口 -->
-                      <template v-if="row.parentId && row.replyUserId === currentUserId">回复了你的评论</template>
-                      <template v-else-if="row.parentId">
-                        回复了
-                        <NuxtLink class="like-user" :to="{ path: '/user/space', query: { id: String(row.replyUserId) } }">
-                          @{{ row.replyNickName || '未知用户' }}
-                        </NuxtLink>
-                        的评论
-                      </template>
-                      <template v-else>评论了你的文章</template>
-                      <NuxtLink class="like-article" :to="{ path: '/article/detail', query: { id: String(row.articleId) } }">
-                        《{{ row.articleTitle || '文章已删除' }}》
-                      </NuxtLink>
-                    </p>
-                    <time class="like-time">{{ formatRelativeTime(row.createTime) }}</time>
-                  </div>
-                  <p class="like-content">{{ row.content }}</p>
+                      的评论
+                    </template>
+                    <template v-else>评论了你的文章</template>
+                  </p>
+                  <p class="notify-content">{{ row.content }}</p>
+                  <NuxtLink class="notify-quote" :to="{ path: '/article/detail', query: { id: String(row.articleId) } }">
+                    《{{ row.articleTitle || '文章已删除' }}》
+                  </NuxtLink>
+                  <time class="notify-time">{{ formatRelativeTime(row.createTime) }}</time>
                 </div>
-                <NuxtLink
-                  v-if="row.articleCover"
-                  class="like-thumb"
-                  :to="{ path: '/article/detail', query: { id: String(row.articleId) } }"
-                >
-                  <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
-                </NuxtLink>
               </article>
               <CommonPagination v-model:page="receivedPage" :total="receivedTotal" :page-size="PAGE_SIZE" />
             </template>
@@ -161,35 +152,26 @@
           </template>
         </template>
 
-        <!-- 赞和收藏：他人点赞我发布的文章（掘金式接收流：左头像、中间文案+相对时间、右文章封面） -->
+        <!-- 赞和收藏：他人点赞我发布的文章（掘金式接收流：头像+动作短句 / 文章引用行 / 时间） -->
         <template v-else-if="activeTab === 'like'">
           <template v-if="receivedLikes.length">
-            <article v-for="row in receivedLikes" :key="row.id" class="notice-item like-item">
-              <NuxtLink class="like-avatar" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+            <article v-for="row in receivedLikes" :key="row.id" class="notice-item notify-item">
+              <NuxtLink class="notify-avatar" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
                 <img v-if="row.avatar" :src="coverUrl(row.avatar)" :alt="row.nickName" loading="lazy" />
                 <span v-else class="avatar-fallback">{{ (row.nickName || '用').slice(0, 1) }}</span>
               </NuxtLink>
-              <div class="like-main">
-                <div class="like-head">
-                  <p class="like-text">
-                    <NuxtLink class="like-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
-                      {{ row.nickName || '用户' }}
-                    </NuxtLink>
-                    赞了你的文章
-                    <NuxtLink class="like-article" :to="{ path: '/article/detail', query: { id: String(row.articleId) } }">
-                      《{{ row.articleTitle || '文章已删除' }}》
-                    </NuxtLink>
-                  </p>
-                  <time class="like-time">{{ formatRelativeTime(row.createTime) }}</time>
-                </div>
+              <div class="notify-main">
+                <p class="notify-head">
+                  <NuxtLink class="notify-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                    {{ row.nickName || '用户' }}
+                  </NuxtLink>
+                  赞了你的文章
+                </p>
+                <NuxtLink class="notify-quote" :to="{ path: '/article/detail', query: { id: String(row.articleId) } }">
+                  《{{ row.articleTitle || '文章已删除' }}》
+                </NuxtLink>
+                <time class="notify-time">{{ formatRelativeTime(row.createTime) }}</time>
               </div>
-              <NuxtLink
-                v-if="row.articleCover"
-                class="like-thumb"
-                :to="{ path: '/article/detail', query: { id: String(row.articleId) } }"
-              >
-                <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
-              </NuxtLink>
             </article>
             <CommonPagination v-model:page="likePage" :total="likeTotal" :page-size="PAGE_SIZE" />
           </template>
@@ -666,13 +648,13 @@ onMounted(() => {
   }
 }
 
-// 赞和收藏：掘金式接收流——左头像、中间「谁赞了哪篇」+时间并首行右侧、右文章封面
-.like-item {
+// 收到的评论/赞：掘金式接收流——头像+动作短句 / 评论内容 / 文章引用行 / 时间
+.notify-item {
   display: flex;
   align-items: flex-start;
   gap: 12px;
 
-  .like-avatar {
+  .notify-avatar {
     flex-shrink: 0;
     width: 36px;
     height: 36px;
@@ -698,75 +680,64 @@ onMounted(() => {
     }
   }
 
-  .like-main {
+  .notify-main {
     flex: 1;
     min-width: 0;
   }
 
-  // 首行：文案占满 + 时间右对齐（时间不再独占一行，行高收紧）
-  .like-head {
-    display: flex;
-    align-items: baseline;
-    gap: 12px;
-  }
-
-  .like-text {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .notify-head {
+    margin: 0;
     font-size: 15px;
     line-height: 22px;
     color: var(--color-text-1);
-  }
 
-  // 昵称与文章标题走主题蓝，悬浮加下划线；文章已删时仍可点（详情页有空态）
-  .like-user,
-  .like-article {
-    color: var(--color-primary);
-    transition: color 0.2s ease;
+    // 昵称深色可点（同掘金不做蓝字），悬浮显主题色；与后续动作文案留间隙
+    .notify-user {
+      margin-right: 4px;
+      color: var(--color-text-1);
+      transition: color 0.2s ease;
 
-    &:hover {
-      text-decoration: underline;
-      text-underline-offset: 2px;
+      &:hover {
+        color: var(--color-primary);
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
     }
   }
 
-  // 昵称与后续动作文案的间隙（模板换行被 Vue condense 吞掉，靠间距撑开）
-  .like-user {
-    margin-right: 4px;
-  }
-
-  .like-time {
-    flex-shrink: 0;
-    font-size: 12px;
-    color: var(--color-text-3);
-  }
-
-  // 收到的评论内容行：可换行的正文（区别于 like-text 的单行文案）
-  .like-content {
+  .notify-content {
     margin: 4px 0 0;
-    font-size: 13px;
-    line-height: 20px;
+    font-size: 14px;
+    line-height: 22px;
     color: var(--color-text-1);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
   }
 
-  .like-thumb {
-    flex-shrink: 0;
-    width: 64px;
-    height: 64px;
-    border-radius: var(--radius-sm);
+  // 文章引用行：左竖线灰字（同掘金被回复对象引用），超长单行省略
+  .notify-quote {
+    display: block;
+    margin-top: 8px;
+    padding-left: 8px;
+    border-left: 2px solid var(--color-border);
+    font-size: 13px;
+    line-height: 20px;
+    color: var(--color-text-3);
+    white-space: nowrap;
     overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.2s ease;
 
-    img {
-      width: 100%;
-      height: 100%;
-      object-fit: cover;
-      display: block;
+    &:hover {
+      color: var(--color-primary);
     }
+  }
+
+  .notify-time {
+    display: block;
+    margin-top: 8px;
+    font-size: 12px;
+    color: var(--color-text-3);
   }
 }
 
