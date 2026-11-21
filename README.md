@@ -1,5 +1,7 @@
 # nest-acticle · 博客平台 monorepo
 
+> 当前版本 **v1.1.0** · 更新记录见 [CHANGELOG.md](./CHANGELOG.md)
+
 一个仓库包含完整的博客平台三件套，共用同一套 NestJS 后端接口与用户体系：
 
 | 应用 | 目录 | 技术 | 说明 |
@@ -14,6 +16,8 @@
 |---|---|---|
 | `@nest-acticle/shared` | `packages/shared` | 契约层：响应信封/分页/状态枚举/文章·专栏类型/业务码/权限字面量，零运行时依赖 |
 | `@nest-acticle/utils` | `packages/utils` | 纯函数：validation/tree/date/query-string/url（仅 dayjs 依赖） |
+| `@nest-acticle/markdown` | `packages/markdown` | Markdown 渲染器（client/admin 同源）：代码块复制/highlight.js/KaTeX/mermaid 懒加载/lightbox |
+| `@nest-acticle/editor` | `packages/editor` | 共享 Markdown 编辑器组件（工具栏/快捷键/预览/粘贴与拖拽上传，上传经回调注入） |
 | `@nest-acticle/eslint-config` | `packages/eslint-config` | ESLint flat config 预设：`tsPreset`（server）/`vuePreset`（admin） |
 
 > 整合方案与全部决策细节见 [INTEGRATION-PLAN.md](./INTEGRATION-PLAN.md)。
