@@ -542,7 +542,9 @@ const loadArticle = async (id: string) => {
   flex: 1;
   min-height: 0;
   overflow-y: auto;
-  padding: 32px 16px 48px;
+  // 顶部留白用 layout 的 margin 而非容器的 padding：Chrome 的 sticky 约束线从滚动容器内容边起算，
+  // padding-top + sticky top 会叠加把右栏在初始状态推低（右栏与正文卡片顶部错位）
+  padding: 0 16px 48px;
 }
 
 // 两栏布局对齐详情页：正文卡片 + 右侧目录（窄屏隐藏目录）
@@ -551,6 +553,7 @@ const loadArticle = async (id: string) => {
   align-items: flex-start;
   justify-content: center;
   gap: 24px;
+  margin-top: 32px;
 }
 
 .preview-panel {
