@@ -1,6 +1,7 @@
 // 文章图片放大预览（lightbox）：宿主壳经 bindImageLightbox 绑定点击委托——点击 .markdown-body 内
-// 图片时以全屏遮罩展示原图，点击遮罩或 ESC 关闭。实现为包内命令式 DOM（不依赖 Vue），两端壳与
-// 编辑器预览共用同一实现；样式收在 dist/style.css 的 .na-markdown-lightbox。
+// 图片时以全屏遮罩展示原图，点击遮罩空白区或 ESC 关闭（点图片本身不关，便于看图时随意点按）。
+// 实现为包内命令式 DOM（不依赖 Vue），两端壳与编辑器预览共用同一实现；样式收在 dist/style.css
+// 的 .na-markdown-lightbox。
 
 const OVERLAY_CLASS = 'na-markdown-lightbox'
 
@@ -23,13 +24,22 @@ function ensureOverlay(): HTMLElement {
   overlay = document.createElement('div')
   overlay.className = OVERLAY_CLASS
   overlay.setAttribute('role', 'dialog')
+  overlay.setAttribute('aria-modal', 'true')
   overlay.setAttribute('aria-label', '图片预览')
+  // 接收焦点用：显示时把焦点移入遮罩（基础 a11y，ESC 关闭后还原；不做完整 focus trap）
+  overlay.setAttribute('tabindex', '-1')
 
   const img = document.createElement('img')
   img.alt = ''
   overlay.appendChild(img)
 
-  overlay.addEventListener('click', closeOverlay)
+  // 点遮罩空白区关闭；点图片本身不关（target 判断，图片上不需要额外 stopPropagation）
+  overlay.addEventListener('click', (event) => {
+    if ((event.target as HTMLElement).closest('img')) {
+      return
+    }
+    closeOverlay()
+  })
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && overlay!.style.display !== 'none') {
       closeOverlay()
@@ -48,6 +58,7 @@ export function openImageLightbox(src: string): void {
   lastFocus = document.activeElement as HTMLElement | null
   el.querySelector('img')!.src = src
   el.style.display = 'flex'
+  el.focus()
 }
 
 /**
