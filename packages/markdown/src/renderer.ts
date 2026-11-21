@@ -33,6 +33,55 @@ const normalizeContent = (value: string) => {
   return temp.replace(/\\n/g, '\n')
 }
 
+// 剥离围栏代码块外的 HTML 注释（html:false 后注释会被转义显形，而标准 MD 平台渲染时注释
+// 不可见——如 Hexo 的 <!-- more --> 摘要标记、编辑器遗留注释）。围栏内不剥：教程正文里
+// 的注释示例必须原样保留。已知取舍：缩进 4 空格的未围栏代码块里的注释同样会被剥（罕见，可接受）。
+const stripHtmlComments = (source: string): string => {
+  const out: string[] = []
+  let buf: string[] = []
+  let inFence = false
+  let fenceChar = ''
+  let fenceLen = 0
+
+  const flushBuf = () => {
+    if (buf.length === 0) {
+      return
+    }
+    const text = buf.join('\n')
+    out.push(inFence ? text : text.replace(/<!--[\s\S]*?-->/g, ''))
+    buf = []
+  }
+
+  for (const line of source.split('\n')) {
+    const m = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/)
+    if (m) {
+      const char = m[1][0]
+      const len = m[1].length
+      if (!inFence) {
+        flushBuf()
+        inFence = true
+        fenceChar = char
+        fenceLen = len
+        out.push(line)
+        continue
+      }
+      // 闭合围栏：同字符、长度不小于开栏、行内无 info 串（CommonMark 规则）
+      if (char === fenceChar && len >= fenceLen && m[2].trim() === '') {
+        flushBuf()
+        inFence = false
+        out.push(line)
+        continue
+      }
+      buf.push(line)
+      continue
+    }
+    buf.push(line)
+  }
+  flushBuf()
+
+  return out.join('\n')
+}
+
 // 渲染配置逐字取自重构前 client MdViewer（等价性基准见 CODE-REVIEW-2026-11-20.md 第四节 P2-5）：
 // 代码块复制按钮 + 行号占位 + 语言名标注，HTML 结构不可改动（两端壳的 CSS 与 ClipboardJS 都依赖这些类名）
 export function createMarkdownRenderer(options: MarkdownRendererOptions = {}): MarkdownRenderer {
@@ -122,7 +171,7 @@ export function createMarkdownRenderer(options: MarkdownRendererOptions = {}): M
 
   return {
     render(source: string) {
-      return md.render(normalizeContent(source))
+      return md.render(stripHtmlComments(normalizeContent(source)))
     }
   }
 }
