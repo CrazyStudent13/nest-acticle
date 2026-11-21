@@ -39,7 +39,12 @@ export function createMarkdownRenderer(options: MarkdownRendererOptions = {}): M
   const { copyButton = true, math = true, mermaid: withMermaid = true } = options
 
   const md = new MarkdownIt({
-    html: true,
+    // 关闭 raw HTML 透传：文章内容全部来自用户输入（member 免审直发），html:true 会把
+    // <script>/<img onerror>/javascript: 链接等 XSS 向量原样送进浏览器（client 文章页与 admin 预览同源）。
+    // html:false 后原始 HTML 转义为可见文本，向量彻底关闭；entity（&nbsp;/&copy; 等）由 markdown-it
+    // 独立的 entity 行内规则处理，不受此开关影响。如未来确需 raw HTML，升级路径是包内接
+    // DOMPurify 白名单清洗后再透传，而不是直接放开此开关。
+    html: false,
     linkify: true,
     typographer: true,
     highlight: (str, lang) => {
