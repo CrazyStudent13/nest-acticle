@@ -42,6 +42,9 @@ function ensureOverlay(): HTMLElement {
   })
   document.addEventListener('keydown', (event) => {
     if (event.key === 'Escape' && overlay!.style.display !== 'none') {
+      // lightbox 打开时 ESC 归 lightbox：阻止向 window 级监听传播（同 target 的宿主监听
+      // 由 isImageLightboxOpen 状态守卫让位），避免一次 ESC 把层叠弹窗全部退出
+      event.stopPropagation()
       closeOverlay()
     }
   })
@@ -59,6 +62,14 @@ export function openImageLightbox(src: string): void {
   el.querySelector('img')!.src = src
   el.style.display = 'flex'
   el.focus()
+}
+
+/**
+ * lightbox 是否处于打开状态：供宿主的层叠弹窗（如发布前预览遮罩）在自身 ESC 处理器里
+ * 让位——lightbox 开着时 ESC 只关 lightbox，再按一次才轮到宿主弹窗，避免一次 ESC 全退。
+ */
+export function isImageLightboxOpen(): boolean {
+  return typeof document !== 'undefined' && !!overlay && overlay.style.display !== 'none'
 }
 
 /**
