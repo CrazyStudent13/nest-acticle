@@ -207,6 +207,53 @@ export class PostCommentService {
   }
 
   /**
+   * 收到的评论列表（通知中心「评论-收到的评论」栏：他人评论我发布的文章或回复我的评论，最新在前）
+   * 行形状对齐 shared 的 ReceivedCommentItem；口径与 notify.service 未读计数严格一致
+   * （角标数必须能被这条列表清掉），仅含已发布未删文章
+   */
+  async findReceivedList(userId: number, query: ListMyCommentDto) {
+    const entity = this.commentRepo.createQueryBuilder('comment');
+    entity
+      .innerJoin(PostArticleEntity, 'article', 'article.id = comment.articleId')
+      .leftJoin(UserEntity, 'commenter', 'commenter.userId = comment.userId')
+      .leftJoin(UserEntity, 'replyUser', 'replyUser.userId = comment.replyUserId')
+      .addSelect(['article.title', 'article.cover', 'commenter.nickName', 'commenter.avatar', 'replyUser.nickName'])
+      // OR 整体必须再套一层外括号：TypeORM 不自动加，否则后续 andWhere（已发布/未删）
+      // 因 AND 优先级更高只约束右支，左支完全绕过过滤
+      .where(
+        '((article.userId = :userId AND comment.userId <> :userId) OR (comment.replyUserId = :userId AND comment.userId <> :userId))',
+        { userId }
+      )
+      .andWhere('article.delFlag = :delFlag', { delFlag: '0' })
+      .andWhere('article.publishStatus = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED });
+
+    paginate(entity, query);
+
+    entity.orderBy('comment.createTime', 'DESC');
+
+    const { raw } = await entity.getRawAndEntities();
+    const total = await entity.getCount();
+
+    // raw 键格式为「别名_数据库列名」，别名保留原大小写（commenter → commenter_nick_name）
+    const list = raw.map((row: Record<string, any>) => ({
+      id: row.comment_id,
+      userId: row.comment_user_id,
+      nickName: row.commenter_nick_name || '',
+      avatar: row.commenter_avatar || null,
+      articleId: row.comment_article_id,
+      articleTitle: row.article_title || null,
+      articleCover: row.article_cover || null,
+      content: row.comment_content,
+      createTime: row.comment_create_time,
+      parentId: row.comment_parent_id,
+      replyUserId: row.comment_reply_user_id,
+      replyNickName: row.replyUser_nick_name || null,
+    }));
+
+    return ResultData.ok({ list, total });
+  }
+
+  /**
    * 级联收集待删评论及其全部后代（回复可指向回复，逐层向下找）
    * 返回按文章聚合的删除计数 Map，供回减 comment_num
    */

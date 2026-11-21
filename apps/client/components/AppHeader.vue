@@ -1,4 +1,4 @@
-<!-- 全站吸顶导航：品牌+栏目导航+文章搜索（回车跳首页带 title 参数）；已登录创作者中心入口悬停展开面板（250ms 延迟关闭防误消）、点击新窗口进 /creator + 通知铃铛（点击进 /notification、悬停下拉四分类）+头像+退出，未登录仅登录/注册按钮 -->
+<!-- 全站吸顶导航：品牌+栏目导航+文章搜索（回车跳首页带 title 参数）；已登录创作者中心入口悬停展开面板（250ms 延迟关闭防误消）、点击新窗口进 /creator + 通知铃铛（点击进 /notification、悬停下拉四分类、未读数字红标随登录态轮询刷新）+头像+退出，未登录仅登录/注册按钮 -->
 <template>
   <header class="header">
     <div class="inner">
@@ -65,6 +65,8 @@
                 <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
                 <path d="M13.73 21a2 2 0 0 1-3.46 0" />
               </svg>
+              <!-- 未读红标：别人赞/评了我的文章时的传统数字提示，99+ 封顶 -->
+              <span v-if="unread.total > 0" class="notice-dot">{{ unread.total > 99 ? '99+' : unread.total }}</span>
             </button>
 
             <div class="notice-panel" :class="{ open: noticeOpen }">
@@ -76,6 +78,7 @@
                 @click.stop="noticeOpen = false"
               >
                 {{ cat.label }}
+                <i v-if="catUnread(cat.key) > 0" class="notice-cat-count">{{ catUnread(cat.key) > 99 ? '99+' : catUnread(cat.key) }}</i>
               </a>
             </div>
           </div>
@@ -207,6 +210,37 @@ const goNotification = () => {
   return navigateTo('/notification')
 }
 
+// ---------- 铃铛红标：未读计数全局共享（useNotify），登录后立即拉取并周期轮询 ----------
+// 分类计数映射：面板仅互动两分类有数字（粉丝/系统通知未建未接计数）
+const { unread, refreshBadge, startBadgePolling, stopBadgePolling } = useNotify()
+
+const catUnread = (key: NoticeCat['key']) => {
+  if (key === 'comment' || key === 'like') {
+    return unread.value[key]
+  }
+  return 0
+}
+
+// 登录态变化驱动红标启停：登录即拉取+轮询，退出即停并清零（refreshBadge 对未登录自清）
+watch(isLoggedIn, (loggedIn) => {
+  if (loggedIn) {
+    refreshBadge()
+    startBadgePolling()
+  } else {
+    stopBadgePolling()
+  }
+})
+
+// 路由切换即时刷新一次（浏览期间点赞/评论能较快点亮红标；轮询兜底长停留页面）
+watch(
+  () => route.path,
+  () => {
+    if (isLoggedIn.value && !route.path.startsWith('/notification')) {
+      refreshBadge()
+    }
+  }
+)
+
 const noticeOpen = ref(false)
 let noticeCloseTimer: ReturnType<typeof setTimeout> | null = null
 
@@ -234,6 +268,15 @@ const avatarFallback = computed(() => (user.value?.nickName || user.value?.userN
 // 页面刷新后恢复登录态：有 token 但还没有用户信息时静默拉取（逻辑在 useUser.ensureUserRestored，与 auth middleware 共用）
 onMounted(() => {
   ensureUserRestored()
+  // 已登录即拉取红标并启动轮询（未登录时 watch(isLoggedIn) 会在恢复完成后触发）
+  if (isLoggedIn.value) {
+    refreshBadge()
+    startBadgePolling()
+  }
+})
+
+onBeforeUnmount(() => {
+  stopBadgePolling()
 })
 
 const handleLogout = async () => {
@@ -540,6 +583,7 @@ const handleLogout = async () => {
     position: relative;
 
     .notice-btn {
+      position: relative;
       display: flex;
       align-items: center;
       justify-content: center;
@@ -558,6 +602,24 @@ const handleLogout = async () => {
       &:hover {
         background-color: var(--color-bg);
         color: var(--color-text-1);
+      }
+
+      // 未读红标：铃铛右上角数字角标（传统提示样式），99+ 封顶防止撑破
+      .notice-dot {
+        position: absolute;
+        top: -1px;
+        right: -7px;
+        min-width: 16px;
+        height: 16px;
+        padding: 0 4px;
+        border-radius: 8px;
+        background-color: #f04142;
+        font-size: 11px;
+        line-height: 16px;
+        font-weight: 500;
+        color: #fff;
+        text-align: center;
+        box-sizing: border-box;
       }
     }
 
@@ -599,7 +661,8 @@ const handleLogout = async () => {
       }
 
       .notice-cat {
-        display: block;
+        display: flex;
+        align-items: center;
         width: 100%;
         padding: 9px 20px;
         text-align: left;
@@ -614,6 +677,16 @@ const handleLogout = async () => {
         &:hover {
           color: var(--color-primary);
           background-color: var(--color-bg);
+        }
+
+        // 分类未读数：右对齐小红标（与铃铛主红标同色，字号略小）
+        .notice-cat-count {
+          margin-left: auto;
+          padding-left: 12px;
+          font-style: normal;
+          font-size: 11px;
+          font-weight: 500;
+          color: #f04142;
         }
       }
     }

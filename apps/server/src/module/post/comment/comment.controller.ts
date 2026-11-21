@@ -46,6 +46,15 @@ export class PostCommentController {
   }
 
   /**
+   * 收到的评论列表（通知中心「评论-收到的评论」栏，服务端按登录态过滤）
+   */
+  @ApiOperation({ summary: '评论-收到的评论列表' })
+  @Get('/received/list')
+  findReceivedList(@Query() query: ListMyCommentDto, @User() user: UserDto) {
+    return this.commentService.findReceivedList(user.userId, query);
+  }
+
+  /**
    * 批量删除评论（管理端，回减文章评论数）
    */
   @ApiOperation({ summary: '评论-批量删除' })

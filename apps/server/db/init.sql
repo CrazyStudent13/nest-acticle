@@ -4766,3 +4766,16 @@ create table
     key idx_user_id (user_id),
     key idx_parent_id (parent_id)
   ) engine = innodb comment = '评论库';
+
+-- ----------------------------
+-- 23、通知已读水位库
+-- ----------------------------
+drop table if exists post_notify_read;
+
+create table
+  post_notify_read (
+    user_id int not null comment '用户 id',
+    category varchar(16) not null comment '通知分类（comment 评论 / like 点赞）',
+    read_time datetime default current_timestamp comment '最后已读时间',
+    primary key (user_id, category)
+  ) engine = innodb comment = '通知已读水位库';

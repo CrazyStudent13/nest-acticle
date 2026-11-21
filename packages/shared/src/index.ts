@@ -5,3 +5,4 @@ export * from './types/article';
 export * from './types/subject';
 export * from './types/like';
 export * from './types/comment';
+export * from './types/notify';
