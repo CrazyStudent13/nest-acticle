@@ -96,6 +96,13 @@
                   </NuxtLink>
                   <time class="notify-time">{{ formatRelativeTime(row.createTime) }}</time>
                 </div>
+                <NuxtLink
+                  v-if="row.articleCover"
+                  class="notify-thumb"
+                  :to="{ path: '/article/detail', query: { id: String(row.articleId) } }"
+                >
+                  <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
+                </NuxtLink>
               </article>
               <CommonPagination v-model:page="receivedPage" :total="receivedTotal" :page-size="PAGE_SIZE" />
             </template>
@@ -172,6 +179,13 @@
                 </NuxtLink>
                 <time class="notify-time">{{ formatRelativeTime(row.createTime) }}</time>
               </div>
+              <NuxtLink
+                v-if="row.articleCover"
+                class="notify-thumb"
+                :to="{ path: '/article/detail', query: { id: String(row.articleId) } }"
+              >
+                <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
+              </NuxtLink>
             </article>
             <CommonPagination v-model:page="likePage" :total="likeTotal" :page-size="PAGE_SIZE" />
           </template>
@@ -691,14 +705,13 @@ onMounted(() => {
     line-height: 22px;
     color: var(--color-text-1);
 
-    // 昵称深色可点（同掘金不做蓝字），悬浮显主题色；与后续动作文案留间隙
+    // 昵称走主题蓝与动作文案/正文做颜色区分（链接语义），悬浮加下划线
     .notify-user {
       margin-right: 4px;
-      color: var(--color-text-1);
+      color: var(--color-primary);
       transition: color 0.2s ease;
 
       &:hover {
-        color: var(--color-primary);
         text-decoration: underline;
         text-underline-offset: 2px;
       }
@@ -738,6 +751,23 @@ onMounted(() => {
     margin-top: 8px;
     font-size: 12px;
     color: var(--color-text-3);
+  }
+
+  // 右侧文章封面缩略图：64px 圆角小图，垂直居中，链接到文章详情
+  .notify-thumb {
+    flex-shrink: 0;
+    align-self: center;
+    width: 64px;
+    height: 64px;
+    border-radius: var(--radius-sm);
+    overflow: hidden;
+
+    img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
   }
 }
 
