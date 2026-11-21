@@ -44,27 +44,20 @@
 </template>
 
 <script setup lang="ts">
+import type { Article } from '@nest-acticle/shared'
+
 definePageMeta({
-  layout: 'creator'
+  layout: 'creator',
+  middleware: 'auth',
+  authNoToken: 'stay',
+  authRestoreFail: 'stay'
 })
 
-// 管理端列表返回的实体字段（publishStatus：0 草稿 / 1 待发布 / 2 已发布 / 3 已下架；
-// auditStatus：0 未提交 / 1 审核中 / 2 审核通过 / 3 审核拒绝）
-type ArticleRowData = {
-  id: number
-  title?: string
-  subjectId?: number
-  publishStatus?: string
-  auditStatus?: string
-  auditRemark?: string
-  readNum?: number
-  likeNum?: number
-  commentNum?: number
-  createTime?: string
-  publishTime?: string | null
-}
+// 行数据契约见 @nest-acticle/shared 的 Article（publishStatus/auditStatus 取值注释也在包内）
 
 const { user, isLoggedIn } = useUser()
+const { fetchArticles, updateArticle, deleteArticle } = useArticleManage()
+const { fetchSubjects } = useSubject()
 
 const PAGE_SIZE = 20
 // 审核中 tab 的合并查询拉取上限：后端 auditStatus 仅支持单值，两个状态各拉一次在前端合并分页
@@ -83,7 +76,7 @@ type TabKey = (typeof tabs)[number]['key']
 const activeTab = ref<TabKey>('all')
 const keyword = ref('')
 const searchKeyword = ref('')
-const rows = ref<ArticleRowData[]>([])
+const rows = ref<Article[]>([])
 const total = ref(0)
 const pageNum = ref(1)
 const loading = ref(false)
@@ -102,9 +95,7 @@ const loadCounts = async () => {
   try {
     const base = { userId: user.value.userId, pageNum: 1, pageSize: 1 }
     const countQuery = (overrides: Record<string, any>) =>
-      apiFetch<{ list?: ArticleRowData[]; total?: number }>('/api/post/article/list', {
-        query: { ...base, ...overrides }
-      }).then((res) => res.data?.total ?? 0)
+      fetchArticles({ ...base, ...overrides }).then((data) => data.total ?? 0)
     const [all, published, draft, offline, auditing, rejected] = await Promise.all([
       countQuery({}),
       countQuery({ publishStatus: '2' }),
@@ -119,10 +110,10 @@ const loadCounts = async () => {
   }
 }
 
-// 组装基础查询条件（userId 固定只查自己的文章）
+// 组装基础查询条件（userId 固定只查自己的文章；调用点均在 user 就绪守卫之后）
 const buildQuery = (overrides: Record<string, any>) => {
   return {
-    userId: user.value?.userId,
+    userId: user.value!.userId,
     pageNum: pageNum.value,
     pageSize: PAGE_SIZE,
     orderByColumn: 'createTime',
@@ -149,24 +140,18 @@ const loadList = async () => {
         ...(searchKeyword.value ? { title: searchKeyword.value } : {})
       }
       const [auditing, rejected] = await Promise.all([
-        apiFetch<{ list?: ArticleRowData[]; total?: number }>('/api/post/article/list', {
-          query: { ...base, auditStatus: '1' }
-        }),
-        apiFetch<{ list?: ArticleRowData[]; total?: number }>('/api/post/article/list', {
-          query: { ...base, auditStatus: '3' }
-        })
+        fetchArticles({ ...base, auditStatus: '1' }),
+        fetchArticles({ ...base, auditStatus: '3' })
       ])
-      const merged = [...(auditing.data?.list || []), ...(rejected.data?.list || [])].sort((a, b) =>
+      const merged = [...(auditing.list || []), ...(rejected.list || [])].sort((a, b) =>
         (b.createTime || '').localeCompare(a.createTime || '')
       )
       total.value = merged.length
       rows.value = merged.slice((pageNum.value - 1) * PAGE_SIZE, pageNum.value * PAGE_SIZE)
     } else {
-      const res = await apiFetch<{ list?: ArticleRowData[]; total?: number }>('/api/post/article/list', {
-        query: buildQuery(activeTab.value === 'all' ? {} : { publishStatus: activeTab.value })
-      })
-      rows.value = res.data?.list || []
-      total.value = res.data?.total ?? rows.value.length
+      const data = await fetchArticles(buildQuery(activeTab.value === 'all' ? {} : { publishStatus: activeTab.value }))
+      rows.value = data.list || []
+      total.value = data.total ?? rows.value.length
     }
   } catch (error: any) {
     loadError.value = error?.message || '加载失败，请稍后重试'
@@ -220,12 +205,12 @@ const loadSubjects = async () => {
     return
   }
   try {
-    const res = await apiFetch<{ list?: { id: number; title: string }[] }>('/api/post/subject/list', {
-      query: { userId: user.value.userId, pageNum: 1, pageSize: 100 }
-    })
+    const data = await fetchSubjects({ userId: user.value.userId, pageNum: 1, pageSize: 100 })
     const map: Record<number, string> = {}
-    for (const item of res.data?.list || []) {
-      map[item.id] = item.title
+    for (const item of data.list || []) {
+      if (item.id !== undefined) {
+        map[item.id] = item.title ?? ''
+      }
     }
     subjectMap.value = map
   } catch {
@@ -269,18 +254,15 @@ const emptyText = computed(() => {
 })
 
 // 编辑：进编辑器载入（guest 详情只开放已发布文章，编辑入口由行卡控制）
-const goEdit = (row: ArticleRowData) => {
+const goEdit = (row: Article) => {
   return navigateTo({ path: '/editor/new', query: { id: String(row.id) } })
 }
 
 // 下架 / 重新发布：后端 PUT 为补丁式更新，只传状态字段（title/subjectId 为 DTO 必填）不影响内容
-const togglePublish = async (row: ArticleRowData) => {
+const togglePublish = async (row: Article) => {
   const target = row.publishStatus === '2' ? '3' : '2'
   try {
-    await apiFetch('/api/post/article', {
-      method: 'PUT',
-      body: { id: row.id, title: row.title, subjectId: row.subjectId, publishStatus: target }
-    })
+    await updateArticle({ id: row.id!, title: row.title ?? '', subjectId: row.subjectId, publishStatus: target })
     loadCounts()
     return loadList()
   } catch (error: any) {
@@ -289,7 +271,7 @@ const togglePublish = async (row: ArticleRowData) => {
 }
 
 // 删除：软删除，确认弹窗后刷新当前页
-const removeRow = async (row: ArticleRowData) => {
+const removeRow = async (row: Article) => {
   const ok = await confirmAction({
     title: '删除文章',
     message: `确定删除文章「${row.title}」吗？删除后不可恢复。`,
@@ -300,7 +282,7 @@ const removeRow = async (row: ArticleRowData) => {
     return
   }
   try {
-    await apiFetch(`/api/post/article/${row.id}`, { method: 'DELETE' })
+    await deleteArticle(row.id!)
     loadCounts()
     return loadList()
   } catch (error: any) {

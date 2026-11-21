@@ -1,4 +1,4 @@
-<!-- 个人空间页：带 ?id= 看他人空间（仅公开昵称/头像+文章统计），否则自己的空间（完整账号信息+编辑资料入口，点赞占位 tab）；文章 tab 标题搜索+时间正/倒序（400ms 防抖），专栏 tab 复用 ColumnCard -->
+<!-- 个人空间页：带 ?id= 看他人空间（公开昵称/头像+文章统计+点赞栏），否则自己的空间（完整账号信息+编辑资料入口）；文章 tab 标题搜索+时间正/倒序（400ms 防抖），专栏 tab 复用 ColumnCard，点赞 tab 展示空间主人点赞过的文章（公开） -->
 <template>
   <div class="space-page">
     <!-- 资料卡：自己的空间展示完整字段，他人空间只展示公开信息 -->
@@ -22,9 +22,9 @@
           </div>
           <!-- 仅自己可见的账号信息；性别并入昵称行，昵称与名称重复不再展示；自己的文章数据未来走专门的个人数据入口 -->
           <dl v-if="isSelf" class="profile-fields">
-            <div class="field-row"><dt>账号</dt><dd>{{ user?.userName }}</dd></div>
+            <div class="field-row"><dt>昵称</dt><dd>{{ user?.userName }}</dd></div>
             <div class="field-row"><dt>注册时间</dt><dd>{{ registerTime }}</dd></div>
-            <div class="field-row"><dt>个性签名</dt><dd>{{ signature }}</dd></div>
+            <div class="field-row field-row--full"><dt>签名</dt><dd>{{ signature }}</dd></div>
           </dl>
         </div>
 
@@ -34,7 +34,7 @@
       </div>
     </div>
 
-    <!-- 内容卡：文章 / 专栏 tab 统一，点赞占位（仅本人空间）；通知入口统一收归头部铃铛 -->
+    <!-- 内容卡：文章 / 专栏 / 点赞 tab 统一（点赞仅本人空间），通知入口统一收归头部铃铛 -->
     <div class="feed-panel content-panel">
       <div class="tab-bar">
         <div class="tab-items">
@@ -106,21 +106,47 @@
         </CommonEmptyState>
       </template>
 
-      <!-- 点赞：仅本人空间占位 -->
-      <CommonEmptyState v-else>该功能暂未开放，敬请期待</CommonEmptyState>
+      <!-- 点赞 tab：本人点赞过的文章（复用文章行卡），数据按登录态拉取本人记录 -->
+      <template v-else-if="activeTab === 'like'">
+        <template v-if="likedArticles.length">
+          <article-card
+            v-for="item in likedArticles"
+            :key="item.id || item.title"
+            :card-info="item"
+            @click="goArticle(item)"
+          />
+        </template>
+        <CommonEmptyState v-else-if="likedLoading" text="加载中…" />
+        <CommonEmptyState v-else-if="keyword">
+          未找到与“{{ keyword }}”相关的文章
+        </CommonEmptyState>
+        <CommonEmptyState v-else>
+          {{ isSelf ? '还没有点赞过文章，去信息流给好内容点个赞吧' : 'TA 还没有点赞过文章' }}
+        </CommonEmptyState>
+      </template>
     </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import dayjs from 'dayjs'
+import type { LikedArticleItem, Subject } from '@nest-acticle/shared'
+
+// 登录守卫走 auth middleware：未登录/恢复失败回首页；带 ?id= 看他人空间时走 guest 旁路公开可看（authGuestQuery）
+definePageMeta({
+  middleware: 'auth',
+  authGuestQuery: 'id'
+})
 
 const config = useRuntimeConfig()
 const route = useRoute()
-const { user, fetchUserInfo } = useUser()
-const { openLogin } = useAuthModal()
+const { user } = useUser()
+const { fetchUserLikedArticles } = useLike()
+const { fetchGuestArticles } = useArticleManage()
+const { fetchGuestSubjects } = useSubject()
 
-const signature = '我们暂时还没有开放签名系统，敬请期待！'
+// 签名：取用户资料，未设置时给占位文案
+const signature = computed(() => user.value?.signature?.trim() || '暂未设置签名')
 
 // ---------- 空间归属：带 ?id= 看他人空间（guest 公开数据），否则是自己的 ----------
 const targetUserId = computed(() => {
@@ -136,31 +162,20 @@ const isSelf = computed(() => !!user.value?.userId && user.value.userId === targ
 const spaceProfile = ref<{ nickName?: string; avatar?: string }>({})
 const spaceStats = ref({ total: 0, reads: 0, likes: 0 })
 
-// ---------- 页面初始化：自己的空间要求登录，他人空间公开可看 ----------
+// ---------- 页面初始化：自己的空间要求登录，他人空间公开可看（两种情形都由 auth middleware 判定先行） ----------
 const initSpace = () => {
-  // 切换空间时清掉搜索词，避免上一位的过滤条件带到下一位
+  // 切换空间时清掉搜索词与点赞列表，避免上一位的过滤条件/数据带到下一位
   keyword.value = ''
+  likedArticles.value = []
   loadMyArticles()
+  if (activeTab.value === 'like') {
+    loadLikedArticles()
+  }
 }
 
 onMounted(() => {
-  if (route.query.id && !isSelf.value) {
-    initSpace()
-    return
-  }
-  if (!getToken()) {
-    openLogin()
-    return navigateTo('/')
-  }
-  if (!user.value) {
-    fetchUserInfo()
-      .then(initSpace)
-      .catch(() => {
-        navigateTo('/')
-      })
-  } else {
-    initSpace()
-  }
+  // middleware 已保证：登录态就绪（自己的空间）或 guest 旁路放行（他人空间）
+  initSpace()
 })
 
 // SPA 内切换不同用户空间时重载
@@ -179,10 +194,18 @@ const avatarUrl = computed(() => {
   return toCoverUrl(config.public.apiBase, raw)
 })
 const avatarFallback = computed(() => profileName.value.slice(0, 1))
-// 性别仅男/女时内联展示在昵称后，保密不显示
+// 性别标签走数据字典（0男 1女 2未知），字典未加载或未设置时不在昵称后展示
+const sexOptions = useDict('sys_user_sex')
 const sexTag = computed(() => {
-  const map: Record<string, string> = { '0': '男', '1': '女' }
-  return map[user.value?.sex ?? ''] || ''
+  // 他人空间只有公开昵称/头像,性别仅本人在自己的空间展示
+  if (!isSelf.value) {
+    return ''
+  }
+  const sex = user.value?.sex ?? ''
+  if (!sex) {
+    return ''
+  }
+  return sexOptions.value.find((item) => item.dictValue === sex)?.dictLabel || ''
 })
 const registerTime = computed(() => {
   const value = user.value?.createTime
@@ -197,14 +220,12 @@ const goSettings = () => {
   return navigateTo('/user/settings')
 }
 
-// ---------- 内容 tab：文章/专栏统一，点赞仅本人占位（通知走头部铃铛入口，保证入口统一） ----------
-const tabs = computed(() => {
-  const base = [
-    { key: 'article', label: '文章' },
-    { key: 'subject', label: '专栏' }
-  ]
-  return isSelf.value ? [...base, { key: 'like', label: '点赞' }] : base
-})
+// ---------- 内容 tab：文章/专栏/点赞（点赞栏公开可见，同掘金「赞」栏） ----------
+const tabs = [
+  { key: 'article', label: '文章' },
+  { key: 'subject', label: '专栏' },
+  { key: 'like', label: '点赞' }
+]
 const activeTab = ref('article')
 const articles = ref<any[]>([])
 const articlesLoading = ref(true)
@@ -221,17 +242,15 @@ const loadMyArticles = async () => {
   }
   articlesLoading.value = true
   try {
-    const res = await apiFetch<{ list?: any[]; total?: number }>('/api/post/article/guest/list', {
-      query: {
-        userId,
-        pageNum: 1,
-        pageSize: 50,
-        orderByColumn: 'createTime',
-        isAsc: timeOrder.value === 'desc' ? 'descending' : 'ascending',
-        ...(keyword.value.trim() ? { title: keyword.value.trim() } : {})
-      }
+    const data = await fetchGuestArticles({
+      userId,
+      pageNum: 1,
+      pageSize: 50,
+      orderByColumn: 'createTime',
+      isAsc: timeOrder.value === 'desc' ? 'descending' : 'ascending',
+      ...(keyword.value.trim() ? { title: keyword.value.trim() } : {})
     })
-    const list = res.data?.list || []
+    const list = data.list || []
     articles.value = list
     // 公开统计（自己/他人同一套）+ 他人资料从文章携带的 userInfo 取
     if (!isSelf.value) {
@@ -241,7 +260,7 @@ const loadMyArticles = async () => {
       }
     }
     spaceStats.value = {
-      total: res.data?.total || 0,
+      total: data.total || 0,
       reads: list.reduce((sum, item) => sum + (item.readNum || 0), 0),
       likes: list.reduce((sum, item) => sum + (item.likeNum || 0), 0)
     }
@@ -256,16 +275,21 @@ const onKeywordInput = () => {
   if (keywordTimer) {
     clearTimeout(keywordTimer)
   }
-  keywordTimer = setTimeout(() => loadMyArticles(), 400)
+  // 搜索与排序控件为文章/点赞两个列表共用，按当前 tab 分发
+  keywordTimer = setTimeout(() => (activeTab.value === 'like' ? loadLikedArticles() : loadMyArticles()), 400)
 }
 
 const toggleTimeOrder = () => {
   timeOrder.value = timeOrder.value === 'desc' ? 'asc' : 'desc'
-  loadMyArticles()
+  if (activeTab.value === 'like') {
+    loadLikedArticles()
+  } else {
+    loadMyArticles()
+  }
 }
 
 // ---------- 专栏 tab：guest subject list 原生支持 userId 过滤，首次进入 tab 才拉取 ----------
-const subjects = ref<any[]>([])
+const subjects = ref<Subject[]>([])
 const subjectsLoading = ref(false)
 const subjectsLoaded = ref(false)
 
@@ -276,10 +300,8 @@ const loadMySubjects = async () => {
   }
   subjectsLoading.value = true
   try {
-    const res = await apiFetch<{ list?: any[]; total?: number }>('/api/post/subject/guest/list', {
-      query: { userId, pageNum: 1, pageSize: 50 }
-    })
-    subjects.value = res.data?.list || []
+    const data = await fetchGuestSubjects({ userId, pageNum: 1, pageSize: 50 })
+    subjects.value = data.list || []
   } catch {
     subjects.value = []
   } finally {
@@ -288,12 +310,42 @@ const loadMySubjects = async () => {
   }
 }
 
+// ---------- 点赞 tab：空间主人点赞过的已发布文章（公开接口，guest/list 按 userId 查询） ----------
+const likedArticles = ref<LikedArticleItem[]>([])
+const likedLoading = ref(false)
+
+const loadLikedArticles = async () => {
+  const userId = targetUserId.value
+  if (!userId) {
+    return
+  }
+  likedLoading.value = true
+  try {
+    const data = await fetchUserLikedArticles(userId, {
+      pageNum: 1,
+      pageSize: 50,
+      isAsc: timeOrder.value === 'desc' ? 'descending' : 'ascending',
+      ...(keyword.value.trim() ? { title: keyword.value.trim() } : {})
+    })
+    likedArticles.value = data.list || []
+  } catch {
+    likedArticles.value = []
+  } finally {
+    likedLoading.value = false
+  }
+}
+
 const switchTab = (key: string) => {
   if (activeTab.value === key) {
     return
   }
   activeTab.value = key
-  if (key === 'subject' && !subjectsLoaded.value) {
+  // 文章/点赞两 tab 共用搜索与排序控件，切入时按当前控件状态重载；专栏首次进入才拉取
+  if (key === 'like') {
+    loadLikedArticles()
+  } else if (key === 'article') {
+    loadMyArticles()
+  } else if (key === 'subject' && !subjectsLoaded.value) {
     loadMySubjects()
   }
 }
@@ -397,6 +449,17 @@ const goColumn = (item: any) => {
           overflow: hidden;
           text-overflow: ellipsis;
           white-space: nowrap;
+        }
+
+        // 个性签名整行展示：跨满两列并允许换行，长签名不被半宽单行截断
+        &.field-row--full {
+          grid-column: 1 / -1;
+
+          dd {
+            white-space: normal;
+            overflow-wrap: anywhere;
+            text-overflow: clip;
+          }
         }
       }
     }

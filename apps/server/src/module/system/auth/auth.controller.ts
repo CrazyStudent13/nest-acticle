@@ -5,6 +5,7 @@ import { RegisterDto, LoginDto, SendEmailCodeDto } from './dto/index';
 import { createMath } from 'src/common/utils/captcha';
 import { isCaptchaRequired } from 'src/common/utils/login-captcha';
 import { ResultData } from 'src/common/utils/result';
+import { BusinessException } from 'src/common/exceptions/business.exception';
 import { GenerateUUID } from 'src/common/utils/index';
 import { RedisService } from 'src/module/common/redis/redis.service';
 import { MailService } from 'src/module/common/mail/mail.service';
@@ -76,7 +77,7 @@ export class AuthController {
   async checkUsername(@Query('username') username: string) {
     const name = (username || '').trim();
     if (name.length < 2 || name.length > 50) {
-      return ResultData.fail(400, '账号长度必须为 2 到 50 个字符');
+      throw new BusinessException(400, '账号长度必须为 2 到 50 个字符');
     }
     return await this.authService.checkUsername(name);
   }
@@ -133,7 +134,7 @@ export class AuthController {
       return res.json(ResultData.ok(data, '操作成功'));
     } catch (err) {
       console.error('生成验证码错误:', err);
-      return res.json(ResultData.fail(500, '生成验证码错误，请重试'));
+      throw new BusinessException(500, '生成验证码错误，请重试');
     }
   }
 

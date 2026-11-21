@@ -69,16 +69,11 @@
 </template>
 
 <script setup lang="ts">
-// 编辑时传入的行数据（预填表单），新建时为 null
-type ColumnRowData = {
-  id: number
-  title?: string
-  desc?: string
-  cover?: string
-}
+import type { Subject } from '@nest-acticle/shared'
 
 const props = defineProps<{
-  column?: ColumnRowData | null
+  // 编辑时传入的行数据（预填表单），新建时为 null
+  column?: Subject | null
 }>()
 
 const emit = defineEmits<{
@@ -87,6 +82,7 @@ const emit = defineEmits<{
 }>()
 
 const config = useRuntimeConfig()
+const { createSubject, updateSubject } = useSubject()
 
 const isEdit = computed(() => !!props.column?.id)
 
@@ -108,13 +104,7 @@ onMounted(() => {
 const coverPreview = computed(() => toCoverUrl(config.public.apiBase, form.cover))
 
 // 封面上传：裁剪 16:9 后传 common/upload（专栏封面归档到 subject/cover 目录）
-const uploadImage = async (file: File, path: string) => {
-  const uploadForm = new FormData()
-  uploadForm.append('file', file)
-  uploadForm.append('path', path)
-  const res = await apiFetch<{ url: string }>('/api/common/upload', { method: 'POST', body: uploadForm })
-  return res.data?.url || ''
-}
+const { uploadImage } = useUpload()
 
 const handleCoverChange = async (event: Event) => {
   const inputEl = event.target as HTMLInputElement
@@ -165,17 +155,21 @@ const confirmSubmit = async () => {
   submitting.value = true
   tip.value = ''
   try {
-    if (isEdit.value && props.column) {
+    if (props.column?.id) {
       // 编辑为补丁式更新，不传 publishStatus（保持原状态）
-      await apiFetch('/api/post/subject', {
-        method: 'PUT',
-        body: { id: props.column.id, title, desc: form.desc.trim() || undefined, cover: form.cover || undefined }
+      await updateSubject({
+        id: props.column.id,
+        title,
+        desc: form.desc.trim() || undefined,
+        cover: form.cover || undefined
       })
     } else {
       // 新建必须显式发布（后端默认 publishStatus='0' 草稿，guest 列表只显示 '2'）
-      await apiFetch('/api/post/subject', {
-        method: 'POST',
-        body: { title, desc: form.desc.trim() || undefined, cover: form.cover || undefined, publishStatus: '2' }
+      await createSubject({
+        title,
+        desc: form.desc.trim() || undefined,
+        cover: form.cover || undefined,
+        publishStatus: '2'
       })
     }
     emit('saved')

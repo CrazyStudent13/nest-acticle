@@ -14,14 +14,25 @@ RUN npm install -g pnpm@10.33.0 --registry=$NPM_REGISTRY
 
 # 先拷依赖清单（利用 Docker 层缓存），再按过滤安装
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY tsconfig.base.json ./
 COPY apps/client/package.json ./apps/client/
+COPY packages/shared/package.json ./packages/shared/
+COPY packages/utils/package.json ./packages/utils/
+COPY packages/markdown/package.json ./packages/markdown/
+COPY packages/editor/package.json ./packages/editor/
 
-RUN pnpm install --frozen-lockfile --filter client --registry=$NPM_REGISTRY
+# 过滤安装需同时选中 workspace 包：--filter 只装被选项目的 devDeps，workspace 依赖包也不例外
+RUN pnpm install --frozen-lockfile --filter client --filter @nest-acticle/shared --filter @nest-acticle/utils --filter @nest-acticle/markdown --filter @nest-acticle/editor --registry=$NPM_REGISTRY
 
-# 拷源码并构建
+# 拷源码并构建（Nuxt 产物 .output）
+# pnpm -r 按拓扑序构建：先 workspace 依赖（shared/utils/markdown/editor），再 client 本体
 COPY apps/client ./apps/client
-WORKDIR /app/apps/web
-RUN pnpm build
+COPY packages/shared ./packages/shared
+COPY packages/utils ./packages/utils
+COPY packages/markdown ./packages/markdown
+COPY packages/editor ./packages/editor
+WORKDIR /app
+RUN pnpm -r build
 
 # 第二阶段：仅带产物运行（Nitro node server）
 FROM node:22-alpine

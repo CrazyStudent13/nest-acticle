@@ -69,10 +69,10 @@ export default defineConfig(({ mode, command }: ConfigEnv): UserConfig => {
     },
     build: {
       assetsDir: 'static',
-      // 构建警告阈值（kib）。当前最大合法 chunk 为 md-editor（约 1.9M，内嵌
-      // katex/mermaid/codemirror，仅文章编辑页懒加载）与 echarts（约 1M），阈值略高于
-      // 最大合法件保证"已知良好状态零警告"——超阈值即意外膨胀，需人工甄别，禁止调高了事
-      chunkSizeWarningLimit: 2000,
+      // 构建警告阈值（kib）。最大合法 chunk 为 mermaid（约 5M，图表依赖闭包，仅文章含 ```mermaid
+      // 时动态加载，独立分包）；其余大件 vendor（约 1.2M）/echarts（约 1M）/katex（约 0.5M）。
+      // 阈值略高于最大合法件保证"已知良好状态零警告"——超阈值即意外膨胀，需人工甄别，禁止调高了事
+      chunkSizeWarningLimit: 5200,
       // build时启用/禁用 CSS 代码拆分
       cssCodeSplit: true,
       // 生产环境构建文件的目录名
@@ -113,10 +113,18 @@ export default defineConfig(({ mode, command }: ConfigEnv): UserConfig => {
                 priority: 3
               },
               {
-                // 富文本编辑器及其独占依赖（codemirror/markdown-it 系），体积大且极少变更，独立分包利于缓存
-                name: 'md-editor',
-                test: /node_modules[\\/](md-editor-v3|medium-zoom|markdown-it[a-z-]*|@codemirror|codemirror|@lezer|@vavt|@lucide|xss)[\\/]/,
-                priority: 2
+                // katex 数学公式（共享渲染链路静态引入，预览/详情页按需加载）；mermaid 的
+                // 私有 0.18 副本与我们的 0.19 同走本组
+                name: 'katex',
+                test: /node_modules[\\/]katex[\\/]/,
+                priority: 4
+              },
+              {
+                // mermaid 图表及其依赖闭包（76 包，仅文章含 ```mermaid 时经动态 import 加载）——
+                // 独立分包避免 3MB+ 落进 vendor 初始包；闭包成员随 mermaid 升级需复核
+                name: 'mermaid',
+                test: /node_modules[\\/](mermaid|@mermaid-js[\\/][^\\/]+|@chevrotain[\\/][^\\/]+|@braintree[\\/][^\\/]+|@upsetjs[\\/][^\\/]+|@iconify[\\/][^\\/]+|@antfu[\\/][^\\/]+|d3(-[a-z0-9]+)?|cytoscape(-[a-z-]+)?|chevrotain|commander|cose-base|dagre-d3-es|delaunator|dompurify|elkjs|es-toolkit|hachure-fill|iconv-lite|import-meta-resolve|internmap|khroma|layout-base|lodash-es|marked|package-manager-detector|path-data-parser|points-on-(curve|path)|robust-predicates|roughjs|rw|safer-buffer|stylis|tinyexec|ts-dedent)[\\/]/,
+                priority: 4
               },
               {
                 name: 'vue-vendor',

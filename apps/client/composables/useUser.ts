@@ -7,12 +7,26 @@ export interface AuthUser {
   avatar: string
   sex?: string
   createTime?: string
+  signature?: string
 }
 
 export interface CaptchaInfo {
   captchaEnabled: boolean
   img: string
   uuid: string
+}
+
+export interface RegisterConfig {
+  emailRegisterEnabled: boolean
+}
+
+export interface RegisterPayload {
+  username: string
+  password: string
+  email?: string
+  emailCode?: string
+  code?: string
+  uuid?: string
 }
 
 export const useUser = () => {
@@ -28,9 +42,25 @@ export const useUser = () => {
     return res
   }
 
-  // 注册：成功后无 data，由调用方引导用户登录；后端 nickName 默认取账号本身
-  const register = async (payload: { username: string; password: string }) => {
+  // 注册：后端开启邮箱验证码时须带 email + emailCode，否则须带图片验证码 code + uuid
+  // 成功后无 data，由调用方引导用户登录；后端 nickName 默认取账号本身
+  const register = async (payload: RegisterPayload) => {
     return await apiFetch('/api/register', { method: 'POST', body: payload })
+  }
+
+  // 注册页配置：决定注册用邮箱验证码还是图片验证码
+  const fetchRegisterConfig = async (): Promise<RegisterConfig> => {
+    try {
+      const res = await apiFetch<RegisterConfig>('/api/register/config')
+      return res.data ?? { emailRegisterEnabled: false }
+    } catch {
+      return { emailRegisterEnabled: false }
+    }
+  }
+
+  // 发送注册邮箱验证码（后端有 60 秒冷却与每小时上限）
+  const sendRegisterEmailCode = async (email: string) => {
+    await apiFetch('/api/register/emailCode', { method: 'POST', body: { email } })
   }
 
   // 当前登录用户信息（token 失效时清空登录态）
@@ -47,7 +77,8 @@ export const useUser = () => {
             email: raw.email,
             avatar: raw.avatar,
             sex: raw.sex,
-            createTime: raw.createTime
+            createTime: raw.createTime,
+            signature: raw.signature
           }
         : null
     } catch (error) {
@@ -57,10 +88,32 @@ export const useUser = () => {
     }
   }
 
-  // 验证码：账号连续登录失败达到阈值（3 次）时后端才返回 captchaEnabled: true + 图片
-  const fetchCaptcha = async (username: string): Promise<CaptchaInfo> => {
+  // 有 token 无用户时静默恢复登录态：头部/文章详情页的组件级恢复与 auth middleware 守卫共用
+  // 失败静默不外抛（fetchUserInfo 内部已清空本地态），调用方按各自场景兜底
+  const ensureUserRestored = async () => {
+    if (getToken() && !user.value) {
+      try {
+        await fetchUserInfo()
+      } catch {
+        // 与原头部/详情页的 .catch(() => {}) 行为一致：恢复失败不阻塞渲染
+      }
+    }
+  }
+
+  // 仅清本地登录态（不请求后端）：供 apiFetch 的 401 统一出口使用
+  // （logout 会请求 /api/logout，token 已失效时反而再吃一个 401）
+  const clearLocalAuth = () => {
+    clearToken()
+    user.value = null
+  }
+
+  // 验证码：登录场景按账号失败次数动态判断（3 次后返回 captchaEnabled: true）；
+  // 注册场景传 type='register' 无条件生成图片验证码
+  const fetchCaptcha = async (username: string, type?: 'register'): Promise<CaptchaInfo> => {
     try {
-      const res = await apiFetch<CaptchaInfo>('/api/captchaImage', { query: { username } })
+      const res = await apiFetch<CaptchaInfo>('/api/captchaImage', {
+        query: type ? { username, type } : { username }
+      })
       return res.data ?? { captchaEnabled: false, img: '', uuid: '' }
     } catch {
       // 验证码接口异常时按无验证码处理，由登录接口的报错兜底
@@ -79,8 +132,8 @@ export const useUser = () => {
     user.value = null
   }
 
-  // 修改个人资料：昵称/邮箱/性别，成功后同步本地 state（头部昵称即时更新）
-  const updateProfile = async (payload: { nickName?: string; email?: string; sex?: string }) => {
+  // 修改个人资料：昵称/邮箱/性别/个性签名，成功后同步本地 state（头部昵称即时更新）
+  const updateProfile = async (payload: { nickName?: string; email?: string; sex?: string; signature?: string }) => {
     await apiFetch('/api/system/user/profile', { method: 'PUT', body: payload })
     if (user.value) {
       user.value = { ...user.value, ...payload }
@@ -102,7 +155,7 @@ export const useUser = () => {
     return imgUrl
   }
 
-  // 修改密码：旧密码 + 新密码（注意：后端旧密码校验存在参数顺序 bug，实际恒通过）
+  // 修改密码：旧密码 + 新密码（旧密码由后端 bcrypt 比对校验，参数顺序已修正）
   const updatePassword = async (payload: { oldPassword: string; newPassword: string }) => {
     await apiFetch('/api/system/user/profile/updatePwd', { method: 'PUT', body: payload })
   }
@@ -112,7 +165,11 @@ export const useUser = () => {
     isLoggedIn,
     login,
     register,
+    fetchRegisterConfig,
+    sendRegisterEmailCode,
     fetchUserInfo,
+    ensureUserRestored,
+    clearLocalAuth,
     fetchCaptcha,
     logout,
     updateProfile,

@@ -76,19 +76,11 @@ const icons = {
 
 const route = useRoute()
 const config = useRuntimeConfig()
-const { user, isLoggedIn, fetchUserInfo } = useUser()
+const { user, isLoggedIn } = useUser()
 const { openLogin } = useAuthModal()
 
-// 登录守卫：无 token 原地弹登录框（不跳页）；有 token 但 state 为空时静默恢复登录态
-onMounted(() => {
-  if (!getToken()) {
-    openLogin()
-    return
-  }
-  if (!user.value) {
-    fetchUserInfo().catch(() => {})
-  }
-})
+// 登录守卫已由 auth middleware 先行（各 creator 页 definePageMeta 声明）：无 token 原地弹登录框不跳页，
+// 有 token 无用户时静默恢复——恢复失败也留在本页，由下方登录门 UI 兜底
 
 const goWrite = () => {
   return navigateTo('/editor/new')

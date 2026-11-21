@@ -5,22 +5,8 @@
       <div class="feed-header">
         <!-- 掘金式 feed tabs：推荐待文章量大后再加，关注待关注体系上线 -->
         <div class="feed-tabs">
-          <button
-            class="feed-tab"
-            :class="{ active: feedTab === 'new' }"
-            type="button"
-            @click="feedTab = 'new'"
-          >
-            最新
-          </button>
-          <button
-            class="feed-tab"
-            :class="{ active: feedTab === 'follow' }"
-            type="button"
-            @click="feedTab = 'follow'"
-          >
-            关注
-          </button>
+          <button class="feed-tab" :class="{ active: feedTab === 'new' }" type="button" @click="feedTab = 'new'">最新</button>
+          <button class="feed-tab" :class="{ active: feedTab === 'follow' }" type="button" @click="feedTab = 'follow'">关注</button>
         </div>
         <NuxtLink v-if="searchTitle" to="/" class="feed-more">清除搜索</NuxtLink>
         <span v-else-if="feedTab === 'new' && articleTotal" class="feed-more">共 {{ articleTotal }} 篇</span>
@@ -29,12 +15,7 @@
       <!-- 最新：信息流 + 无限滚动 -->
       <template v-if="feedTab === 'new'">
         <template v-if="articles.length">
-          <article-card
-            v-for="item in articles"
-            :key="item.id || item.title"
-            :card-info="item"
-            @click="handleRowClick(item)"
-          />
+          <article-card v-for="item in articles" :key="item.id || item.title" :card-info="item" @click="handleRowClick(item)" />
         </template>
         <CommonEmptyState v-else>
           {{ searchTitle ? `未找到与“${searchTitle}”相关的文章` : '暂无文章，敬请期待' }}
@@ -64,25 +45,14 @@
 </template>
 
 <script setup lang="ts">
-type ArticleListItem = {
-  id?: number | string
-  title?: string
-  author?: string
-  cover?: string
-  publishTime?: string
-  read?: number
-  readNum?: number
-  remark?: string
-  desc?: string
-}
+import type { Article } from '@nest-acticle/shared'
 
 const route = useRoute()
 const config = useRuntimeConfig()
 const searchTitle = computed(() => ((route.query.title as string) || '').trim())
 
 useSeoMeta({
-  title: () =>
-    searchTitle.value ? `“${searchTitle.value}” 的搜索结果 - 游戏速递` : '游戏速递 - 专注分享游戏资讯与玩家攻略',
+  title: () => (searchTitle.value ? `“${searchTitle.value}” 的搜索结果 - 游戏速递` : '游戏速递 - 专注分享游戏资讯与玩家攻略'),
   ogTitle: '游戏速递',
   description: '专注分享游戏资讯，玩家攻略，游戏存档的快乐小站，希望为玩家们提供更好的游戏体验。',
   ogDescription: '专注分享游戏资讯，玩家攻略，游戏存档的快乐小站'
@@ -100,18 +70,12 @@ const queryParams = computed(() => ({
   ...(searchTitle.value ? { title: searchTitle.value } : {})
 }))
 
-const { data } = await useFetch<{ data?: { list?: ArticleListItem[]; total?: number } }>(
-  `${config.public.apiBase}/api/post/article/guest/list`,
-  {
-    query: queryParams,
-    default: () => ({ data: { list: [], total: 0 } })
-  }
-)
+const { data } = await useFetch<{ data?: { list?: Article[]; total?: number } }>(`${config.public.apiBase}/api/post/article/guest/list`, {
+  query: queryParams,
+  default: () => ({ data: { list: [], total: 0 } })
+})
 
-const { articles, total: articleTotal, loading, loadError, finished, loadedMore, loadMore } = useArticleFeed(
-  data,
-  queryParams
-)
+const { articles, total: articleTotal, loading, loadError, finished, loadedMore, loadMore } = useArticleFeed(data, queryParams)
 
 // ---------- 无限滚动：哨兵进入视口自动加载下一页，追加后若仍在视口内继续加载 ----------
 const sentinelRef = ref<HTMLElement | null>(null)
@@ -147,7 +111,7 @@ onBeforeUnmount(() => {
   observer = null
 })
 
-const handleRowClick = (item: ArticleListItem) => {
+const handleRowClick = (item: Article) => {
   return navigateTo({
     path: '/article/detail',
     query: {

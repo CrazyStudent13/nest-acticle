@@ -1,4 +1,4 @@
-import { Module, Global } from '@nestjs/common';
+import { Module } from '@nestjs/common';
 import { RedisModule } from './redis/redis.module';
 import { AxiosModule } from './axios/axios.module';
 import { ConfigModule, ConfigService } from '@nestjs/config';
@@ -6,7 +6,6 @@ import { RedisClientOptions } from '@songkeys/nestjs-redis';
 import { DatabaseHealthService } from './database/database-health.service';
 import { MailService } from './mail/mail.service';
 
-@Global()
 @Module({
   imports: [
     RedisModule.forRootAsync(

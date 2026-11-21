@@ -1,6 +1,6 @@
 {
   "name": "nest-acticle",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "private": true,
   "description": "博客平台 monorepo：NestJS 后端 + Vue3 管理端 + Nuxt4 博客前台",
   "packageManager": "pnpm@10.33.0",
@@ -11,13 +11,17 @@
     "node": "22.22.2"
   },
   "scripts": {
-    "dev": "concurrently -n server,admin,web,docs -c blue,green,magenta,yellow \"pnpm --filter server dev\" \"pnpm --filter admin dev\" \"pnpm --filter client dev\" \"pnpm --filter docs dev\"",
+    "dev": "pnpm --filter @nest-acticle/shared build && concurrently -n shared,server,admin,client,docs -c blue,green,magenta,yellow,dim \"pnpm --filter @nest-acticle/shared dev\" \"pnpm --filter server dev\" \"pnpm --filter admin dev\" \"pnpm --filter client dev\" \"pnpm --filter docs dev\"",
     "dev:server": "pnpm --filter server dev",
     "dev:admin": "pnpm --filter admin dev",
     "dev:client": "pnpm --filter client dev",
     "dev:docs": "pnpm --filter docs dev",
+    "dev:shared": "pnpm --filter @nest-acticle/shared dev",
+    "gen:api": "pnpm --filter @nest-acticle/shared gen:api",
     "build": "pnpm -r build",
     "typecheck": "pnpm --filter client typecheck",
+    "lint": "pnpm --filter server lint && pnpm --filter admin lint",
+    "test": "pnpm --filter server test",
     "docker:up": "docker compose up -d --build",
     "docker:down": "docker compose down",
     "docker:logs": "docker compose logs -f"

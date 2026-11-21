@@ -41,27 +41,25 @@
 </template>
 
 <script setup lang="ts">
+import type { Subject } from '@nest-acticle/shared'
+
 definePageMeta({
-  layout: 'creator'
+  layout: 'creator',
+  middleware: 'auth',
+  authNoToken: 'stay',
+  authRestoreFail: 'stay'
 })
 
-// 管理端专栏列表返回字段（articleCount 为该专栏下文章数）
-type ColumnRowData = {
-  id: number
-  title?: string
-  desc?: string
-  cover?: string
-  createTime?: string
-  articleCount?: number
-}
+// 行数据契约见 @nest-acticle/shared 的 Subject（articleCount 为该专栏下文章数）
 
 const { user, isLoggedIn } = useUser()
+const { fetchSubjects, deleteSubject } = useSubject()
 
 const PAGE_SIZE = 20
 
 const keyword = ref('')
 const searchKeyword = ref('')
-const rows = ref<ColumnRowData[]>([])
+const rows = ref<Subject[]>([])
 const total = ref(0)
 const pageNum = ref(1)
 const loading = ref(false)
@@ -78,19 +76,17 @@ const loadList = async (reset = true) => {
     loadError.value = ''
   }
   try {
-    const res = await apiFetch<{ list?: ColumnRowData[]; total?: number }>('/api/post/subject/list', {
-      query: {
-        userId: user.value.userId,
-        pageNum: pageNum.value,
-        pageSize: PAGE_SIZE,
-        orderByColumn: 'createTime',
-        isAsc: 'descending',
-        ...(searchKeyword.value ? { title: searchKeyword.value } : {})
-      }
+    const data = await fetchSubjects({
+      userId: user.value.userId,
+      pageNum: pageNum.value,
+      pageSize: PAGE_SIZE,
+      orderByColumn: 'createTime',
+      isAsc: 'descending',
+      ...(searchKeyword.value ? { title: searchKeyword.value } : {})
     })
-    const list = res.data?.list || []
+    const list = data.list || []
     rows.value = reset ? list : rows.value.concat(list)
-    total.value = res.data?.total ?? rows.value.length
+    total.value = data.total ?? rows.value.length
   } catch (error: any) {
     loadError.value = error?.message || '加载失败，请稍后重试'
     if (!reset) {
@@ -145,14 +141,14 @@ const emptyText = computed(() => {
 
 // ---------- 新建 / 编辑弹窗 ----------
 const editOpen = ref(false)
-const editingColumn = ref<ColumnRowData | null>(null)
+const editingColumn = ref<Subject | null>(null)
 
 const openCreate = () => {
   editingColumn.value = null
   editOpen.value = true
 }
 
-const openEdit = (row: ColumnRowData) => {
+const openEdit = (row: Subject) => {
   editingColumn.value = row
   editOpen.value = true
 }
@@ -164,12 +160,12 @@ const onSaved = () => {
 }
 
 // 查看公开专栏详情
-const goView = (row: ColumnRowData) => {
+const goView = (row: Subject) => {
   return navigateTo({ path: '/column/detail', query: { id: String(row.id) } })
 }
 
 // 删除：软删除，确认弹窗后从列表移除（前端只对自己的专栏展示该按钮）
-const removeRow = async (row: ColumnRowData) => {
+const removeRow = async (row: Subject) => {
   const ok = await confirmAction({
     title: '删除专栏',
     message: `确定删除专栏「${row.title}」吗？删除后不可恢复。`,
@@ -180,7 +176,7 @@ const removeRow = async (row: ColumnRowData) => {
     return
   }
   try {
-    await apiFetch(`/api/post/subject/${row.id}`, { method: 'DELETE' })
+    await deleteSubject(row.id!)
     rows.value = rows.value.filter((item) => item.id !== row.id)
     total.value = Math.max(0, total.value - 1)
   } catch (error: any) {

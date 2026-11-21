@@ -1,0 +1,50 @@
+# 质量门禁：dev/master 推送与面向 master 的 PR 跑 lint/typecheck/test/build
+# 只挂本地实测会绿的检查；release 分支镜像构建仍由 docker.yml 负责，两者互不影响
+name: quality-gate
+
+on:
+  push:
+    branches: [dev, master]
+  pull_request:
+    branches: [master]
+
+concurrency:
+  group: quality-gate-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # 版本读 root package.json 的 packageManager 字段（pnpm@10.33.0）；须在 setup-node 之前装好，cache: pnpm 才能生效
+      - uses: pnpm/action-setup@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+
+      - name: 安装依赖（frozen lockfile）
+        run: pnpm install --frozen-lockfile
+
+      # shared/utils/markdown/editor 的 types 指向 dist 构建产物，client typecheck 与 server/admin build 的模块解析都依赖它，必须先构建
+      - name: 构建 workspace 共享包
+        run: pnpm --filter @nest-acticle/shared --filter @nest-acticle/utils --filter @nest-acticle/markdown --filter @nest-acticle/editor build
+
+      - name: lint（server + admin eslint）
+        run: pnpm lint
+
+      - name: client typecheck（nuxt typecheck / vue-tsc）
+        run: pnpm typecheck
+
+      - name: server test（jest，2 suites / 8 tests）
+        run: pnpm test
+
+      # nest-cli.json 未启用 swc builder，nest build 即 tsc 编译检查，兼作 server 的类型关
+      - name: server build
+        run: pnpm --filter server build
+
+      - name: admin build:prod（vite build，看住 admin 依赖链可构建）
+        run: pnpm --filter admin build:prod

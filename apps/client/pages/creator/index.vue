@@ -17,7 +17,10 @@
 import dayjs from 'dayjs'
 
 definePageMeta({
-  layout: 'creator'
+  layout: 'creator',
+  middleware: 'auth',
+  authNoToken: 'stay',
+  authRestoreFail: 'stay'
 })
 
 const { user } = useUser()

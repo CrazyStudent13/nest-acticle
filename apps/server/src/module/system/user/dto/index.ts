@@ -1,6 +1,7 @@
-import { IsString, IsJSON, IsEnum, IsPhoneNumber, IsArray, Min, Length, IsOptional, IsBoolean, IsNumber, IsNumberString, IsEmail } from 'class-validator';
+import { IsString, IsJSON, IsEnum, IsPhoneNumber, IsArray, Min, Length, IsOptional, IsBoolean, IsNumber, IsNumberString, IsEmail, MinLength, MaxLength, IsIn } from 'class-validator';
 import { ApiProperty, PartialType } from '@nestjs/swagger';
 import { PagingDto } from 'src/common/dto/index';
+import { IsPasswordComplexEnough } from 'src/common/utils/password';
 
 export enum StatusEnum {
   STATIC = '0',
@@ -109,6 +110,12 @@ export class ListUserDto extends PagingDto {
   @IsString()
   phonenumber?: string;
 
+  @ApiProperty({ required: false, description: '个性签名（模糊搜索）' })
+  @IsOptional()
+  @IsString()
+  @Length(0, 50)
+  signature?: string;
+
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
@@ -170,24 +177,35 @@ export class UpdateProfileDto {
   @ApiProperty({ required: true })
   @IsOptional()
   @IsString()
-  @IsEnum(StatusEnum)
+  // 取值对齐数据字典 sys_user_sex（0男 1女 2未知），未知=2 此前被 StatusEnum(0/1) 拦掉
+  @IsIn(['0', '1', '2'], { message: '性别取值不正确' })
   sex: string;
 
   @ApiProperty({ required: false })
   @IsOptional()
   @IsString()
   avatar?: string;
+
+  @ApiProperty({ required: false })
+  @IsOptional()
+  @IsString()
+  @Length(0, 50)
+  signature?: string;
 }
 
 export class UpdatePwdDto {
+  // 旧密码不做复杂度校验（老账号的弱密码要能通过校验去换新密码），长度交给服务端比对
   @ApiProperty({ required: true })
   @IsString()
   @Length(0, 200)
   oldPassword: string;
 
+  // 新密码与注册口径一致：6-20 位 + 至少两类字符
   @ApiProperty({ required: true })
   @IsString()
-  @Length(0, 200)
+  @MinLength(6, { message: '新密码长度必须为 6 到 20 个字符' })
+  @MaxLength(20, { message: '新密码长度不能超过 20 个字符' })
+  @IsPasswordComplexEnough()
   newPassword: string;
 }
 

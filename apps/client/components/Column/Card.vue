@@ -31,22 +31,12 @@
 </template>
 
 <script setup lang="ts">
-import dayjs from 'dayjs'
-
-type ColumnInfo = {
-  title?: string
-  name?: string
-  desc?: string
-  content?: string
-  cover?: string
-  createTime?: string
-  articleNum?: number | string
-  articleCount?: number | string
-}
+import { formatDateTime } from '@nest-acticle/utils'
+import type { Subject } from '@nest-acticle/shared'
 
 const props = withDefaults(
   defineProps<{
-    columnInfo?: ColumnInfo
+    columnInfo?: Subject
   }>(),
   {
     columnInfo: () => ({})
@@ -55,21 +45,13 @@ const props = withDefaults(
 
 const config = useRuntimeConfig()
 
-const title = computed(() => props.columnInfo?.title || props.columnInfo?.name || '未命名专栏')
-const desc = computed(() => props.columnInfo?.desc || props.columnInfo?.content || '')
-const articleNum = computed(() => props.columnInfo?.articleCount || props.columnInfo?.articleNum || '')
+const title = computed(() => props.columnInfo?.title || '未命名专栏')
+const desc = computed(() => props.columnInfo?.desc || '')
+const articleNum = computed(() => props.columnInfo?.articleCount || '')
 
 const coverUrl = computed(() => toCoverUrl(config.public.apiBase, props.columnInfo?.cover))
 
-const createTime = computed(() => {
-  const value = props.columnInfo?.createTime
-  if (!value) {
-    return ''
-  }
-
-  const formatted = dayjs(value).format('YYYY-MM-DD HH:mm')
-  return formatted === 'Invalid Date' ? '' : formatted
-})
+const createTime = computed(() => formatDateTime(props.columnInfo?.createTime, 'YYYY-MM-DD HH:mm'))
 
 // 订阅占位反馈：按钮文字短暂切换，2 秒还原
 const subTip = ref('')

@@ -24,6 +24,11 @@ export default defineNuxtConfig({
     }
   },
   css: ['/assets/style/tokens.less', '/assets/style/base.less'],
+  // workspace 共享包进入运行时 bundle（utils 的 formatDateTime/joinFileUrl 被组件实际调用；
+  // shared 目前仅类型引用，提前登记以便将来引入运行时常量时不踩 nitro standalone 缺依赖的坑）
+  build: {
+    transpile: ['@nest-acticle/utils', '@nest-acticle/shared']
+  },
   routeRules: {
     // 首页即文章列表，旧列表地址重定向过去
     '/article/list': { redirect: { to: '/', statusCode: 301 } },
@@ -40,10 +45,13 @@ export default defineNuxtConfig({
     '/creator/column': { ssr: false }
   },
   runtimeConfig: {
+    // /api、/profile 代理路由（server/routes/api、profile）的转发目标：
+    // SSR 内部与 dev 浏览器的相对请求由此转发到真实后端；docker 由 compose 注入 http://server:8080
+    apiProxyTarget: process.env.NUXT_API_PROXY_TARGET || 'http://localhost:8080',
     public: {
-      // 后端服务器地址：接口路径与封面等静态资源的共同前缀
-      // 通过环境变量 NUXT_PUBLIC_API_BASE 注入（见 .env.example），代码中不保存真实地址；
-      // 本地开发默认值在 .env（http://localhost:8080），生产由部署环境注入
+      // 后端入口前缀：默认空串走同源相对路径——浏览器经 nginx（docker）/ Nitro 代理（dev）访问
+      // /api 与 /profile，不再依赖局域网 IP；特殊部署（无 nginx 反代）仍可用
+      // NUXT_PUBLIC_API_BASE 注入绝对地址（见 .env.example）
       apiBase: process.env.NUXT_PUBLIC_API_BASE || ''
     }
   }

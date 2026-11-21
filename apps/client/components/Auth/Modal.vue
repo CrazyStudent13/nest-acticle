@@ -42,13 +42,13 @@
                   :class="[fieldClass('password'), { 'has-forgot': mode === 'login' }]"
                   type="password"
                   maxlength="20"
-                  placeholder="请输入登录密码"
+                  :placeholder="mode === 'register' ? '请设置登录密码' : '请输入登录密码'"
                   @input="stripSpaces('password')"
                   @compositionend="stripSpaces('password')"
                   @keydown="blockSpaceKey"
                   @blur="onBlur('password')"
                 />
-                <button v-if="mode === 'login'" class="forgot" type="button" @click="showTip('请联系管理员重置密码')">
+                <button v-if="mode === 'login'" class="forgot" type="button" @click="showToast('请联系管理员重置密码', 'info')">
                   忘记密码
                 </button>
               </div>
@@ -60,6 +60,8 @@
                 <span class="strength-label" :class="`strength-${strength}`">{{ strengthLabel }}</span>
               </div>
 
+              <!-- 注册模式常驻提示：出错时让位给红色错误提示 -->
+              <p v-if="mode === 'register' && !fieldError('password')" class="field-hint">{{ PASSWORD_HINT }}</p>
               <p v-if="fieldError('password')" class="field-tip">{{ errors.password }}</p>
             </div>
 
@@ -78,7 +80,7 @@
                 <img
                   v-if="captcha.img"
                   class="captcha-img"
-                  :src="captcha.img"
+                  :src="captchaSrc(captcha.img)"
                   alt="验证码"
                   title="看不清？点击刷新"
                   @click="refreshCaptcha"
@@ -103,7 +105,66 @@
               <p v-if="fieldError('confirm')" class="field-tip">{{ errors.confirm }}</p>
             </div>
 
-            <p v-if="tip" class="tip" :class="{ 'tip-error': tipIsError }">{{ tip }}</p>
+            <!-- 注册图片验证码：后端未开启邮箱验证码注册时使用 -->
+            <div v-if="mode === 'register' && registerConfig.ready && !registerConfig.emailRegisterEnabled" class="field-group">
+              <div class="captcha-row">
+                <input
+                  v-model="registerCaptcha.code"
+                  class="field"
+                  :class="{ 'field-error': registerCaptcha.codeTouched && !registerCaptcha.code.trim() }"
+                  type="text"
+                  maxlength="5"
+                  placeholder="请输入验证码"
+                  @blur="registerCaptcha.codeTouched = true"
+                />
+                <img
+                  v-if="registerCaptcha.img"
+                  class="captcha-img"
+                  :src="captchaSrc(registerCaptcha.img)"
+                  alt="验证码"
+                  title="看不清？点击刷新"
+                  @click="refreshRegisterCaptcha"
+                />
+                <!-- 加载失败/加载中占位：与验证码图同尺寸，可点击重试，避免无图可点导致提交被拦死 -->
+                <div
+                  v-else
+                  class="captcha-img captcha-retry"
+                  :title="registerCaptcha.loading ? '验证码加载中' : '验证码加载失败，点击重试'"
+                  @click="refreshRegisterCaptcha"
+                >
+                  {{ registerCaptcha.loading ? '加载中…' : '加载失败，点击重试' }}
+                </div>
+              </div>
+              <p v-if="registerCaptcha.codeTouched && !registerCaptcha.code.trim()" class="field-tip">请输入验证码</p>
+            </div>
+
+            <!-- 邮箱验证码：放最后填（临近注册按钮），5 分钟时效短，先填容易过期 -->
+            <div v-if="mode === 'register' && registerConfig.emailRegisterEnabled" class="field-group">
+              <div class="field-wrap">
+                <input
+                  v-model="form.emailCode"
+                  class="field"
+                  :class="[fieldClass('emailCode'), 'has-code']"
+                  type="text"
+                  maxlength="6"
+                  placeholder="请输入邮箱验证码"
+                  @input="stripNonDigits('emailCode')"
+                  @compositionend="stripNonDigits('emailCode')"
+                  @keydown="blockSpaceKey"
+                  @blur="onBlur('emailCode')"
+                />
+                <!-- 获取验证码内嵌在验证码输入框内：发送前校验邮箱，60 秒冷却 -->
+                <button
+                  class="send-code"
+                  type="button"
+                  :disabled="sendingCode || cooldown > 0"
+                  @click="handleSendEmailCode"
+                >
+                  {{ cooldown > 0 ? `${cooldown}s 后重发` : sendingCode ? '发送中…' : '获取验证码' }}
+                </button>
+              </div>
+              <p v-if="fieldError('emailCode')" class="field-tip">{{ errors.emailCode }}</p>
+            </div>
 
             <button class="submit-btn" type="submit" :disabled="submitting">
               {{ mode === 'login' ? '登录' : '注册' }}
@@ -129,26 +190,31 @@
 <script setup lang="ts">
 // 登录/注册弹窗：登录与注册共用一个弹窗，通过 mode 切换
 const { isOpen, mode, close } = useAuthModal()
-const { login, register, fetchCaptcha } = useUser()
+const { login, register, fetchCaptcha, fetchRegisterConfig, sendRegisterEmailCode } = useUser()
 
 const title = computed(() => (mode.value === 'login' ? '登录游戏速递' : '注册游戏速递'))
 
-type FormField = 'email' | 'password' | 'confirm'
+type FormField = 'email' | 'password' | 'confirm' | 'emailCode'
 
 const form = reactive({
   email: '',
   password: '',
-  confirm: ''
+  confirm: '',
+  emailCode: ''
 })
 
 const touched = reactive<Record<FormField, boolean>>({
   email: false,
   password: false,
-  confirm: false
+  confirm: false,
+  emailCode: false
 })
 
 // 邮箱格式：local 部分仅限常见字符（字母数字与 ._%+-），域名须为「标签.」+ 至少 2 位字母顶级域名
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)+[A-Za-z]{2,}$/
+
+// 后端「账号已存在」类错误特征：用户名占用、邮箱占用、并发撞唯一索引，统一转成登录引导
+const ACCOUNT_EXISTS_HINTS = ['注册账号已存在', '该邮箱已被其他账号使用', '该账号已注册']
 
 const errors = computed<Record<FormField, string>>(() => ({
   email: !form.email.trim()
@@ -160,7 +226,10 @@ const errors = computed<Record<FormField, string>>(() => ({
     ? '请输入密码'
     : form.password.length < 6
       ? '密码长度不能少于 6 位'
-      : '',
+      // 复杂度仅注册时校验：登录不拦，老账号的弱密码要能正常登录
+      : mode.value === 'register' && !isPasswordComplexEnough(form.password)
+        ? '需包含数字、字母、特殊字符中的至少两类'
+        : '',
   confirm:
     mode.value !== 'register'
       ? ''
@@ -168,6 +237,14 @@ const errors = computed<Record<FormField, string>>(() => ({
         ? '请再次输入密码'
         : form.confirm !== form.password
           ? '两次输入的密码不一致'
+          : '',
+  emailCode:
+    mode.value !== 'register' || !registerConfig.ready || !registerConfig.emailRegisterEnabled
+      ? ''
+      : !form.emailCode.trim()
+        ? '请输入邮箱验证码'
+        : !/^\d{6}$/.test(form.emailCode.trim())
+          ? '验证码为 6 位数字'
           : ''
 }))
 
@@ -188,6 +265,13 @@ const stripInvalidEmailChars = () => {
 const stripSpaces = (field: FormField) => {
   if (/\s/.test(form[field])) {
     form[field] = form[field].replace(/\s/g, '')
+  }
+}
+
+// 输入过滤：验证码只保留数字
+const stripNonDigits = (field: FormField) => {
+  if (/\D/.test(form[field])) {
+    form[field] = form[field].replace(/\D/g, '')
   }
 }
 
@@ -218,40 +302,13 @@ const fieldClass = (field: FormField) => ({
   'field-valid': fieldValid(field)
 })
 
-// 密码强度：长度 + 字符种类，1 弱 / 2 中 / 3 强
-const strength = computed(() => {
-  const pwd = form.password
-  if (!pwd) {
-    return 0
-  }
-
-  let score = 0
-  if (pwd.length >= 6) {
-    score++
-  }
-  if (pwd.length >= 10) {
-    score++
-  }
-  if (/[a-zA-Z]/.test(pwd) && /\d/.test(pwd)) {
-    score++
-  }
-  if (/[^a-zA-Z0-9]/.test(pwd)) {
-    score++
-  }
-  return Math.min(score, 3)
-})
+// 密码强度：字符种类数定级（<6 位视为太短）—— 1 弱（单一类）/ 2 中（两类）/ 3 强（三类必含特殊字符）
+const strength = computed(() => passwordStrength(form.password))
 
 const strengthLabel = computed(() => ['太短了', '弱', '中', '强'][strength.value] ?? '')
 const strengthBarClass = (n: number) => ({ on: strength.value >= n, [`lv-${strength.value}`]: strength.value >= n })
 
-const tip = ref('')
-const tipIsError = ref(false)
 const submitting = ref(false)
-
-const showTip = (message: string, isError = false) => {
-  tip.value = message
-  tipIsError.value = isError
-}
 
 // 验证码状态：后端仅在账号连续登录失败达到阈值（3 次）时要求
 const captcha = reactive({
@@ -276,23 +333,117 @@ const refreshCaptcha = async () => {
   resetCaptcha()
 }
 
+// 验证码图片：后端返回裸 SVG 文本，转成 data URI 才能给 <img src> 使用
+const captchaSrc = (svg: string) => {
+  if (!svg) return ''
+  if (svg.startsWith('data:')) return svg
+  return svg.startsWith('<svg') ? `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}` : svg
+}
+
+// 注册配置：后端开启邮箱验证码注册时展示邮箱验证码，否则展示图片验证码
+// ready 用于避免配置返回前误展示图片验证码
+const registerConfig = reactive({ ready: false, emailRegisterEnabled: false })
+
+const registerCaptcha = reactive({
+  img: '',
+  uuid: '',
+  code: '',
+  codeTouched: false,
+  loading: false
+})
+
+const refreshRegisterCaptcha = async () => {
+  registerCaptcha.loading = true
+  try {
+    const info = await fetchCaptcha(form.email.trim(), 'register')
+    registerCaptcha.img = info.img || ''
+    registerCaptcha.uuid = info.uuid || ''
+    registerCaptcha.code = ''
+    registerCaptcha.codeTouched = false
+  } finally {
+    registerCaptcha.loading = false
+  }
+}
+
+const refreshRegisterConfig = async () => {
+  const config = await fetchRegisterConfig()
+  registerConfig.emailRegisterEnabled = !!config.emailRegisterEnabled
+  registerConfig.ready = true
+  if (!registerConfig.emailRegisterEnabled) {
+    await refreshRegisterCaptcha()
+  }
+}
+
+// 邮箱验证码发送冷却：与后端 60 秒限制保持一致
+const sendingCode = ref(false)
+const cooldown = ref(0)
+let cooldownTimer: ReturnType<typeof setInterval> | null = null
+
+const stopCooldown = () => {
+  if (cooldownTimer) {
+    clearInterval(cooldownTimer)
+    cooldownTimer = null
+  }
+  cooldown.value = 0
+}
+
+const startCooldown = (seconds: number) => {
+  stopCooldown()
+  cooldown.value = seconds
+  cooldownTimer = setInterval(() => {
+    cooldown.value -= 1
+    if (cooldown.value <= 0) {
+      stopCooldown()
+    }
+  }, 1000)
+}
+
+const handleSendEmailCode = async () => {
+  touched.email = true
+  if (errors.value.email) {
+    // 邮箱非法时明确告知，不再静默返回
+    showToast(errors.value.email, 'error')
+    return
+  }
+  sendingCode.value = true
+  try {
+    await sendRegisterEmailCode(form.email.trim())
+    showToast('验证码已发送，请查收邮件', 'success')
+    startCooldown(60)
+  } catch (error: any) {
+    showToast(error?.message || '验证码发送失败，请稍后重试', 'error')
+  } finally {
+    sendingCode.value = false
+  }
+}
+
 const resetForm = () => {
   form.email = ''
   form.password = ''
   form.confirm = ''
+  form.emailCode = ''
   touched.email = false
   touched.password = false
   touched.confirm = false
+  touched.emailCode = false
   resetCaptcha()
-  showTip('')
+  stopCooldown()
+  registerCaptcha.img = ''
+  registerCaptcha.uuid = ''
+  registerCaptcha.code = ''
+  registerCaptcha.codeTouched = false
+  registerCaptcha.loading = false
 }
 
 const switchMode = () => {
   mode.value = mode.value === 'login' ? 'register' : 'login'
   resetForm()
-  // 切回登录模式时重取验证码状态
   if (mode.value === 'login') {
+    // 切回登录模式时重取验证码状态
     refreshCaptcha()
+  } else {
+    // 切到注册模式时按后端配置决定验证方式
+    refreshRegisterConfig()
   }
 }
 
@@ -304,27 +455,55 @@ const handleMaskClick = () => {
 }
 
 const handleSubmit = async () => {
+  // 注册配置未返回时先取回，确保邮箱验证码字段参与校验
+  if (mode.value !== 'login' && !registerConfig.ready) {
+    await refreshRegisterConfig()
+  }
+
   touched.email = true
   touched.password = true
   touched.confirm = true
+  touched.emailCode = true
 
-  if (errors.value.email || errors.value.password || errors.value.confirm) {
+  if (errors.value.email || errors.value.password || errors.value.confirm || errors.value.emailCode) {
+    // 字段下仍保留内联提示，这里再用 toast 报第一条错误，避免点提交看起来无反应
+    const firstError = [errors.value.email, errors.value.password, errors.value.confirm, errors.value.emailCode].find(Boolean)
+    if (firstError) showToast(firstError, 'error')
     return
   }
 
   // 注册：成功后切回登录模式并带上刚注册的邮箱，引导用户登录
   if (mode.value !== 'login') {
+    if (!registerConfig.emailRegisterEnabled && !registerCaptcha.code.trim()) {
+      registerCaptcha.codeTouched = true
+      showToast('请输入验证码', 'error')
+      return
+    }
     submitting.value = true
     try {
       const username = form.email.trim()
-      await register({ username, password: form.password })
+      if (registerConfig.emailRegisterEnabled) {
+        await register({ username, password: form.password, email: username, emailCode: form.emailCode.trim() })
+      } else {
+        await register({ username, password: form.password, code: registerCaptcha.code.trim(), uuid: registerCaptcha.uuid })
+      }
       mode.value = 'login'
       resetForm()
       form.email = username
       refreshCaptcha()
-      showTip('注册成功，请登录')
+      showToast('注册成功，请登录', 'success')
     } catch (error: any) {
-      showTip(error?.message || '注册失败，请稍后重试', true)
+      const message = error?.message || ''
+      // 账号已存在单独给登录引导，其余错误原样提示
+      if (ACCOUNT_EXISTS_HINTS.some((hint) => message.includes(hint))) {
+        showToast('该邮箱已注册，请直接登录', 'error')
+      } else {
+        showToast(message || '注册失败，请稍后重试', 'error')
+      }
+      // 图片验证码一次性使用，失败后需重新获取
+      if (!registerConfig.emailRegisterEnabled) {
+        await refreshRegisterCaptcha()
+      }
     } finally {
       submitting.value = false
     }
@@ -333,6 +512,7 @@ const handleSubmit = async () => {
 
   if (captcha.enabled && !captcha.code.trim()) {
     captcha.codeTouched = true
+    showToast('请输入验证码', 'error')
     return
   }
 
@@ -345,7 +525,7 @@ const handleSubmit = async () => {
     })
     close()
   } catch (error: any) {
-    showTip(error?.message || '登录失败，请稍后重试', true)
+    showToast(error?.message || '登录失败，请稍后重试', 'error')
     // 登录失败会累计错误次数，重取验证码状态（达到阈值后自动展示）
     await refreshCaptcha()
   } finally {
@@ -362,9 +542,11 @@ const handleKeydown = (event: KeyboardEvent) => {
 watch(isOpen, (open) => {
   if (open) {
     resetForm()
-    // 打开弹窗时预取验证码状态（正常账号无验证码）
+    // 打开弹窗时预取验证方式（登录按失败次数、注册按后端配置）
     if (mode.value === 'login') {
       refreshCaptcha()
+    } else {
+      refreshRegisterConfig()
     }
     window.addEventListener('keydown', handleKeydown)
     document.body.style.overflow = 'hidden'
@@ -377,6 +559,7 @@ watch(isOpen, (open) => {
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
   document.body.style.overflow = ''
+  stopCooldown()
 })
 </script>
 
@@ -490,6 +673,30 @@ onBeforeUnmount(() => {
     &.has-forgot {
       padding-right: 72px;
     }
+
+    // 给"获取验证码"按钮预留空间
+    &.has-code {
+      padding-right: 104px;
+    }
+  }
+
+  .send-code {
+    position: absolute;
+    right: 8px;
+    top: 50%;
+    transform: translateY(-50%);
+    padding: 6px 8px;
+    border: 0;
+    background-color: transparent;
+    font-size: 12px;
+    color: var(--color-primary);
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:disabled {
+      color: var(--color-text-3);
+      cursor: not-allowed;
+    }
   }
 
   .forgot {
@@ -524,12 +731,30 @@ onBeforeUnmount(() => {
       border-radius: var(--radius-sm);
       cursor: pointer;
     }
+
+    // 验证码加载失败/加载中占位框：与图片同高、固定宽度，可点击重试
+    .captcha-retry {
+      width: 96px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      border: 1px dashed var(--color-border);
+      font-size: 12px;
+      color: var(--color-text-3);
+      user-select: none;
+    }
   }
 
   .field-tip {
     font-size: 12px;
     line-height: 18px;
     color: #d1242f;
+  }
+
+  .field-hint {
+    font-size: 12px;
+    line-height: 18px;
+    color: var(--color-text-3);
   }
 
   // 密码强度指示
@@ -576,16 +801,6 @@ onBeforeUnmount(() => {
       &.strength-3 {
         color: #1a7f37;
       }
-    }
-  }
-
-  .tip {
-    font-size: 13px;
-    line-height: 20px;
-    color: var(--color-primary);
-
-    &.tip-error {
-      color: #d1242f;
     }
   }
 

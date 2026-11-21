@@ -3,7 +3,7 @@ import { ConfigObject } from 'svg-captcha';
 
 // svg-captcha 的默认导出（createCaptcha 函数）经 TS importStar 互操作后不可调用，
 // 且 d.ts 未声明调用签名，此处直接 require 原始导出；返回值即 SVG 字符串
-// eslint-disable-next-line @typescript-eslint/no-var-requires
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const createCaptcha = require('svg-captcha') as (text: string, options?: ConfigObject) => string;
 
 const options = {

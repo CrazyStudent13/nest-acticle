@@ -1,17 +1,20 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, In, FindManyOptions, DataSource } from 'typeorm';
+import { Repository, In, Not, FindManyOptions, DataSource } from 'typeorm';
 import { Response } from 'express';
 import { ResultData } from 'src/common/utils/result';
+import { applyLike, paginate } from 'src/common/query';
 import { ExportTable } from 'src/common/utils/export';
 import { RedisService } from 'src/module/common/redis/redis.service';
 import { CacheEnum } from 'src/common/enum/index';
 import { SysUserWithRoleEntity } from '../user/entities/user-width-role.entity';
+import { UserEntity } from '../user/entities/sys-user.entity';
+import { AllocatedListDto } from '../user/dto/index';
 
 import { SysRoleEntity } from './entities/role.entity';
 import { SysRoleWithMenuEntity } from './entities/role-width-menu.entity';
 import { MenuService } from '../menu/menu.service';
-import { CreateRoleDto, UpdateRoleDto, ListRoleDto, ChangeStatusDto } from './dto/index';
+import { CreateRoleDto, UpdateRoleDto, ListRoleDto, ChangeStatusDto, AuthUserCancelDto, AuthUserCancelAllDto, AuthUserSelectAllDto } from './dto/index';
 
 @Injectable()
 export class RoleService {
@@ -20,6 +23,10 @@ export class RoleService {
     private readonly sysRoleEntityRep: Repository<SysRoleEntity>,
     @InjectRepository(SysRoleWithMenuEntity)
     private readonly sysRoleWithMenuEntityRep: Repository<SysRoleWithMenuEntity>,
+    @InjectRepository(UserEntity)
+    private readonly userRepo: Repository<UserEntity>,
+    @InjectRepository(SysUserWithRoleEntity)
+    private readonly sysUserWithRoleEntityRep: Repository<SysUserWithRoleEntity>,
     private readonly menuService: MenuService,
     private readonly redisService: RedisService,
     private readonly dataSource: DataSource,
@@ -40,13 +47,8 @@ export class RoleService {
     const entity = this.sysRoleEntityRep.createQueryBuilder('entity');
     entity.where('entity.delFlag = :delFlag', { delFlag: '0' });
 
-    if (query.roleName) {
-      entity.andWhere('entity.roleName LIKE :roleName', { roleName: `%${query.roleName}%` });
-    }
-
-    if (query.roleKey) {
-      entity.andWhere('entity.roleKey LIKE :roleKey', { roleKey: `%${query.roleKey}%` });
-    }
+    applyLike(entity, 'entity.roleName', query.roleName);
+    applyLike(entity, 'entity.roleKey', query.roleKey);
 
     if (query.roleId) {
       entity.andWhere('entity.roleId = :roleId', { roleId: query.roleId });
@@ -60,9 +62,7 @@ export class RoleService {
       entity.andWhere('entity.createTime BETWEEN :start AND :end', { start: query.params.beginTime, end: query.params.endTime });
     }
 
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
+    paginate(entity, query);
     const [list, total] = await entity.getManyAndCount();
 
     return ResultData.ok({
@@ -190,5 +190,117 @@ export class RoleService {
       ],
     };
     ExportTable(options, res);
+  }
+
+  // ---------- 角色↔用户绑定（原在 user.service，端点属 /system/role 域；迁入后 RoleModule 不再依赖 UserModule） ----------
+
+  /**
+   * 获取角色已分配用户
+   * @param query
+   * @returns
+   */
+  async allocatedList(query: AllocatedListDto) {
+    const roleWidthRoleList = await this.sysUserWithRoleEntityRep.find({
+      where: {
+        roleId: +query.roleId,
+      },
+      select: ['userId'],
+    });
+    if (roleWidthRoleList.length === 0) {
+      return ResultData.ok({
+        list: [],
+        total: 0,
+      });
+    }
+    const userIds = roleWidthRoleList.map((item) => item.userId);
+    const entity = this.userRepo.createQueryBuilder('user');
+    entity.where('user.delFlag = :delFlag', { delFlag: '0' });
+    entity.andWhere('user.status = :status', { status: '0' });
+    entity.andWhere('user.userId IN (:...userIds)', { userIds: userIds });
+    applyLike(entity, 'user.userName', query.userName);
+    applyLike(entity, 'user.phonenumber', query.phonenumber);
+    entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
+    const [list, total] = await entity.getManyAndCount();
+    const safeList = list.map(({ password: _password, ...user }) => user);
+    return ResultData.ok({
+      list: safeList,
+      total,
+    });
+  }
+
+  /**
+   * 获取角色未分配用户
+   * @param query
+   * @returns
+   */
+  async unallocatedList(query: AllocatedListDto) {
+    const roleWidthRoleList = await this.sysUserWithRoleEntityRep.find({
+      where: {
+        roleId: +query.roleId,
+      },
+      select: ['userId'],
+    });
+
+    const userIds = roleWidthRoleList.map((item) => item.userId);
+    const entity = this.userRepo.createQueryBuilder('user');
+    entity.where('user.delFlag = :delFlag', { delFlag: '0' });
+    entity.andWhere('user.status = :status', { status: '0' });
+    entity.andWhere({
+      userId: Not(In(userIds)),
+    });
+    applyLike(entity, 'user.userName', query.userName);
+    applyLike(entity, 'user.phonenumber', query.phonenumber);
+    entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
+    const [list, total] = await entity.getManyAndCount();
+    const safeList = list.map(({ password: _password, ...user }) => user);
+    return ResultData.ok({
+      list: safeList,
+      total,
+    });
+  }
+
+  /**
+   * 用户解绑角色
+   * @param data
+   * @returns
+   */
+  async authUserCancel(data: AuthUserCancelDto) {
+    await this.sysUserWithRoleEntityRep.delete({
+      userId: data.userId,
+      roleId: data.roleId,
+    });
+    return ResultData.ok();
+  }
+
+  /**
+   * 用户批量解绑角色
+   * @param data
+   * @returns
+   */
+  async authUserCancelAll(data: AuthUserCancelAllDto) {
+    const userIds = data.userIds.split(',').map((id) => +id);
+    await this.sysUserWithRoleEntityRep.delete({
+      userId: In(userIds),
+      roleId: +data.roleId,
+    });
+    return ResultData.ok();
+  }
+
+  /**
+   * 用户批量绑定角色
+   * @param data
+   * @returns
+   */
+  async authUserSelectAll(data: AuthUserSelectAllDto) {
+    const userIds = data.userIds.split(',');
+    const entitys = userIds.map((userId) => {
+      const sysDeptEntityEntity = new SysUserWithRoleEntity();
+      return Object.assign(sysDeptEntityEntity, {
+        userId: userId,
+        roleId: +data.roleId,
+      });
+    });
+    await this.sysUserWithRoleEntityRep.save(entitys);
+    return ResultData.ok();
   }
 }

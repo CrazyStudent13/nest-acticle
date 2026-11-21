@@ -4,6 +4,7 @@ import { Repository, Like } from 'typeorm';
 import { JobLog } from './entities/job-log.entity';
 import { ListJobLogDto } from './dto/create-job.dto';
 import { ResultData } from 'src/common/utils/result';
+import { applyLike, paginate } from 'src/common/query';
 import { ExportTable } from 'src/common/utils/export';
 import { Response } from 'express';
 
@@ -20,13 +21,9 @@ export class JobLogService {
   async list(query: ListJobLogDto) {
     const entity = this.jobLogRepository.createQueryBuilder('entity');
 
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
+    paginate(entity, query);
 
-    if (query.jobName) {
-      entity.andWhere('entity.jobName LIKE :jobName', { jobName: `%${query.jobName}%` });
-    }
+    applyLike(entity, 'entity.jobName', query.jobName);
 
     if (query.jobGroup) {
       entity.andWhere('entity.jobGroup = :jobGroup', { jobGroup: query.jobGroup });

@@ -78,7 +78,10 @@ services:
     restart: unless-stopped
     mem_limit: 350m
     environment:
-      NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-http://localhost:8888}
+      # apiBase 走同源相对路径（nginx 反代 /api、/profile，SSR 相对请求由 Nitro 代理路由转发），
+      # 不再依赖局域网 IP；特殊部署仍可用 NUXT_PUBLIC_API_BASE 覆盖为绝对地址
+      NUXT_API_PROXY_TARGET: ${NUXT_API_PROXY_TARGET:-http://server:8080}
+      NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-}
       HOST: 0.0.0.0
       PORT: 3000
     depends_on:

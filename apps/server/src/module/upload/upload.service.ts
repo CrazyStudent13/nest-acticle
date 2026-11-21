@@ -4,6 +4,7 @@ import { Repository } from 'typeorm';
 import { Like, In, Between, MoreThanOrEqual, LessThanOrEqual } from 'typeorm';
 import { ConfigService } from '@nestjs/config';
 import { ResultData } from 'src/common/utils/result';
+import { BusinessException } from 'src/common/exceptions/business.exception';
 import { SysUploadEntity } from './entities/upload.entity';
 import { ChunkFileDto, ChunkMergeFileDto } from './dto/index';
 import { GenerateUUID } from 'src/common/utils/index';
@@ -64,17 +65,16 @@ export class UploadService {
   }
 
   /**
-   * 扩展名白名单校验：不通过时返回失败信封，通过返回 null
+   * 扩展名白名单校验：不通过直接 throw BusinessException
    */
-  private checkUploadExt(fileName: string): ResultData | null {
+  private checkUploadExt(fileName: string): void {
     const ext = path.extname(fileName || '').toLowerCase();
     if (!ext) {
-      return ResultData.fail(500, '文件缺少扩展名，已拒绝上传');
+      throw new BusinessException(500, '文件缺少扩展名，已拒绝上传');
     }
     if (!this.getAllowedUploadExts().includes(ext)) {
-      return ResultData.fail(500, `不支持的文件类型 '${ext}'，允许的类型：${this.getAllowedUploadExts().join(' ')}`);
+      throw new BusinessException(500, `不支持的文件类型 '${ext}'，允许的类型：${this.getAllowedUploadExts().join(' ')}`);
     }
-    return null;
   }
 
   /**
@@ -85,14 +85,15 @@ export class UploadService {
    * @returns
    */
   async singleFileUpload(file: Express.Multer.File, customPath?: string, authorName?: string): Promise<UploadResult | any> {
-    const fileSize = (file.size / 1024 / 1024).toFixed(2);
-    if (fileSize > this.config.get('app.file.maxSize')) {
-      return ResultData.fail(500, `文件大小不能超过${this.config.get('app.file.maxSize')}MB`);
+    // 数值比较后再格式化展示：先 toFixed(2) 会变字符串且舍入（如 10.004MB 被舍成 10.00 放行）
+    const fileSizeMb = file.size / 1024 / 1024;
+    const maxSizeMb = Number(this.config.get('app.file.maxSize'));
+    if (fileSizeMb > maxSizeMb) {
+      throw new BusinessException(500, `文件大小不能超过${maxSizeMb}MB`);
     }
 
     // 扩展名白名单：拒绝 .html/.svg 等可内联执行类型，防止经静态服务造成存储型 XSS（头像上传复用此方法一并生效）
-    const extFail = this.checkUploadExt(file?.originalname);
-    if (extFail) return extFail;
+    this.checkUploadExt(file?.originalname);
 
     // 使用默认路径或自定义路径
     const storagePath = customPath || 'uploads';
@@ -162,8 +163,7 @@ export class UploadService {
    */
   async chunkFileUpload(file: Express.Multer.File, body: ChunkFileDto) {
     // 单分片大小由 Multer limits（UPLOAD_MAX_SIZE_BYTES）兜底，这里校验目标文件扩展名
-    const extFail = this.checkUploadExt(body?.fileName);
-    if (extFail) return extFail;
+    this.checkUploadExt(body?.fileName);
 
     const rootPath = process.cwd();
     const baseDirPath = path.join(rootPath, this.config.get('app.file.location'));
@@ -191,7 +191,7 @@ export class UploadService {
     const chunckDirPath = path.join(baseDirPath, this.thunkDir, body.uploadId);
     const chunckFilePath = path.join(chunckDirPath, `${body.uploadId}${body.fileName}@${body.index}`);
     if (!fs.existsSync(chunckFilePath)) {
-      return ResultData.fail(500, '文件不存在');
+      throw new BusinessException(500, '文件不存在');
     } else {
       return ResultData.ok();
     }
@@ -220,15 +220,14 @@ export class UploadService {
     const { uploadId, fileName } = body;
 
     // 合并落盘前最终校验扩展名（历史分片可能建于规则变更前）
-    const extFail = this.checkUploadExt(fileName);
-    if (extFail) return extFail;
+    this.checkUploadExt(fileName);
 
     const rootPath = process.cwd();
     const baseDirPath = path.join(rootPath, this.config.get('app.file.location'));
     const sourceFilesDir = path.join(baseDirPath, this.thunkDir, uploadId);
 
     if (!fs.existsSync(sourceFilesDir)) {
-      return ResultData.fail(500, '文件不存在');
+      throw new BusinessException(500, '文件不存在');
     }
 
     //对文件重命名
@@ -248,7 +247,8 @@ export class UploadService {
     const stats = fs.statSync(targetFile);
 
     if (!this.isLocal) {
-      this.uploadLargeFileCos(targetFile, key);
+      // COS 分支与本地分支一致：上传完成（或失败抛出）后再落记录与响应，避免请求先于上传返回、失败变成 unhandledRejection
+      await this.uploadLargeFileCos(targetFile, key);
       data.url = this.joinUrl(this.config.get('cos.domain'), key);
       // 写入上传记录
       await this.sysUploadEntityRep.save({ uploadId, ...data, ext: path.extname(data.newFileName), size: stats.size, status: '0' });
@@ -451,7 +451,7 @@ export class UploadService {
         msg: data.status === '0' ? '上传成功' : '上传中',
       });
     } else {
-      return ResultData.fail(500, '文件不存在');
+      throw new BusinessException(500, '文件不存在');
     }
   }
 
@@ -471,10 +471,11 @@ export class UploadService {
         Key: targetFile,
         FilePath: sourceFile,
         SliceSize: 1024 * 1024 * 5 /* 触发分块上传的阈值，超过5MB使用分块上传，非必须 */,
-        onProgress: function (progressData) {
+        // 箭头函数保住 service 的 this；条件字段用实体属性 fileName（此前误拼 filName 匹配不到任何记录）
+        onProgress: (progressData) => {
           /* 非必须 */
           if (progressData.percent === 1) {
-            this.sysUploadEntityRep.update({ filName: targetFile }, { status: 0 });
+            this.sysUploadEntityRep.update({ fileName: targetFile }, { status: '0' });
           }
         },
       });

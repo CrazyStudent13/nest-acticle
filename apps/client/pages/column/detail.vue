@@ -48,35 +48,14 @@
 </template>
 
 <script setup lang="ts">
-import dayjs from 'dayjs'
-
-type SubjectDetail = {
-  id?: number | string
-  title?: string
-  name?: string
-  desc?: string
-  content?: string
-  cover?: string
-  createTime?: string
-}
-
-type ArticleListItem = {
-  id?: number | string
-  title?: string
-  author?: string
-  cover?: string
-  publishTime?: string
-  read?: number
-  readNum?: number
-  remark?: string
-  desc?: string
-}
+import { formatDate } from '@nest-acticle/utils'
+import type { Article, Subject } from '@nest-acticle/shared'
 
 const route = useRoute()
 const config = useRuntimeConfig()
 const subjectId = computed(() => (route.query.id as string) || '')
 
-const { data: subjectRes } = await useFetch<{ data?: SubjectDetail | null }>(
+const { data: subjectRes } = await useFetch<{ data?: Subject | null }>(
   `${config.public.apiBase}/api/post/subject/guest/detail`,
   {
     query: {
@@ -93,18 +72,10 @@ useSeoMeta({
   ogTitle: () => subject.value.title || '专栏详情',
   description: () => subject.value.desc || '游戏速递的专栏详情页。'
 })
-const createTime = computed(() => {
-  const value = subject.value.createTime
-  if (!value) {
-    return ''
-  }
-
-  const formatted = dayjs(value).format('YYYY-MM-DD')
-  return formatted === 'Invalid Date' ? '' : formatted
-})
+const createTime = computed(() => formatDate(subject.value.createTime))
 const coverUrl = computed(() => toCoverUrl(config.public.apiBase, subject.value.cover))
 
-const { data: articleRes } = await useFetch<{ data?: { list?: ArticleListItem[]; total?: number } }>(
+const { data: articleRes } = await useFetch<{ data?: { list?: Article[]; total?: number } }>(
   `${config.public.apiBase}/api/post/article/guest/list`,
   {
     query: computed(() => ({
@@ -122,7 +93,7 @@ const { articles, total, loading, loadError, finished, loadedMore, loadMore } = 
   computed(() => ({ subjectId: subjectId.value }))
 )
 
-const handleRowClick = (item: ArticleListItem) => {
+const handleRowClick = (item: Article) => {
   return navigateTo({
     path: '/article/detail',
     query: {

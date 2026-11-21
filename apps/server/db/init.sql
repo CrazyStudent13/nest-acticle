@@ -15,13 +15,14 @@ create table
     phonenumber varchar(11) default '' comment '手机号码',
     sex char(1) default '0' comment '用户性别（0男 1女 2未知）',
     avatar varchar(100) default '' comment '头像地址',
+    signature varchar(50) default '' comment '个性签名',
     password varchar(200) default '' comment '密码',
     status char(1) default '0' comment '账号状态（0正常 1停用）',
     del_flag char(1) default '0' comment '删除标志（0代表存在 1代表删除）',
     login_ip varchar(128) default '' comment '最后登录IP',
     login_date datetime comment '最后登录时间',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default null comment '备注',
@@ -43,6 +44,7 @@ values
     'ry@163.com',
     '15888888888',
     '1',
+    '',
     '',
     '$2b$10$d4Z9Iq.v9J4pjX55I9mzRuPHsOMKLupOqxlb/UfbD9oYsYxd5ezeS',
     '0',
@@ -67,6 +69,7 @@ values
     'ry@qq.com',
     '15666666666',
     '1',
+    '',
     '',
     '$2b$10$d4Z9Iq.v9J4pjX55I9mzRuPHsOMKLupOqxlb/UfbD9oYsYxd5ezeS',
     '0',
@@ -97,7 +100,7 @@ create table
     status char(1) not null comment '角色状态（0正常 1停用）',
     del_flag char(1) default '0' comment '删除标志（0代表存在 1代表删除）',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default null comment '备注',
@@ -167,6 +170,26 @@ values
     '负责文章审核和公告发布'
   );
 
+insert into
+  sys_role
+values
+  (
+    '4',
+    '注册用户',
+    'member',
+    4,
+    '5',
+    1,
+    1,
+    '0',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '客户端注册用户默认角色，仅个人中心自助权限'
+  );
+
 -- ----------------------------
 -- 5、菜单权限表
 -- ----------------------------
@@ -189,7 +212,7 @@ create table
     perms varchar(100) default null comment '权限标识',
     icon varchar(100) default '#' comment '菜单图标',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default '' comment '备注',
@@ -701,6 +724,137 @@ values
 insert into sys_menu values ('202', '文件管理', '5', '3', 'file', 'post/file/index', '', '1', '0', 'C', '0', '0', 'post:file:list', 'upload', 'admin', sysdate(), '', null, '文件管理菜单', '0');
 insert into sys_menu values ('203', '文件删除', '202', '1', '', '', '', '1', '0', 'F', '0', '0', 'post:file:remove', 'form', 'admin', sysdate(), '', null, '文件删除权限', '0');
 
+-- 交互管理目录（与内容管理同级；点赞管理为子菜单，授权默认仅管理员，其余角色经管理端角色管理按需分配）
+insert into
+  sys_menu
+values
+  (
+    '6',
+    '交互管理',
+    '0',
+    '6',
+    'interaction',
+    null,
+    '',
+    1,
+    0,
+    'M',
+    '0',
+    '0',
+    '',
+    'message',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '交互管理目录',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
+    '204',
+    '点赞管理',
+    '6',
+    '1',
+    'like',
+    'post/like/index',
+    '',
+    '1',
+    '0',
+    'C',
+    '0',
+    '0',
+    'post:like:list',
+    'star',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '点赞管理菜单',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
+    '205',
+    '点赞删除',
+    '204',
+    '1',
+    '',
+    '',
+    '',
+    '1',
+    '0',
+    'F',
+    '0',
+    '0',
+    'post:like:remove',
+    'form',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '点赞删除权限',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
+    '206',
+    '评论管理',
+    '6',
+    '2',
+    'comment',
+    'post/comment/index',
+    '',
+    '1',
+    '0',
+    'C',
+    '0',
+    '0',
+    'post:comment:list',
+    'form',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '评论管理菜单',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
+    '207',
+    '评论删除',
+    '206',
+    '1',
+    '',
+    '',
+    '',
+    '1',
+    '0',
+    'F',
+    '0',
+    '0',
+    'post:comment:remove',
+    'form',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '评论删除权限',
+    '0'
+  );
+
 insert into
   sys_menu
 values
@@ -933,6 +1087,59 @@ values
     '',
     null,
     '',
+    '0'
+  );
+
+-- 个人中心按钮（注册用户角色自助使用，不出现在管理端侧边栏）
+insert into
+  sys_menu
+values
+  (
+    '1060',
+    '个人中心查询',
+    '100',
+    '8',
+    '',
+    '',
+    '',
+    '1',
+    '0',
+    'F',
+    '0',
+    '0',
+    'system:user:profile:view',
+    '#',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '个人中心自助查询权限',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
+    '1061',
+    '个人中心修改',
+    '100',
+    '9',
+    '',
+    '',
+    '',
+    '1',
+    '0',
+    'F',
+    '0',
+    '0',
+    'system:user:profile:edit',
+    '#',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '个人中心自助修改权限（资料/头像/密码）',
     '0'
   );
 
@@ -2678,6 +2885,17 @@ insert into
 values
   ('2', '2013');
 
+-- 普通角色补充个人中心自助权限（个人中心接口改用独立权限串，不再被 system:user:query/edit 覆盖）
+insert into
+  sys_role_menu
+values
+  ('2', '1060');
+
+insert into
+  sys_role_menu
+values
+  ('2', '1061');
+
 -- 编辑角色菜单权限(只包含文章审核和通知公告相关权限)
 insert into
   sys_role_menu
@@ -2739,6 +2957,39 @@ insert into
 values
   ('3', '2010');
 
+-- 注册用户菜单权限（个人中心自助 + 通知中心列表读取）
+insert into
+  sys_role_menu
+values
+  ('4', '1060');
+
+insert into
+  sys_role_menu
+values
+  ('4', '1061');
+
+-- 通知公告菜单：仅取 system:notice:list 供前台通知中心读取
+insert into
+  sys_role_menu
+values
+  ('4', '107');
+
+-- 发文权限：发布/编辑/删除自己的文章（服务层校验仅限本人，不含管理端列表/审核权限）
+insert into
+  sys_role_menu
+values
+  ('4', '2001');
+
+insert into
+  sys_role_menu
+values
+  ('4', '2002');
+
+insert into
+  sys_role_menu
+values
+  ('4', '2003');
+
 -- ----------------------------
 -- 10、操作日志记录
 -- ----------------------------
@@ -2781,7 +3032,7 @@ create table
     dict_type varchar(100) default '' comment '字典类型',
     status char(1) default '0' comment '状态（0正常 1停用）',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default null comment '备注',
@@ -3047,7 +3298,7 @@ create table
     is_default char(1) default 'N' comment '是否默认（Y是 N否）',
     status char(1) default '0' comment '状态（0正常 1停用）',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default null comment '备注',
@@ -4081,7 +4332,7 @@ create table
     config_value varchar(500) default '' comment '参数键值',
     config_type char(1) default 'N' comment '系统内置（Y是 N否）',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default null comment '备注',
@@ -4215,7 +4466,7 @@ create table
     msg varchar(255) default '' comment '提示消息',
     login_time datetime comment '访问时间',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default null comment '备注',
@@ -4241,7 +4492,7 @@ create table
     concurrent char(1) default '1' comment '是否并发执行（0允许 1禁止）',
     status char(1) default '0' comment '状态（0正常 1暂停）',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default '' comment '备注信息',
@@ -4319,7 +4570,7 @@ create table
     job_message varchar(500) comment '日志信息',
     status char(1) default '0' comment '执行状态（0正常 1失败）',
     exception_info varchar(2000) default '' comment '异常信息',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     primary key (job_log_id)
   ) engine = innodb comment = '定时任务调度日志表';
 
@@ -4336,7 +4587,7 @@ create table
     notice_content longtext default null comment '公告内容',
     status char(1) default '0' comment '公告状态（0正常 1关闭）',
     create_by varchar(64) default '' comment '创建者',
-    create_time datetime comment '创建时间',
+    create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(255) default null comment '备注',
@@ -4479,3 +4730,39 @@ create table
     key idx_audit_status (audit_status),
     key idx_scheduled_publish_time (scheduled_publish_time)
   ) engine = innodb comment = '专栏库';
+
+-- ----------------------------
+-- 21、点赞库
+-- ----------------------------
+drop table if exists post_like;
+
+create table
+  post_like (
+    id int not null auto_increment comment '点赞 id',
+    article_id int not null comment '文章 id',
+    user_id int not null comment '点赞用户ID',
+    create_time datetime default current_timestamp comment '点赞时间',
+    primary key (id),
+    unique key uk_article_user (article_id, user_id),
+    key idx_user_id (user_id)
+  ) engine = innodb comment = '点赞库';
+
+-- ----------------------------
+-- 22、评论库
+-- ----------------------------
+drop table if exists post_comment;
+
+create table
+  post_comment (
+    id int not null auto_increment comment '评论 id',
+    article_id int not null comment '文章 id',
+    user_id int not null comment '评论用户ID',
+    content varchar(500) not null comment '评论内容',
+    parent_id int default null comment '被回复的评论 id（根评论为 null）',
+    reply_user_id int default null comment '被回复评论的作者用户 id',
+    create_time datetime default current_timestamp comment '评论时间',
+    primary key (id),
+    key idx_article_id (article_id),
+    key idx_user_id (user_id),
+    key idx_parent_id (parent_id)
+  ) engine = innodb comment = '评论库';

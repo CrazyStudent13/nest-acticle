@@ -66,7 +66,7 @@ export const constantRoutes: AppRouteRecordRaw[] = [
     path: '/post/article-editor',
     component: () => import('@/views/post/article/editor.vue'),
     hidden: true,
-    permissions: ['post:Article:edit', 'post:Article:add'],
+    permissions: ['post:article:edit', 'post:article:add'],
     meta: { title: '文章编辑器' }
   },
   {

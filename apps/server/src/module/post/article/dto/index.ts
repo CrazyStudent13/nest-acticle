@@ -2,37 +2,10 @@ import { IsString, IsNumber, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty, OmitType } from '@nestjs/swagger';
 import { PagingDto } from 'src/common/dto/index';
 import { Transform } from 'class-transformer';
+import { ArticleSourceEnum, AuditStatusEnum, PublishStatusEnum } from '@nest-acticle/shared';
 
-/**
- * 发布状态枚举
- */
-export enum PublishStatusEnum {
-  DRAFT = '0', // 草稿
-  PENDING = '1', // 待发布
-  PUBLISHED = '2', // 已发布
-  OFFLINE = '3', // 已下架
-}
-
-/**
- * 审核状态枚举
- */
-export enum AuditStatusEnum {
-  NOT_SUBMITTED = '0', // 未提交
-  AUDITING = '1', // 审核中
-  APPROVED = '2', // 审核通过
-  REJECTED = '3', // 审核拒绝
-}
-
-/**
- * 文章来源枚举
- */
-export enum ArticleSourceEnum {
-  ORIGINAL = '0', // 原创
-  REPRINT = '1', // 转载
-  CONTRIBUTION = '2', // 投稿
-  TRANSLATION = '3', // 翻译
-  COMPILATION = '4', // 整理
-}
+// 发布/审核状态与文章来源枚举收敛到共享契约包，server 与前端共用同一份取值定义
+export { ArticleSourceEnum, AuditStatusEnum, PublishStatusEnum };
 
 /**
  * 创建文章 DTO
@@ -47,9 +20,10 @@ export class CreatePostArticleDto {
   @IsString()
   desc?: string;
 
-  @ApiProperty({ required: true, description: '专栏ID' })
+  @ApiProperty({ required: false, description: '专栏ID（无可用专栏时可省略，落库为 0 表示未归类）' })
+  @IsOptional()
   @IsNumber()
-  subjectId: number;
+  subjectId?: number;
 
   @ApiProperty({ required: false, description: '文章内容' })
   @IsOptional()
@@ -71,34 +45,11 @@ export class CreatePostArticleDto {
   @IsEnum(ArticleSourceEnum)
   source?: string;
 
-  @ApiProperty({ required: false, description: '发布时间' })
-  @IsOptional()
-  publishTime?: Date;
-
-  @ApiProperty({ required: false, description: '点赞数' })
-  @IsOptional()
-  @IsNumber()
-  likeNum?: number;
-
-  @ApiProperty({ required: false, description: '阅读数' })
-  @IsOptional()
-  @IsNumber()
-  readNum?: number;
-
-  @ApiProperty({ required: false, description: '评论数' })
-  @IsOptional()
-  @IsNumber()
-  commentNum?: number;
-
-  @ApiProperty({ required: false, description: '发布状态', enum: PublishStatusEnum })
-  @IsOptional()
-  @IsEnum(PublishStatusEnum)
-  publishStatus?: string;
-
-  @ApiProperty({ required: false, description: '审核状态', enum: AuditStatusEnum })
-  @IsOptional()
-  @IsEnum(AuditStatusEnum)
-  auditStatus?: string;
+  /**
+   * 发布状态/审核状态/发布时间/点赞数/阅读数/评论数不在可写 DTO 内：
+   * 状态只能经 /publish/:id 与 /audit 端点流转，计数由点赞/评论事务维护，
+   * 落库值由 service 写死，防止请求体伪造状态绕过审核（mass assignment）
+   */
 
   @ApiProperty({ required: false, description: '定时发布时间' })
   @IsOptional()

@@ -1,0 +1,39 @@
+{
+  "name": "@nest-acticle/editor",
+  "version": "1.1.0",
+  "private": true,
+  "description": "monorepo Markdown 编辑器共享包：textarea+工具栏+快捷键+左写右预览的纯编辑组件，client（editor/new.vue）与 admin（editor.vue、公告）共用同一编辑体验；渲染走 @nest-acticle/markdown（预览即前台呈现），上传经 uploadImage 回调注入（裁剪/上传/地址补全是宿主业务）",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "vite build && vue-tsc -p tsconfig.build.json",
+    "dev": "vite build --watch"
+  },
+  "dependencies": {
+    "@nest-acticle/markdown": "workspace:*",
+    "clipboard": "^2.0.11"
+  },
+  "peerDependencies": {
+    "vue": "^3.5.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^6.0.6",
+    "less": "^4.2.0",
+    "typescript": "^5.9.3",
+    "vite": "^8.0.10",
+    "vue": "^3.5.45",
+    "vue-tsc": "^3.3.14"
+  }
+}

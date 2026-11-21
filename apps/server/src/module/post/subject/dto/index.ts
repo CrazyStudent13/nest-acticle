@@ -2,20 +2,10 @@ import { IsString, IsNumber, IsOptional, IsEnum } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { PagingDto } from 'src/common/dto/index';
 import { Transform } from 'class-transformer';
+import { AuditStatusEnum, PublishStatusEnum } from '@nest-acticle/shared';
 
-export enum PublishStatusEnum {
-  DRAFT = '0',
-  PENDING = '1',
-  PUBLISHED = '2',
-  OFFLINE = '3',
-}
-
-export enum AuditStatusEnum {
-  NOT_SUBMITTED = '0',
-  AUDITING = '1',
-  APPROVED = '2',
-  REJECTED = '3',
-}
+// 枚举取值定义收敛到共享契约包，保持与文章 dto 相同的单一来源
+export { AuditStatusEnum, PublishStatusEnum };
 
 export class CreatePostSubjectDto {
   @ApiProperty({ required: true, description: '专栏标题' })

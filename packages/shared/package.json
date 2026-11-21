@@ -1,0 +1,36 @@
+{
+  "name": "@nest-acticle/shared",
+  "version": "1.1.0",
+  "private": true,
+  "description": "monorepo 契约共享包：响应信封/分页契约/状态枚举/文章·专栏类型（零运行时依赖）",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": {
+        "types": "./dist/index.d.mts",
+        "default": "./dist/index.mjs"
+      },
+      "require": {
+        "types": "./dist/index.d.ts",
+        "default": "./dist/index.js"
+      }
+    },
+    "./openapi": {
+      "types": "./src/generated/openapi.d.ts"
+    }
+  },
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsup",
+    "dev": "tsup --watch",
+    "gen:api": "openapi-typescript ../../apps/server/openApi.json -o src/generated/openapi.d.ts"
+  },
+  "devDependencies": {
+    "openapi-typescript": "^7.5.0",
+    "tsup": "^8.0.0"
+  }
+}

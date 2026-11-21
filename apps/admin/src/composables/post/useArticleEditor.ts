@@ -31,7 +31,6 @@ export function useArticleEditor() {
   // 文章完整数据
   const articleData = reactive<Partial<Article>>({
     id: undefined,
-    articleId: undefined,
     title: '',
     subjectId: undefined,
     desc: '',
@@ -201,7 +200,6 @@ export function useArticleEditor() {
         articleId.value = newId;
         isEdit.value = true;
         articleData.id = newId;
-        articleData.articleId = newId;
 
         // 更新 URL
         router.replace({ query: { id: newId } });

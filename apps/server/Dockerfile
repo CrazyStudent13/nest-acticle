@@ -13,13 +13,19 @@ RUN npm install -g pnpm@10.33.0 --registry=$NPM_REGISTRY
 
 # 先拷依赖清单（利用 Docker 层缓存），再按过滤安装
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY tsconfig.base.json ./
 COPY apps/server/package.json ./apps/server/
+COPY packages/shared/package.json ./packages/shared/
 
-RUN pnpm install --frozen-lockfile --filter server --registry=$NPM_REGISTRY
+# 过滤安装需同时选中 shared：--filter 只装被选项目的 devDeps，workspace 依赖包也不例外
+RUN pnpm install --frozen-lockfile --filter server --filter @nest-acticle/shared --registry=$NPM_REGISTRY
 
 COPY apps/server ./apps/server
-WORKDIR /app/apps/server
-RUN pnpm build
+COPY packages/shared ./packages/shared
+
+# pnpm -r 按拓扑序构建：先 workspace 依赖 @nest-acticle/shared（供 nest build 解析类型与运行时 require），再 server 本体
+WORKDIR /app
+RUN pnpm -r build
 
 # 第二阶段：只装生产依赖 + 构建产物（不带 devDependencies，镜像瘦身以适配 ghcr 私有免费额度）
 FROM node:22-bookworm-slim
@@ -30,6 +36,7 @@ ENV NODE_ENV=production
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
 COPY apps/server/package.json ./apps/server/
+COPY packages/shared/package.json ./packages/shared/
 
 # 装完即卸载 pnpm 并清缓存：运行阶段用不到，同层清理才能省体积
 RUN npm install -g pnpm@10.33.0 --registry=$NPM_REGISTRY \
@@ -37,6 +44,10 @@ RUN npm install -g pnpm@10.33.0 --registry=$NPM_REGISTRY \
     && pnpm store prune \
     && npm uninstall -g pnpm \
     && npm cache clean --force
+
+# server 运行时 require @nest-acticle/shared：node_modules 符号链接指向 packages/shared，需带上构建产物
+COPY --from=builder /app/packages/shared/package.json ./packages/shared/package.json
+COPY --from=builder /app/packages/shared/dist ./packages/shared/dist
 
 COPY --from=builder /app/apps/server/dist ./apps/server/dist
 

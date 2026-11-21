@@ -1,5 +1,6 @@
 import axios, { type AxiosInstance, type InternalAxiosRequestConfig, type AxiosResponse } from 'axios';
 import { saveAs } from 'file-saver';
+import { serializeQuery } from '@nest-acticle/utils';
 
 import useUserStore from '@/store/modules/user';
 import { getToken } from '@/utils/auth';
@@ -32,32 +33,6 @@ interface DownloadConfig {
 export const isRelogin = { show: false };
 
 // ==================== 工具函数 ====================
-
-/**
- * 将参数对象转换为查询字符串
- * 替代原 ruoyi.js 中的 tansParams 方法
- * @param params 参数对象
- * @returns 查询字符串（不带开头的 ?）
- */
-function paramsToQueryString(params: Record<string, any>): string {
-  const searchParams = new URLSearchParams();
-
-  // 递归处理嵌套结构
-  const serialize = (obj: any, prefix = ''): void => {
-    if (obj == null || obj === '') return;
-
-    if (Array.isArray(obj)) {
-      obj.forEach((item, i) => serialize(item, `${prefix}[${i}]`));
-    } else if (typeof obj === 'object' && !(obj instanceof Date) && !(obj instanceof RegExp)) {
-      Object.entries(obj).forEach(([key, val]) => serialize(val, prefix ? `${prefix}[${key}]` : key));
-    } else {
-      searchParams.append(prefix, String(obj));
-    }
-  };
-
-  Object.entries(params).forEach(([key, value]) => serialize(value, key));
-  return searchParams.toString();
-}
 
 /**
  * 统一处理业务错误码
@@ -138,7 +113,7 @@ service.interceptors.request.use(
 
     // get请求映射params参数
     if (config.method === 'get' && config.params) {
-      let url = `${config.url}?${paramsToQueryString(config.params)}`;
+      let url = `${config.url}?${serializeQuery(config.params)}`;
       // 移除末尾的 & 符号（如果有的话）
       if (url.endsWith('&')) {
         url = url.slice(0, -1);
@@ -245,7 +220,7 @@ export function download(url: string, params: any, filename: string, config?: Do
     .post(url, params, {
       transformRequest: [
         (params) => {
-          return paramsToQueryString(params);
+          return serializeQuery(params);
         }
       ],
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },

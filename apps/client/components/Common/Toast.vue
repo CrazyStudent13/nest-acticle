@@ -42,16 +42,18 @@ const state = useToast()
   top: 20px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 400;
+  // 高于一切弹层（登录/注册弹窗遮罩为 1000），保证提示不被遮罩压住
+  z-index: 2000;
   display: flex;
   align-items: center;
   gap: 8px;
   padding: 10px 16px;
-  border-radius: var(--radius-sm);
+  border: 1px solid transparent;
+  border-radius: 4px;
   font-size: 13px;
   line-height: 18px;
   white-space: nowrap;
-  box-shadow: var(--shadow-1);
+  box-shadow: 0 2px 12px 0 rgba(0, 0, 0, 0.1);
   pointer-events: none;
 
   .toast-icon {
@@ -59,56 +61,67 @@ const state = useToast()
     align-items: center;
   }
 
-  // Element message 配方：类型色浅底 + 类型色文字/图标
+  // Element message 配方：实心浅底 + 同色描边 + 类型色文字/图标
+  // 不用半透明色：叠在深色遮罩上会发灰
   &.type-error {
-    background-color: rgba(209, 36, 47, 0.09);
-    color: #d1242f;
+    background-color: #fef0f0;
+    border-color: #fde2e2;
+    color: #f56c6c;
   }
 
   &.type-warning {
-    background-color: rgba(230, 131, 45, 0.11);
-    color: #c96a1d;
+    background-color: #fdf6ec;
+    border-color: #faecd8;
+    color: #e6a23c;
   }
 
   &.type-success {
-    background-color: rgba(63, 176, 96, 0.11);
-    color: #2f9b50;
+    background-color: #f0f9eb;
+    border-color: #e1f3d8;
+    color: #67c23a;
   }
 
   &.type-primary {
-    background-color: rgba(79, 107, 255, 0.1);
-    color: var(--color-primary);
+    background-color: #ecf5ff;
+    border-color: #d9ecff;
+    color: #409eff;
   }
 
   &.type-info {
-    background-color: var(--color-bg);
-    color: var(--color-text-2);
+    background-color: #f4f4f5;
+    border-color: #e9e9eb;
+    color: #909399;
   }
 }
 
 // 深色模式：底色改类型色低透明叠加，文字提亮保证可读
 html.dark &.type-error {
   background-color: rgba(241, 106, 106, 0.14);
+  border-color: rgba(241, 106, 106, 0.25);
   color: #f16a6a;
 }
 
 html.dark &.type-warning {
   background-color: rgba(240, 160, 75, 0.14);
+  border-color: rgba(240, 160, 75, 0.25);
   color: #f0a04b;
 }
 
 html.dark &.type-success {
   background-color: rgba(94, 201, 126, 0.14);
+  border-color: rgba(94, 201, 126, 0.25);
   color: #5ec97e;
 }
 
 html.dark &.type-primary {
   background-color: rgba(124, 147, 255, 0.14);
+  border-color: rgba(124, 147, 255, 0.25);
   color: #8fa2ff;
 }
 
 html.dark &.type-info {
   background-color: rgba(255, 255, 255, 0.08);
+  border-color: rgba(255, 255, 255, 0.12);
   color: var(--color-text-2);
 }
 

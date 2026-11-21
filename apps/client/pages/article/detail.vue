@@ -1,8 +1,8 @@
-<!-- 文章详情页：Markdown 正文+左侧悬浮工具栏+右侧作者卡/目录/相关推荐（窄屏隐藏）；编辑/删除仅作者本人可见，删除二次确认后回首页；useSeoMeta+Article 结构化数据；文章不存在或已下架显示空态 -->
+<!-- 文章详情页：Markdown 正文+左侧悬浮工具栏+右侧作者卡/目录/相关推荐（窄屏隐藏）；评论区收在 ArticleCommentSection 组件；编辑/删除仅作者本人可见，删除二次确认后回首页；useSeoMeta+Article 结构化数据；文章不存在或已下架显示空态 -->
 <template>
   <div class="detail">
     <!-- 左侧悬浮工具栏：fixed 挂视口，不占布局宽度 -->
-    <ArticleActionBar :like-num="likeCount" :comment-num="commentCount" />
+    <ArticleActionBar :liked="liked" :like-num="likeCount" :comment-num="commentCount" @like="onLike" @comment="scrollToComments" />
     <template v-if="article.title || article.content">
       <div class="detail-layout">
         <article class="panel">
@@ -43,6 +43,15 @@
           <div class="panel-body">
             <MdViewer :value="article.content" />
           </div>
+
+          <!-- 评论区：抽成组件（掘金式两级结构），计数增删由组件回抛，页面同步文章冗余计数；工具栏评论按钮滚动到此处 -->
+          <ArticleCommentSection
+            ref="commentSectionRef"
+            :article-id="article.id || ''"
+            :comment-num="commentCount"
+            :author-user-id="article.userInfo?.userId"
+            @update:comment-num="onCommentNumChange"
+          />
         </article>
 
         <!-- 右侧信息栏：作者卡 + 目录 + 相关推荐（吸顶跟随，窄屏隐藏） -->
@@ -60,46 +69,14 @@
 </template>
 
 <script setup lang="ts">
-import dayjs from 'dayjs'
-
-type ArticleDetail = {
-  id?: number | string
-  title?: string
-  desc?: string
-  subjectId?: number | string
-  cover?: string
-  readNum?: number
-  likeNum?: number
-  commentNum?: number
-  publishTime?: string | null
-  createTime?: string
-  author?: string
-  content?: string
-  userInfo?: {
-    userId?: number
-    nickName?: string
-    avatar?: string
-  }
-}
-
-type SubjectDetail = {
-  title?: string
-}
+import { formatDateTime } from '@nest-acticle/utils'
+import type { Article, Subject } from '@nest-acticle/shared'
 
 const config = useRuntimeConfig()
 const route = useRoute()
 const articleId = computed(() => (route.query.id as string) || '')
 
-const formatDateTime = (value?: string | null) => {
-  if (!value) {
-    return ''
-  }
-
-  const formatted = dayjs(value).format('YYYY-MM-DD HH:mm')
-  return formatted === 'Invalid Date' ? '' : formatted
-}
-
-const { data } = await useFetch<{ data?: ArticleDetail | null }>(
+const { data } = await useFetch<{ data?: Article | null }>(
   `${config.public.apiBase}/api/post/article/guest/detail`,
   {
     query: {
@@ -116,15 +93,15 @@ const article = computed(() => {
     ...model,
     title: model.title || '',
     content: model.content || '',
-    publishTime: formatDateTime(model.publishTime),
-    createTime: formatDateTime(model.createTime),
+    publishTime: formatDateTime(model.publishTime, 'YYYY-MM-DD HH:mm'),
+    createTime: formatDateTime(model.createTime, 'YYYY-MM-DD HH:mm'),
     // ISO 时间留给结构化数据与 og 元信息用
     isoTime: (model.publishTime || model.createTime) || undefined
   }
 })
 
 // 专栏信息：文章带 subjectId 时取标题做入口徽标（拿不到标题则不展示）
-const { data: subjectRes } = await useFetch<{ data?: SubjectDetail | null }>(
+const { data: subjectRes } = await useFetch<{ data?: Subject | null }>(
   `${config.public.apiBase}/api/post/subject/guest/detail`,
   {
     query: computed(() => ({ id: String(article.value.subjectId || '') })),
@@ -141,8 +118,68 @@ const readLabel = computed(() => (typeof article.value.readNum === 'number' ? St
 const likeCount = computed(() => (typeof article.value.likeNum === 'number' ? article.value.likeNum : 0))
 const commentCount = computed(() => (typeof article.value.commentNum === 'number' ? article.value.commentNum : 0))
 
+// ---------- 点赞：登录态下查询/切换，未登录点击引导登录 ----------
+const { isLoggedIn } = useUser()
+const { openLogin } = useAuthModal()
+const { fetchLikeStatus, likeArticle, unlikeArticle } = useLike()
+const liked = ref(false)
+const likeBusy = ref(false)
+
+const syncLikeStatus = () => {
+  if (isLoggedIn.value && article.value.id) {
+    fetchLikeStatus(article.value.id)
+      .then((value) => (liked.value = value))
+      .catch(() => {})
+  } else {
+    liked.value = false
+  }
+}
+
+// 点赞状态依赖 token，详情页 SSR 只出公共数据，状态在客户端补查
+onMounted(syncLikeStatus)
+watch(isLoggedIn, syncLikeStatus)
+
+const onLike = async () => {
+  if (likeBusy.value) {
+    return
+  }
+  if (!isLoggedIn.value) {
+    openLogin()
+    return
+  }
+  const id = article.value.id
+  if (!id) {
+    return
+  }
+  likeBusy.value = true
+  try {
+    const result = liked.value ? await unlikeArticle(id) : await likeArticle(id)
+    if (result) {
+      liked.value = result.liked
+      if (typeof result.likeNum === 'number') {
+        article.value.likeNum = result.likeNum
+      }
+    }
+  } catch (error: any) {
+    showToast(error?.message || '点赞失败，请稍后再试', 'error')
+  } finally {
+    likeBusy.value = false
+  }
+}
+
+// ---------- 评论区：逻辑收进 ArticleCommentSection，页面只持有计数与滚动定位 ----------
+const commentSectionRef = ref<{ $el?: HTMLElement | null } | null>(null)
+const onCommentNumChange = (value: number) => {
+  article.value.commentNum = value
+}
+
+// 工具栏评论按钮：滚动定位到评论区
+const scrollToComments = () => {
+  commentSectionRef.value?.$el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
+
 // 编辑/删除入口：仅当前登录用户是文章作者时可见
-const { user, fetchUserInfo } = useUser()
+const { user, ensureUserRestored } = useUser()
 const canEdit = computed(
   () => !!user.value?.userId && !!article.value.userInfo?.userId && user.value.userId === article.value.userInfo.userId
 )
@@ -171,11 +208,9 @@ const removeArticle = async () => {
   }
 }
 
-// 登录态恢复（编辑按钮依赖 user.userId 比对）
+// 登录态恢复（编辑按钮依赖 user.userId 比对；逻辑在 useUser.ensureUserRestored，与 auth middleware 共用）
 onMounted(() => {
-  if (getToken() && !user.value) {
-    fetchUserInfo().catch(() => {})
-  }
+  ensureUserRestored()
 })
 
 // 右侧目录开关：文章带标题大纲才展示

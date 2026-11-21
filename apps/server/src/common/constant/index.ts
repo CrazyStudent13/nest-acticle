@@ -37,6 +37,17 @@ export const EMAIL_SEND_IP_LIMIT = 10;
 export const EMAIL_SEND_IP_EXPIRESIN = 1000 * 60 * 60;
 
 /**
+ * 注册用户默认角色（按 role_key 查询，避免各环境角色 ID 不一致）
+ */
+export const REGISTER_DEFAULT_ROLE_KEY = 'member';
+
+/**
+ * 个人中心自助权限（只操作当前登录用户，与管理端用户管理权限隔离）
+ */
+export const PERM_PROFILE_VIEW = 'system:user:profile:view';
+export const PERM_PROFILE_EDIT = 'system:user:profile:edit';
+
+/**
  * 用户类型
  * 00系统用户,10自定义用户
  *

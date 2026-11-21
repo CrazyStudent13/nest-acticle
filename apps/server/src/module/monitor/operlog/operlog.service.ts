@@ -5,6 +5,8 @@ import { SysOperlogEntity } from './entities/operlog.entity';
 import { REQUEST } from '@nestjs/core';
 import { Request, Response } from 'express';
 import { ResultData } from 'src/common/utils/result';
+import { applyLike, paginate } from 'src/common/query';
+import { GetClientIp } from 'src/common/utils';
 import { ExportTable } from 'src/common/utils/export';
 import { AxiosService } from 'src/module/common/axios/axios.service';
 
@@ -21,13 +23,8 @@ export class OperlogService {
   async findAll(query: any) {
     const entity = this.sysOperlogEntityRep.createQueryBuilder('entity');
 
-    if (query.title) {
-      entity.andWhere('entity.title LIKE :title', { title: `%${query.title}%` });
-    }
-
-    if (query.operName) {
-      entity.andWhere('entity.operName LIKE :operName', { operName: `%${query.operName}%` });
-    }
+    applyLike(entity, 'entity.title', query.title);
+    applyLike(entity, 'entity.operName', query.operName);
 
     if (query.businessType) {
       entity.andWhere('entity.businessType = :businessType', { businessType: query.businessType });
@@ -49,9 +46,7 @@ export class OperlogService {
       entity.orderBy(`entity.${query.orderByColumn}`, orderMap[query.isAsc]);
     }
 
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
+    paginate(entity, query);
 
     const [list, total] = await entity.getManyAndCount();
 
@@ -138,7 +133,8 @@ export class OperlogService {
     errorMsg?: string;
     businessType: number;
   }) {
-    const { originalUrl, method, ip, body, query } = this.request;
+    const { originalUrl, method, body, query } = this.request;
+    const ip = GetClientIp(this.request);
     const { user } = this.request.user;
     const operLocation = await this.axiosService.getIpAddress(ip);
 

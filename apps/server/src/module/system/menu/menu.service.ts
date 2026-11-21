@@ -1,24 +1,25 @@
-import { Injectable, Inject, forwardRef } from '@nestjs/common';
+import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, FindManyOptions, In } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
 import { SysMenuEntity } from './entities/menu.entity';
 import { SysRoleWithMenuEntity } from '../role/entities/role-width-menu.entity';
+import { SysUserWithRoleEntity } from '../user/entities/user-width-role.entity';
 import { CreateMenuDto, UpdateMenuDto, ListDeptDto } from './dto/index';
 import { ListToTree, Uniq } from 'src/common/utils/index';
-import { UserService } from '../user/user.service';
+import { applyLike } from 'src/common/query';
 import { buildMenus } from './utils';
 import { RedisService } from 'src/module/common/redis/redis.service';
 import { CacheEnum } from 'src/common/enum/index';
 @Injectable()
 export class MenuService {
   constructor(
-    @Inject(forwardRef(() => UserService))
-    private readonly userService: UserService,
     @InjectRepository(SysMenuEntity)
     private readonly sysMenuEntityRep: Repository<SysMenuEntity>,
     @InjectRepository(SysRoleWithMenuEntity)
     private readonly sysRoleWithMenuEntityRep: Repository<SysRoleWithMenuEntity>,
+    @InjectRepository(SysUserWithRoleEntity)
+    private readonly sysUserWithRoleEntityRep: Repository<SysUserWithRoleEntity>,
     private readonly redisService: RedisService,
   ) {}
 
@@ -31,9 +32,7 @@ export class MenuService {
     const entity = this.sysMenuEntityRep.createQueryBuilder('entity');
     entity.where('entity.delFlag = :delFlag', { delFlag: '0' });
 
-    if (query.menuName) {
-      entity.andWhere('entity.menuName LIKE :menuName', { menuName: `%${query.menuName}%` });
-    }
+    applyLike(entity, 'entity.menuName', query.menuName);
     if (query.status) {
       entity.andWhere('entity.status = :status', { status: query.status });
     }
@@ -156,7 +155,12 @@ export class MenuService {
     }
 
     let menuWidthRoleList = [];
-    const roleIds = await this.userService.getRoleIds([userId]);
+    // 用户→角色关联在本模块直接查（原经 UserService.getRoleIds，@Global 拆除后不再反向依赖 UserModule 成环）
+    const userWithRoles = await this.sysUserWithRoleEntityRep.find({
+      where: { userId: In([userId]) },
+      select: ['roleId'],
+    });
+    const roleIds = Uniq(userWithRoles.map((item) => item.roleId));
     if (roleIds.includes(1)) {
       // 超管roleId=1，所有菜单权限
       menuWidthRoleList = await this.sysMenuEntityRep.find({

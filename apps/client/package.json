@@ -1,5 +1,6 @@
 {
   "name": "client",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "scripts": {
@@ -11,16 +12,17 @@
     "typecheck": "nuxt typecheck"
   },
   "dependencies": {
-    "@types/markdown-it": "^14.2.0",
+    "@nest-acticle/editor": "workspace:*",
+    "@nest-acticle/markdown": "workspace:*",
+    "@nest-acticle/shared": "workspace:*",
+    "@nest-acticle/utils": "workspace:*",
     "clipboard": "^2.0.11",
     "cropperjs": "1.6.2",
     "dayjs": "^1.11.13",
-    "highlight.js": "^11.11.1",
-    "markdown-it": "^14.1.0",
     "nuxt": "^4.4.2",
     "typescript": "^5.9.3",
-    "vue": "3.5.13",
-    "vue-router": "4.5.0",
+    "vue": "^3.5.45",
+    "vue-router": "^5.4.0",
     "vue-tsc": "^3.3.14"
   },
   "engines": {

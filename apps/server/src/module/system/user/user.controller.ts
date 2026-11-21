@@ -2,18 +2,17 @@ import { Controller, Get, Post, Body, Put, Param, Query, Res, Delete, Request, U
 import { ApiTags, ApiOperation, ApiBody, ApiConsumes, ApiQuery, ApiBearerAuth } from '@nestjs/swagger';
 import { UserService } from './user.service';
 import { UserExcelService } from './user-excel.service';
-import { AuthService } from '../auth/auth.service';
 import { Response } from 'express';
 import { RequirePermission } from 'src/common/decorators/require-premission.decorator';
 import { RequireRole } from 'src/common/decorators/require-role.decorator';
-import { UploadService } from 'src/module/upload/upload.service';
 import { CreateUserDto, UpdateUserDto, ListUserDto, ChangeStatusDto, ResetPwdDto, UpdateProfileDto, UpdatePwdDto } from './dto/index';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ResultData } from 'src/common/utils/result';
+import { BusinessException } from 'src/common/exceptions/business.exception';
 import { User, UserDto, UserTool, UserToolType } from 'src/module/system/user/user.decorator';
 import { BusinessType } from 'src/common/constant/business.constant';
 import { Operlog } from 'src/common/decorators/operlog.decorator';
-import { UPLOAD_MAX_SIZE_BYTES } from 'src/common/constant/index';
+import { UPLOAD_MAX_SIZE_BYTES, PERM_PROFILE_VIEW, PERM_PROFILE_EDIT } from 'src/common/constant/index';
 
 @ApiTags('用户管理')
 @ApiBearerAuth()
@@ -22,14 +21,13 @@ export class UserController {
   constructor(
     private readonly userService: UserService,
     private readonly userExcelService: UserExcelService,
-    private readonly authService: AuthService,
-    private readonly uploadService: UploadService,
   ) {}
 
   @ApiOperation({
     summary: '个人中心 - 用户信息',
   })
-  @RequirePermission('system:user:query')
+  // 个人中心接口只操作当前登录用户自己，使用独立权限串（与管理端用户管理隔离）
+  @RequirePermission(PERM_PROFILE_VIEW)
   @Get('/profile')
   profile(@User() user: UserDto) {
     // 会话快照含密码哈希（updatePwd 比对依赖），仅在响应层剥离
@@ -40,7 +38,7 @@ export class UserController {
   @ApiOperation({
     summary: '个人中心-修改用户信息',
   })
-  @RequirePermission('system:user:edit')
+  @RequirePermission(PERM_PROFILE_EDIT)
   @Put('/profile')
   @Operlog({ businessType: BusinessType.UPDATE })
   updateProfile(@User() user: UserDto, @Body() updateProfileDto: UpdateProfileDto) {
@@ -50,28 +48,16 @@ export class UserController {
   @ApiOperation({
     summary: '个人中心 - 上传用户头像',
   })
-  @RequirePermission('system:user:edit')
+  @RequirePermission(PERM_PROFILE_EDIT)
   @Post('/profile/avatar')
   @UseInterceptors(FileInterceptor('avatarfile', { limits: { fileSize: UPLOAD_MAX_SIZE_BYTES } }))
   async avatar(@UploadedFile() avatarfile: Express.Multer.File, @User() user: UserDto) {
     if (!avatarfile) {
-      return ResultData.fail(500, '请上传头像文件');
+      throw new BusinessException(500, '请上传头像文件');
     }
-    // 传递作者名（使用用户昵称或用户名）
+    // 传递作者名（使用用户昵称或用户名）；文件落地 + 头像落库 + 会话刷新收口在 user.service.uploadAvatar
     const authorName = user.user.nickName || user.user.userName;
-    const res = await this.uploadService.singleFileUpload(avatarfile, 'avatar', authorName);
-
-    // 检查是否上传失败（返回的是错误信息）
-    if (res.code && res.code !== 200) {
-      return res; // 返回错误信息
-    }
-
-    // TypeScript 类型守卫：确保 res 是 UploadResult 类型
-    const uploadResult = res as any;
-    const imgUrl = uploadResult.url;
-
-    // 将头像 URL 保存到用户信息表，并传入当前 token
-    await this.userService.updateUserAvatar(user.user.userId, imgUrl, user.token);
+    const imgUrl = await this.userService.uploadAvatar(user.user.userId, avatarfile, authorName, user.token);
 
     return ResultData.ok({ imgUrl });
   }
@@ -79,7 +65,7 @@ export class UserController {
   @ApiOperation({
     summary: '个人中心-修改密码',
   })
-  @RequirePermission('system:user:edit')
+  @RequirePermission(PERM_PROFILE_EDIT)
   @Operlog({ businessType: BusinessType.UPDATE })
   @Put('/profile/updatePwd')
   updatePwd(@User() user: UserDto, @Body() updatePwdDto: UpdatePwdDto) {
@@ -171,7 +157,7 @@ export class UserController {
     const uuid = user.token;
 
     const result = await this.userService.update(updateUserDto, userId);
-    await this.authService.updateRedisUserRolesAndPermissions(uuid, userId);
+    await this.userService.updateRedisUserRolesAndPermissions(uuid, userId);
 
     return result;
   }

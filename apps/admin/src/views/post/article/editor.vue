@@ -12,9 +12,9 @@
 
     <!-- 主内容区 -->
     <div class="editor-main">
-      <!-- 左侧编辑器 -->
+      <!-- 左侧编辑器（共享 MarkdownEditor：与前台写作同一编辑体验，预览渲染与前台文章页同源） -->
       <div class="editor-content" v-loading="loading">
-        <MdEditor v-model="content" height="100%" :min-height="'100%'" />
+        <MarkdownEditor v-model="content" height="100%" :upload-image="handleUploadImage" />
       </div>
 
       <!-- 右侧属性面板 -->
@@ -81,13 +81,59 @@
 
 <script setup name="ArticleEditor">
 import { Expand, Fold } from '@element-plus/icons-vue';
+import { MarkdownEditor } from '@nest-acticle/editor';
+import '@nest-acticle/editor/style.css';
+// 预览区 markdown-body 样式与前台文章页同源（组件包不重复打包渲染样式，由宿主引入）
+import '@nest-acticle/markdown/style.css';
 
 import ImageUploadCover from '@/components/ImageUploadCover/index.vue';
-import MdEditor from '@/components/MdEditor/index.vue';
 import { useArticleEditor } from '@/composables/post/useArticleEditor';
+import request from '@/composables/useRequest';
 
 // 使用组合函数
 const { title, content, loading, isEdit, subjectList, sidebarCollapsed, articleData, post_article_source, handleTitleInput, toggleSidebar, handleSaveDraft, handlePublish } = useArticleEditor();
+
+// 与共享编辑器对接的图片上传回调：走统一上传端点回填 URL（对齐 ImageUploadCover / 原 MdEditor 封装的链路）
+// 大小上限与服务端对齐（apps/server app.file.maxSize / UPLOAD_MAX_SIZE_MB，均为 10MB）
+const MAX_IMG_SIZE_MB = 10;
+
+const handleUploadImage = async (file) => {
+  if (!file.type.startsWith('image/')) {
+    ElMessage.error('仅支持上传图片文件');
+    throw new Error('invalid-image');
+  }
+  if (file.size > MAX_IMG_SIZE_MB * 1024 * 1024) {
+    ElMessage.error(`图片大小不能超过 ${MAX_IMG_SIZE_MB}MB`);
+    throw new Error('oversize-image');
+  }
+  const formData = new FormData();
+  formData.append('file', file);
+  // 默认 axios 超时 10s 对大图上传偏紧，单独放宽；失败信封由 useRequest 拦截器统一 message 提示，
+  // 这里把失败抛回组件，保证不往正文插入残缺内容
+  const res = await request({ url: '/common/upload', method: 'post', data: formData, timeout: 60000 });
+  const url = res?.data?.url;
+  if (!url) {
+    ElMessage.error('上传失败：未获取到图片地址');
+    throw new Error('upload-empty');
+  }
+  return url;
+};
+
+// Ctrl/Cmd+S 快捷键存草稿（对齐桌面编辑器习惯，走"存草稿"按钮同一条防抖保存链路）
+const handleSaveShortcut = (event) => {
+  if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
+    event.preventDefault();
+    handleSaveDraft();
+  }
+};
+
+onMounted(() => {
+  document.addEventListener('keydown', handleSaveShortcut);
+});
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', handleSaveShortcut);
+});
 </script>
 
 <style lang="scss" scoped>

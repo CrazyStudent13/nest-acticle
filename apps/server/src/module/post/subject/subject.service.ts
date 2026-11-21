@@ -2,6 +2,8 @@ import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
+import { BusinessException } from 'src/common/exceptions/business.exception';
+import { applyLike, paginate } from 'src/common/query';
 import { PostSubjectEntity } from './entities/subject.entity';
 import { PostArticleEntity } from '../article/entities/article.entity';
 import { CreatePostSubjectDto, UpdatePostSubjectDto, ListPostSubjectDto, PublishStatusEnum } from './dto/index';
@@ -34,9 +36,7 @@ export class PostSubjectService {
     const entity = this.postSubjectRepository.createQueryBuilder('subject');
     entity.where('subject.delFlag = :delFlag', { delFlag: '0' });
 
-    if (query.title) {
-      entity.andWhere('subject.title LIKE :title', { title: `%${query.title}%` });
-    }
+    applyLike(entity, 'subject.title', query.title);
 
     if (query.userId) {
       entity.andWhere('subject.userId = :userId', { userId: query.userId });
@@ -55,21 +55,17 @@ export class PostSubjectService {
       entity.orderBy(`subject.${query.orderByColumn}`, key);
     }
 
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
+    paginate(entity, query);
 
     const [list, total] = await entity.getManyAndCount();
 
-    // 为每个专栏统计文章数量
+    // 批量统计各专栏文章数量（一次聚合查询替代逐专栏 count，未关联文章的专栏回填默认 0）
+    const countMap = await this.countArticlesBySubjectMap(
+      list.map((subject) => subject.id),
+      false,
+    );
     for (const subject of list) {
-      const articleCount = await this.postArticleRepository.count({
-        where: {
-          subjectId: subject.id,
-          delFlag: '0',
-        },
-      });
-      subject.articleCount = articleCount;
+      subject.articleCount = countMap.get(subject.id) ?? 0;
     }
 
     return ResultData.ok({ list, total });
@@ -81,7 +77,7 @@ export class PostSubjectService {
     });
 
     if (!subject) {
-      return ResultData.fail(500, '专栏不存在');
+      throw new BusinessException(500, '专栏不存在');
     }
 
     return ResultData.ok(subject);
@@ -92,6 +88,39 @@ export class PostSubjectService {
    */
   private isSubjectField(field: string): boolean {
     return this.postSubjectRepository.metadata.columns.some((column) => column.propertyName === field);
+  }
+
+  /**
+   * 批量统计多个专栏的文章数量：一次 GROUP BY subjectId 聚合查询替代逐专栏 count（消 N+1）
+   * 计数口径与既有逐条 count 一致（delFlag = '0'；publishedOnly 时再限定已发布），
+   * 未关联文章的专栏不在聚合结果中，由调用方按 Map 缺键回填默认 0（与既有逐条 count 返回 0 一致）
+   * @param subjectIds 专栏 ID 列表
+   * @param publishedOnly true 仅统计游客可见（已发布）文章 / false 统计全部未删除文章
+   * @returns subjectId → 文章数量映射
+   */
+  private async countArticlesBySubjectMap(subjectIds: number[], publishedOnly: boolean): Promise<Map<number, number>> {
+    const countMap = new Map<number, number>();
+    if (subjectIds.length === 0) {
+      return countMap;
+    }
+
+    const qb = this.postArticleRepository
+      .createQueryBuilder('article')
+      .select('article.subjectId', 'subjectId')
+      .addSelect('COUNT(article.id)', 'articleCount')
+      .where('article.delFlag = :delFlag', { delFlag: '0' })
+      .andWhere('article.subjectId IN (:...subjectIds)', { subjectIds });
+
+    if (publishedOnly) {
+      qb.andWhere('article.publishStatus = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED });
+    }
+
+    const rows = await qb.groupBy('article.subjectId').getRawMany();
+    for (const row of rows) {
+      // COUNT 经 Number 归一，与既有 count() 返回数值类型一致
+      countMap.set(Number(row.subjectId), Number(row.articleCount));
+    }
+    return countMap;
   }
 
   /**
@@ -124,9 +153,7 @@ export class PostSubjectService {
       .andWhere('subject.status = :status', { status: '0' })
       .andWhere('subject.publishStatus = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED });
 
-    if (query.title) {
-      entity.andWhere('subject.title LIKE :title', { title: `%${query.title}%` });
-    }
+    applyLike(entity, 'subject.title', query.title);
 
     if (query.userId) {
       entity.andWhere('subject.userId = :userId', { userId: query.userId });
@@ -140,19 +167,19 @@ export class PostSubjectService {
       entity.orderBy('subject.createTime', 'DESC');
     }
 
-    if (query.pageSize && query.pageNum) {
-      entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
-    }
+    paginate(entity, query);
 
     const [list, total] = await entity.getManyAndCount();
 
-    // 为每个专栏统计游客可见（已发布）的文章数量
-    const processedList = await Promise.all(
-      list.map(async (subject) => ({
-        ...subject,
-        articleCount: await this.countGuestArticles(subject.id),
-      })),
+    // 批量统计各专栏游客可见（已发布）的文章数量（一次聚合查询替代逐专栏 count，未关联文章的专栏回填默认 0）
+    const countMap = await this.countArticlesBySubjectMap(
+      list.map((subject) => subject.id),
+      true,
     );
+    const processedList = list.map((subject) => ({
+      ...subject,
+      articleCount: countMap.get(subject.id) ?? 0,
+    }));
 
     return ResultData.ok({ list: processedList, total });
   }
@@ -165,7 +192,7 @@ export class PostSubjectService {
   async findGuestOne(id: number) {
     const subjectId = Number(id);
     if (!subjectId) {
-      return ResultData.fail(500, '专栏不存在');
+      throw new BusinessException(500, '专栏不存在');
     }
 
     const subject = await this.postSubjectRepository.findOne({
@@ -174,7 +201,7 @@ export class PostSubjectService {
     });
 
     if (!subject) {
-      return ResultData.fail(500, '专栏不存在');
+      throw new BusinessException(500, '专栏不存在');
     }
 
     const articleCount = await this.countGuestArticles(subjectId);
@@ -187,7 +214,7 @@ export class PostSubjectService {
     const subject = await this.postSubjectRepository.findOne({ where: { id, delFlag: '0' } });
 
     if (!subject) {
-      return ResultData.fail(500, '专栏不存在');
+      throw new BusinessException(500, '专栏不存在');
     }
 
     await this.postSubjectRepository.update({ id }, updateData);
@@ -199,7 +226,7 @@ export class PostSubjectService {
     const idList = Array.isArray(ids) ? ids : [ids];
 
     if (!idList || idList.length === 0) {
-      return ResultData.fail(400, '请选择要删除的专栏');
+      throw new BusinessException(400, '请选择要删除的专栏');
     }
 
     // 获取所有要删除的专栏
@@ -211,7 +238,7 @@ export class PostSubjectService {
     });
 
     if (subjects.length === 0) {
-      return ResultData.fail(500, '未找到可删除的专栏');
+      throw new BusinessException(500, '未找到可删除的专栏');
     }
 
     // 批量软删除

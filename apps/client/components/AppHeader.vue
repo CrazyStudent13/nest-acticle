@@ -1,4 +1,4 @@
-<!-- 全站吸顶导航：品牌+栏目导航+文章搜索（回车跳首页带 title 参数）；创作者中心入口悬停展开面板（250ms 延迟关闭防误消）、点击新窗口进 /creator；已登录通知铃铛（点击进 /notification、悬停下拉四分类）+头像+退出，未登录登录/注册按钮 -->
+<!-- 全站吸顶导航：品牌+栏目导航+文章搜索（回车跳首页带 title 参数）；已登录创作者中心入口悬停展开面板（250ms 延迟关闭防误消）、点击新窗口进 /creator + 通知铃铛（点击进 /notification、悬停下拉四分类）+头像+退出，未登录仅登录/注册按钮 -->
 <template>
   <header class="header">
     <div class="inner">
@@ -37,8 +37,8 @@
           <input v-model="keyword" type="search" placeholder="搜索文章" />
         </form>
 
-        <!-- 创作者中心入口：仿掘金——悬停展开面板，点击新窗口进创作者中心（保留主站浏览状态） -->
-        <div class="creator-entry" @mouseenter="openPanel" @mouseleave="closePanelSoon">
+        <!-- 创作者中心入口：仿掘金——悬停展开面板，点击新窗口进创作者中心（保留主站浏览状态）；未登录不展示 -->
+        <div v-if="isLoggedIn" class="creator-entry" @mouseenter="openPanel" @mouseleave="closePanelSoon">
           <NuxtLink to="/creator" class="creator-btn" target="_blank">
             创作者中心
             <svg class="arrow" :class="{ open: creatorOpen }" viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -136,7 +136,7 @@ const handleSearch = () => {
 
 const { openLogin, openRegister } = useAuthModal()
 const config = useRuntimeConfig()
-const { user, isLoggedIn, fetchUserInfo, logout } = useUser()
+const { user, isLoggedIn, ensureUserRestored, logout } = useUser()
 
 // ---------- 创作者中心入口（悬停出面板，点击进 /creator，页面守卫负责登录拦截） ----------
 // 创作入口清单：未来扩展（沸点/笔记等）往数组加项即可
@@ -231,11 +231,9 @@ const closeNoticePanelSoon = () => {
 const avatarUrl = computed(() => toCoverUrl(config.public.apiBase, user.value?.avatar))
 const avatarFallback = computed(() => (user.value?.nickName || user.value?.userName || '用户').slice(0, 1))
 
-// 页面刷新后恢复登录态：有 token 但还没有用户信息时静默拉取
+// 页面刷新后恢复登录态：有 token 但还没有用户信息时静默拉取（逻辑在 useUser.ensureUserRestored，与 auth middleware 共用）
 onMounted(() => {
-  if (getToken() && !user.value) {
-    fetchUserInfo().catch(() => {})
-  }
+  ensureUserRestored()
 })
 
 const handleLogout = async () => {

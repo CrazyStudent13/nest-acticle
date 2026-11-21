@@ -41,12 +41,23 @@
 <script setup lang="ts">
 // 文章目录：SSR 先按 Markdown 源码渲染大纲，挂载后以渲染出的 DOM 标题为准做校正
 // （引用/列表里的标题等边角情况 Markdown 提取可能漏掉，以实际 DOM 对齐才能保证点击/高亮不错位）
+// 容器/滚动根经 props 参数化：详情页用默认值；写作页发布前预览传遮罩内的选择器（滚动发生在
+// 遮罩自身的滚动容器上而非 window）。
 const props = withDefaults(
   defineProps<{
     content?: string
+    /** 标题 DOM 的容器选择器（默认详情页正文） */
+    containerSelector?: string
+    /** 滚动根选择器：传入时滚动与高亮监听挂在该元素上（如预览遮罩），缺省挂 window */
+    scrollRootSelector?: string
+    /** 点击定位时标题距滚动视口顶部的留白（详情页有站头 72，预览遮罩 24） */
+    offsetTop?: number
   }>(),
   {
-    content: ''
+    content: '',
+    containerSelector: '.detail .panel-body',
+    scrollRootSelector: '',
+    offsetTop: 72
   }
 )
 
@@ -56,8 +67,11 @@ const activeIndex = ref(0)
 
 let headingEls: HTMLElement[] = []
 
+const getScrollRoot = (): HTMLElement | null =>
+  props.scrollRootSelector ? (document.querySelector(props.scrollRootSelector) as HTMLElement | null) : null
+
 const collect = () => {
-  const body = document.querySelector('.detail .panel-body')
+  const body = document.querySelector(props.containerSelector)
   if (!body) {
     return
   }
@@ -85,8 +99,15 @@ const scrollTo = (index: number) => {
     return
   }
   activeIndex.value = index
-  const top = el.getBoundingClientRect().top + window.scrollY - 72
-  window.scrollTo({ top, behavior: 'smooth' })
+  const root = getScrollRoot()
+  if (root) {
+    // 滚动根为遮罩等容器：按容器相对坐标换算目标 scrollTop
+    const top = el.getBoundingClientRect().top - root.getBoundingClientRect().top + root.scrollTop - props.offsetTop
+    root.scrollTo({ top, behavior: 'smooth' })
+  } else {
+    const top = el.getBoundingClientRect().top + window.scrollY - props.offsetTop
+    window.scrollTo({ top, behavior: 'smooth' })
+  }
 }
 
 // 滚动高亮：取视口顶部以上最近的标题；触底时强制点亮最后一项
@@ -100,8 +121,11 @@ const onScroll = () => {
   if (idx < 0) {
     idx = 0
   }
-  const doc = document.documentElement
-  if (window.innerHeight + window.scrollY >= doc.scrollHeight - 4) {
+  const root = getScrollRoot()
+  const atBottom = root
+    ? root.scrollTop + root.clientHeight >= root.scrollHeight - 4
+    : window.innerHeight + window.scrollY >= document.documentElement.scrollHeight - 4
+  if (atBottom) {
     idx = headingEls.length - 1
   }
   activeIndex.value = idx
@@ -109,12 +133,22 @@ const onScroll = () => {
 
 onMounted(() => {
   collect()
-  window.addEventListener('scroll', onScroll, { passive: true })
+  const root = getScrollRoot()
+  if (root) {
+    root.addEventListener('scroll', onScroll, { passive: true })
+  } else {
+    window.addEventListener('scroll', onScroll, { passive: true })
+  }
   onScroll()
 })
 
 onBeforeUnmount(() => {
-  window.removeEventListener('scroll', onScroll)
+  const root = getScrollRoot()
+  if (root) {
+    root.removeEventListener('scroll', onScroll)
+  } else {
+    window.removeEventListener('scroll', onScroll)
+  }
 })
 
 // 详情页路由复用同一组件实例（query 变化不重建），内容变了要重新采集

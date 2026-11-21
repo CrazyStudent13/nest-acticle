@@ -1,4 +1,5 @@
 import useUserStore from '@/store/modules/user';
+import { ALL_PERMISSION, SUPER_ADMIN_ROLE } from '@nest-acticle/shared';
 
 // ==================== 类型定义 ====================
 
@@ -27,12 +28,11 @@ export interface AuthResult {
  * ```
  */
 const authPermission = (permission: string): boolean => {
-  const all_permission = '*:*:*';
   const permissions = useUserStore().permissions;
 
   if (permission && permission.length > 0) {
     return permissions.some((v: string) => {
-      return all_permission === v || v === permission;
+      return ALL_PERMISSION === v || v === permission;
     });
   } else {
     return false;
@@ -53,12 +53,11 @@ const authPermission = (permission: string): boolean => {
  * ```
  */
 const authRole = (role: string): boolean => {
-  const super_admin = 'admin';
   const roles = useUserStore().roles;
 
   if (role && role.length > 0) {
     return roles.some((v: string) => {
-      return super_admin === v || v === role;
+      return SUPER_ADMIN_ROLE === v || v === role;
     });
   } else {
     return false;

@@ -21,15 +21,7 @@
 </template>
 
 <script setup lang="ts">
-type ColumnListItem = {
-  id?: number | string
-  title?: string
-  name?: string
-  desc?: string
-  cover?: string
-  createTime?: string
-  articleNum?: number
-}
+import type { Subject } from '@nest-acticle/shared'
 
 useSeoMeta({
   title: '专栏 - 游戏速递',
@@ -39,7 +31,7 @@ useSeoMeta({
 
 const config = useRuntimeConfig()
 
-const { data } = await useFetch<{ data?: { list?: ColumnListItem[] } }>(
+const { data } = await useFetch<{ data?: { list?: Subject[] } }>(
   `${config.public.apiBase}/api/post/subject/guest/list`,
   {
     query: {
@@ -52,7 +44,7 @@ const { data } = await useFetch<{ data?: { list?: ColumnListItem[] } }>(
 
 const columns = computed(() => data.value?.data?.list || [])
 
-const handleRowClick = (item: ColumnListItem) => {
+const handleRowClick = (item: Subject) => {
   return navigateTo({
     path: '/column/detail',
     query: {
