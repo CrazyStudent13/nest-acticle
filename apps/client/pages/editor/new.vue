@@ -1,5 +1,5 @@
 <!-- 写文章页（独立全屏流程）：编辑区为 @nest-acticle/editor 共享 MarkdownEditor（工具栏/快捷键/预览/粘贴上传在包内，与 admin 编辑体验同源）；上传经回调走"先裁剪再上传"，插入时机由组件在回调前捕获的选区决定；草稿箱 localStorage 自动保存（800ms 防抖、按 userId 隔离：新建写草稿箱草稿，编辑线上文章按 articleId 写本地快照并在载入时提示恢复）；发布弹窗：封面 16:9 裁剪/选专栏/简介自动取正文前 100 字；带 ?id= 为编辑模式（按钮变"保存"），未登录原地弹登录框。
-     职责拆分：工具栏操作/字数统计/预览 → @nest-acticle/editor；草稿箱 → useDraftBox + EditorDraftPanel；发布弹窗 → usePublish + EditorPublishModal；本页保留主流程编排（初始化/编辑模式加载与快照恢复/图片上传回调）。 -->
+     职责拆分：工具栏操作/字数统计/预览 → @nest-acticle/editor；草稿箱 → useDraftBox + EditorDraftPanel；发布弹窗 → usePublish + EditorPublishModal；发布前预览遮罩 → Editor/PreviewOverlay；本页保留主流程编排（初始化/编辑模式加载与快照恢复/图片上传回调）。 -->
 <template>
   <div class="editor-page">
     <!-- 顶栏：返回站点 + 标题 + 草稿箱 + 发布 -->
@@ -68,45 +68,15 @@
     <!-- 发布弹窗（显隐 v-model，状态/动作来自 usePublish store） -->
     <EditorPublishModal v-model="publish.open" :publish="publish" :edit-id="editId" />
 
-    <!-- 发布前预览：按详情页版式拼装当前内容（标题/元信息/封面/正文），正文复用 MdViewer——
-         与文章详情页同一渲染栈（复制按钮/图片放大/mermaid 全部一致），所见即发布所得 -->
-    <Teleport to="body">
-      <div v-if="previewOpen" class="preview-overlay">
-        <div class="preview-topbar">
-          <span class="preview-flag">预览 · 发布后的效果</span>
-          <button class="preview-close" type="button" @click="previewOpen = false">关闭预览</button>
-        </div>
-        <div class="preview-scroll">
-          <div class="preview-layout">
-            <article class="preview-panel">
-              <h1 class="preview-title">{{ title.trim() || '无标题' }}</h1>
-              <div class="preview-meta">
-                <span class="meta-author">{{ authorName }}</span>
-                <span class="meta-item">发布于 {{ previewTime }}</span>
-                <span v-if="previewSubjectTitle" class="meta-item">{{ previewSubjectTitle }}</span>
-              </div>
-              <img v-if="previewCoverUrl" class="preview-cover" :src="previewCoverUrl" :alt="title.trim() || '封面'" />
-              <div class="preview-body">
-                <MdViewer :value="content" />
-              </div>
-            </article>
-            <!-- 发布后的详情页右栏为作者卡+目录+相关推荐：预览呈现作者卡与目录（相关推荐依赖已发布文章，不预呈现） -->
-            <aside class="preview-aside">
-              <Suspense>
-                <ArticleAuthorCard :author="previewAuthor" />
-              </Suspense>
-              <ArticleToc
-                v-if="previewHasToc"
-                :content="content"
-                container-selector=".preview-overlay .preview-body"
-                scroll-root-selector=".preview-overlay .preview-scroll"
-                :offset-top="24"
-              />
-            </aside>
-          </div>
-        </div>
-      </div>
-    </Teleport>
+    <!-- 发布前预览遮罩（Editor/PreviewOverlay.vue：详情页版式 + ESC/锁滚动随组件走） -->
+    <EditorPreviewOverlay
+      v-model:open="previewOpen"
+      :title="title"
+      :content="content"
+      :cover-url="previewCoverUrl"
+      :subject-title="previewSubjectTitle"
+      :author="previewAuthor"
+    />
   </div>
 </template>
 
@@ -115,8 +85,6 @@ import type { Article } from '@nest-acticle/shared'
 import dayjs from 'dayjs'
 import { MarkdownEditor } from '@nest-acticle/editor'
 import '@nest-acticle/editor/style.css'
-// 预览区的 markdown-body 样式与文章详情页同源（组件包不重复打包渲染样式，由宿主引入）
-import '@nest-acticle/markdown/style.css'
 
 // 写文章是独立全屏流程：ssr 关闭（依赖 token），使用 editor 布局（无站头站脚）
 // 登录守卫走 auth middleware：未登录原地弹登录框不跳页（authNoToken: 'stay'，掘金式），恢复失败回首页
@@ -222,35 +190,22 @@ watch([title, content], () => {
 // ---------- 发布弹窗（校验/专栏/封面/提交） ----------
 const publish = usePublish({ title, content, editId, setTopTip, clearCurrentDraft: draft.clearCurrentDraft })
 
-// ---------- 发布前预览：按详情页版式拼装当前内容，正文走 MdViewer（与详情页同一渲染栈） ----------
+// ---------- 发布前预览（遮罩版式/ESC/锁滚动/定格时间在 EditorPreviewOverlay 内，本页只备展示数据） ----------
 const previewOpen = ref(false)
-const previewTime = ref('')
 const previewCoverUrl = computed(() => toCoverUrl(config.public.apiBase, publish.publishForm.cover || ''))
 const previewSubjectTitle = computed(
   () => publish.subjects.find((s) => String(s.id) === publish.publishForm.subjectId)?.title || ''
 )
-const authorName = computed(() => user.value?.nickName || user.value?.userName || '佚名')
-// 作者卡片入参（组件内自取 guest 列表聚合 文章/阅读/获赞 统计）；Suspense 包裹消化其异步 setup
+// 作者卡片入参（组件内自取 guest 列表聚合 文章/阅读/获赞 统计）
 const previewAuthor = computed(() => ({
   userId: user.value?.userId,
   nickName: user.value?.nickName || user.value?.userName || '佚名',
   avatar: user.value?.avatar || ''
 }))
-// 与详情页同口径：文章带标题大纲才展示目录
-const previewHasToc = computed(() => extractMarkdownHeadings(content.value).length > 0)
 
 const openPreview = () => {
-  // 时间按打开时刻定格，模拟发布后的展示
-  previewTime.value = dayjs().format('YYYY-MM-DD HH:mm')
   previewOpen.value = true
 }
-
-// 预览期间锁正文滚动（遮罩自带滚动容器）
-watch(previewOpen, (open) => {
-  if (typeof document !== 'undefined') {
-    document.body.style.overflow = open ? 'hidden' : ''
-  }
-})
 
 // ---------- 初始化：登录守卫已由 auth middleware 先行（未登录会原地弹登录框、token 失效已回首页） ----------
 const initEditor = () => {
@@ -271,7 +226,7 @@ onMounted(() => {
   if (user.value) {
     initEditor()
   }
-  // 页面级快捷键：Ctrl/Cmd+S 手动存草稿（仅新建模式生效）；ESC 关闭发布前预览
+  // 页面级快捷键：Ctrl/Cmd+S 手动存草稿（仅新建模式生效）；预览 ESC 关闭在遮罩组件内
   document.addEventListener('keydown', handlePageKeydown)
 })
 
@@ -279,19 +234,11 @@ const handlePageKeydown = (event: KeyboardEvent) => {
   if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 's') {
     event.preventDefault()
     draft.saveCurrentDraft()
-    return
-  }
-  if (event.key === 'Escape' && previewOpen.value) {
-    previewOpen.value = false
   }
 }
 
 onBeforeUnmount(() => {
   document.removeEventListener('keydown', handlePageKeydown)
-  // 兜底还原滚动锁（预览开着时直接路由跳走的情况）
-  if (typeof document !== 'undefined') {
-    document.body.style.overflow = ''
-  }
 })
 
 // 弹窗登录成功 → user state 填充 → 触发初始化
@@ -491,138 +438,6 @@ const loadArticle = async (id: string) => {
 // 草稿提示并入共享编辑器状态栏（插槽内容在页面作用域，可被页面样式覆盖对齐）
 .status-hint {
   margin-left: auto;
-}
-
-// ---------- 发布前预览遮罩（版式对齐文章详情页；z-index 低于 lightbox，预览里的图片仍可放大） ----------
-.preview-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 2800;
-  display: flex;
-  flex-direction: column;
-  background-color: var(--color-bg);
-}
-
-.preview-topbar {
-  flex-shrink: 0;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  height: 52px;
-  padding: 0 20px;
-  background-color: var(--color-surface);
-  border-bottom: 1px solid var(--color-border-light);
-
-  .preview-flag {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--color-text-2);
-  }
-
-  .preview-close {
-    padding: 5px 14px;
-    border: 1px solid var(--color-border-light);
-    border-radius: var(--radius-sm);
-    background-color: transparent;
-    font-size: 13px;
-    color: var(--color-text-2);
-    cursor: pointer;
-    transition:
-      color 0.2s ease,
-      border-color 0.2s ease;
-
-    &:hover {
-      color: var(--color-primary);
-      border-color: var(--color-primary);
-    }
-  }
-}
-
-.preview-scroll {
-  flex: 1;
-  min-height: 0;
-  overflow-y: auto;
-  // 顶部留白用 layout 的 margin 而非容器的 padding：Chrome 的 sticky 约束线从滚动容器内容边起算，
-  // padding-top + sticky top 会叠加把右栏在初始状态推低（右栏与正文卡片顶部错位）
-  padding: 0 16px 48px;
-}
-
-// 两栏布局对齐详情页：正文卡片 + 右侧目录（窄屏隐藏目录）
-.preview-layout {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 24px;
-  margin-top: 32px;
-}
-
-.preview-panel {
-  flex: 1;
-  min-width: 0;
-  max-width: 820px;
-  padding: 36px 44px;
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-md);
-}
-
-.preview-aside {
-  position: sticky;
-  top: 24px;
-  flex-shrink: 0;
-  width: 240px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-@media (max-width: 1000px) {
-  .preview-aside {
-    display: none;
-  }
-}
-
-.preview-title {
-  font-size: 28px;
-  font-weight: 600;
-  line-height: 1.4;
-  color: var(--color-text-1);
-  margin-bottom: 16px;
-}
-
-.preview-meta {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 6px 16px;
-  padding-bottom: 18px;
-  margin-bottom: 24px;
-  border-bottom: 1px solid var(--color-border-light);
-  font-size: 13px;
-  color: var(--color-text-3);
-
-  .meta-author {
-    font-weight: 600;
-    color: var(--color-text-1);
-  }
-}
-
-.preview-cover {
-  width: 100%;
-  max-height: 440px;
-  object-fit: cover;
-  border-radius: var(--radius-md);
-  margin-bottom: 24px;
-}
-
-@media (max-width: 640px) {
-  .preview-panel {
-    padding: 24px 20px;
-  }
-
-  .preview-title {
-    font-size: 22px;
-  }
 }
 
 @media (max-width: 640px) {
