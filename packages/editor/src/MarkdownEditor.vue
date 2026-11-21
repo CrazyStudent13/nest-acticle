@@ -568,7 +568,7 @@ const handleScrollSync = () => {
   }
 }
 
-// 窄屏隐藏预览（与原 client 编辑页行为一致）
+// 窄屏（≤900px）隐藏预览，写作聚焦单栏
 @media (max-width: 900px) {
   .na-md-editor-preview {
     display: none;

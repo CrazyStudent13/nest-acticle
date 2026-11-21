@@ -12,7 +12,7 @@ export interface MarkdownRendererOptions {
 }
 
 export interface MarkdownRenderer {
-  /** 输入兼容引号包裹内容与字面 \n（沿用 client MdViewer 的历史约定），输出 HTML 与前台文章页完全一致 */
+  /** 输入兼容存量数据的两种形态：内容被成对引号包裹时剥壳、字面 \n 还原为换行。输出 HTML 与前台文章页完全一致 */
   render(source: string): string
 }
 
@@ -82,8 +82,9 @@ const stripHtmlComments = (source: string): string => {
   return out.join('\n')
 }
 
-// 渲染配置逐字取自重构前 client MdViewer（等价性基准见 CODE-REVIEW-2026-11-20.md 第四节 P2-5）：
-// 代码块复制按钮 + 行号占位 + 语言名标注，HTML 结构不可改动（两端壳的 CSS 与 ClipboardJS 都依赖这些类名）
+// 渲染配置是一份被两端壳依赖的输出契约：代码块复制按钮 + 行号占位 + 语言名标注的
+// HTML 结构不可改动（client/admin 壳的 CSS 与 ClipboardJS 都锚定这些类名）；
+// 数学/mermaid/链接/图片的行为规则见各分支注释
 export function createMarkdownRenderer(options: MarkdownRendererOptions = {}): MarkdownRenderer {
   const { copyButton = true, math = true, mermaid: withMermaid = true } = options
 

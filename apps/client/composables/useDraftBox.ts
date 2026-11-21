@@ -1,4 +1,4 @@
-// 草稿箱（localStorage 自动保存）：读写/防抖保存/删除/点击外关闭，从 editor/new.vue 抽出（原 :507-604）。
+// 草稿箱（localStorage 自动保存）：读写/防抖保存/删除/点击外关闭。
 // ⚠️ DRAFT_KEY 与存档格式（DraftItem[] 的 JSON）是既有用户数据契约——本批次新增可选字段 articleId
 // （编辑线上文章的本地快照），旧存档无该字段可正常读取，不丢数据。
 // 规则：新建模式写 currentDraftId 草稿（草稿箱面板展示）；编辑模式按 articleId 归属写本地快照

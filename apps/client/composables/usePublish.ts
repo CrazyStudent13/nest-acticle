@@ -1,5 +1,5 @@
 // 发布弹窗逻辑：专栏拉取（走 useSubject guest 列表）/封面 16:9 裁剪上传（复用 useImageCrop+useUpload）/
-// 发布校验与提示/提交，从 editor/new.vue 抽出（原 :606-742）。提交保留 apiFetch<{ id: number }> 直调——
+// 发布校验与提示/提交。提交保留 apiFetch<{ id: number }> 直调——
 // useArticleManage 的 updateArticle 签名（PUT+publishStatus 必填）与本页 POST/PUT 共用体不吻合，URL 与 body 逐字保留。
 // 状态经 reactive 返回（PublishStore）：PublishModal 组件以单一 store prop + v-model 显隐对接，
 // 页面只做 openPublish 触发与编辑模式预填；生命周期仍随页面挂载（刻意不用 useState，避免跨导航残留发布态）。

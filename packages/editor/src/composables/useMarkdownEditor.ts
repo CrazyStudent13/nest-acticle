@@ -1,8 +1,8 @@
 // Markdown 编辑器核心：纯 textarea 选区操作——工具栏全部插入/包裹/行变换动作与 Ctrl+B/I 快捷键，
-// 外加字数/行数统计。自 client composables/useMarkdownEditor.ts 迁入（会话 M 编辑器统一），
-// 只依赖 content 状态与 textarea 元素引用（ref 传引用保持响应式），不含网络与弹窗逻辑；
+// 外加字数/行数统计。只依赖 content 状态与 textarea 元素引用（ref 传引用保持响应式），不含网络与弹窗逻辑；
 // replaceRange 同时供组件内图片插入复用（光标恢复语义不变）。
-// 逻辑逐字保留：快捷键集合（Ctrl+B / Ctrl+I）、标题三级循环、引用/列表行变换、字数（去空白）统计。
+// 行为契约（两端编辑页与既有用户习惯依赖，勿擅自变更）：快捷键集合（Ctrl+B / Ctrl+I）、
+// 标题三级循环、引用/列表行变换、字数（去空白）统计口径。
 import { computed, nextTick } from 'vue';
 import type { Ref } from 'vue';
 

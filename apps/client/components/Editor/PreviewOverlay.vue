@@ -109,7 +109,7 @@ watch(
   }
 )
 
-// ESC 关闭预览（document 级监听与原页面实现同口径，仅 open 时生效）；
+// ESC 关闭预览（document 级监听，仅 open 时生效）；
 // lightbox 开着时让位：一次 ESC 只关 lightbox，再按一次才关预览（否则层叠弹窗被一次全退）
 const handleKeydown = (event: KeyboardEvent) => {
   if (event.key === 'Escape' && props.open && !isImageLightboxOpen()) {
