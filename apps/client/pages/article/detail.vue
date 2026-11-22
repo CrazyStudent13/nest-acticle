@@ -115,8 +115,16 @@ const coverUrl = computed(() => toCoverUrl(config.public.apiBase, article.value.
 // publishTime 常为 null，回退 createTime
 const publishLabel = computed(() => article.value.publishTime || article.value.createTime)
 const readLabel = computed(() => (typeof article.value.readNum === 'number' ? String(article.value.readNum) : ''))
-const likeCount = computed(() => (typeof article.value.likeNum === 'number' ? article.value.likeNum : 0))
-const commentCount = computed(() => (typeof article.value.commentNum === 'number' ? article.value.commentNum : 0))
+// article 是 computed 拼装的普通对象，直接改它的字段不会触发视图更新；
+// 计数以本地覆盖值优先，接口回写只改覆盖值
+const likeNumLocal = ref<number | null>(null)
+const commentNumLocal = ref<number | null>(null)
+const likeCount = computed(() =>
+  likeNumLocal.value ?? (typeof article.value.likeNum === 'number' ? article.value.likeNum : 0)
+)
+const commentCount = computed(() =>
+  commentNumLocal.value ?? (typeof article.value.commentNum === 'number' ? article.value.commentNum : 0)
+)
 
 // ---------- 点赞：登录态下查询/切换，未登录点击引导登录 ----------
 const { isLoggedIn } = useUser()
@@ -124,20 +132,34 @@ const { openLogin } = useAuthModal()
 const { fetchLikeStatus, likeArticle, unlikeArticle } = useLike()
 const liked = ref(false)
 const likeBusy = ref(false)
+// 文章切换时旧请求可能后到，序号保证只认最新一次查询
+let likeSeq = 0
 
 const syncLikeStatus = () => {
-  if (isLoggedIn.value && article.value.id) {
-    fetchLikeStatus(article.value.id)
-      .then((value) => (liked.value = value))
-      .catch(() => {})
-  } else {
+  const id = article.value.id
+  const seq = ++likeSeq
+  if (!isLoggedIn.value || !id) {
     liked.value = false
+    return
   }
+  fetchLikeStatus(id)
+    .then((value) => {
+      if (seq === likeSeq) {
+        liked.value = value
+      }
+    })
+    .catch(() => {})
 }
 
-// 点赞状态依赖 token，详情页 SSR 只出公共数据，状态在客户端补查
+// 点赞状态依赖 token，详情页 SSR 只出公共数据，状态在客户端补查；
+// 相关推荐等同路由跳转会复用页面组件，文章 id 变了必须重查，否则沿上一篇的点赞态
 onMounted(syncLikeStatus)
 watch(isLoggedIn, syncLikeStatus)
+watch(() => article.value.id, () => {
+  likeNumLocal.value = null
+  commentNumLocal.value = null
+  syncLikeStatus()
+})
 
 const onLike = async () => {
   if (likeBusy.value) {
@@ -151,16 +173,27 @@ const onLike = async () => {
   if (!id) {
     return
   }
+  // 乐观更新：点击即翻转高亮并增减计数，请求返回后再以服务端结果校准，失败回滚
+  const wasLiked = liked.value
+  const prevCount = likeCount.value
+  liked.value = !wasLiked
+  likeNumLocal.value = Math.max(0, prevCount + (wasLiked ? -1 : 1))
+
   likeBusy.value = true
   try {
-    const result = liked.value ? await unlikeArticle(id) : await likeArticle(id)
-    if (result) {
+    const result = wasLiked ? await unlikeArticle(id) : await likeArticle(id)
+    // 请求期间已切到别的文章时不回写，避免把上一篇的结果记到当前文章
+    if (result && article.value.id === id) {
       liked.value = result.liked
       if (typeof result.likeNum === 'number') {
-        article.value.likeNum = result.likeNum
+        likeNumLocal.value = result.likeNum
       }
     }
   } catch (error: any) {
+    if (article.value.id === id) {
+      liked.value = wasLiked
+      likeNumLocal.value = prevCount
+    }
     showToast(error?.message || '点赞失败，请稍后再试', 'error')
   } finally {
     likeBusy.value = false
@@ -170,7 +203,7 @@ const onLike = async () => {
 // ---------- 评论区：逻辑收进 ArticleCommentSection，页面只持有计数与滚动定位 ----------
 const commentSectionRef = ref<{ $el?: HTMLElement | null } | null>(null)
 const onCommentNumChange = (value: number) => {
-  article.value.commentNum = value
+  commentNumLocal.value = value
 }
 
 // 工具栏评论按钮：滚动定位到评论区
