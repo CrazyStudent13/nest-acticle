@@ -1,6 +1,6 @@
 // 通知中心数据：系统通知/公告列表 + 我发表的评论列表。
 // 两个接口都按登录态过滤（未登录必 401），调用方须保证守卫先行（auth middleware / 组件级恢复）；
-// 通知行的展开收起、已关闭（status='1'）过滤等展示逻辑归页面管
+// 通知行的展示与已关闭（status='1'）过滤归页面管
 import type { MyCommentItem, PageResult } from '@nest-acticle/shared'
 
 // 系统通知行数据（openapi 有对应 schema，shared 暂未沉淀线格式类型，先就地定义）

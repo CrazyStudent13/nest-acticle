@@ -1,4 +1,4 @@
-<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知，互动两分类带未读数红标）+ 右侧列表；系统通知接 /api/system/notice/list（Markdown 内容超 3 行收起、就地展开，分页）；评论栏双子栏——「收到的评论」接 /api/post/comment/received/list（他人评论我的文章/回复我的评论，掘金式四行结构：动作短句/内容/文章引用行/时间），「我发表的」接 /api/post/comment/my/list（类型徽标区分，支持删除）；赞和收藏接 /api/post/like/received/list（同款结构；收藏与评论点赞功能未建）；新增粉丝后端未建占位空态；进入互动分类栏即逐栏清该栏红标（水位打点）；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
+<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知，互动两分类带未读数红标）+ 右侧列表；系统通知接 /api/system/notice/list（仅展示徽标/标题/时间，不展开内容，节省行高，分页）；评论栏双子栏——「收到的评论」接 /api/post/comment/received/list（他人评论我的文章/回复我的评论，掘金式四行结构：动作短句/内容/文章引用行/时间），「我发表的」接 /api/post/comment/my/list（类型徽标区分，支持删除）；赞和收藏接 /api/post/like/received/list（同款结构；收藏与评论点赞功能未建）；新增粉丝后端未建占位空态；进入互动分类栏即逐栏清该栏红标（水位打点）；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
 <template>
   <div class="notification-page">
     <div class="notice-panel">
@@ -20,11 +20,11 @@
       </aside>
 
       <!-- 右侧内容区 -->
-      <section class="notice-main">
+      <section class="notice-main" :class="{ 'notice-main--system': activeTab === 'system' }">
         <!-- 系统通知：真实列表 -->
         <template v-if="activeTab === 'system'">
           <template v-if="notices.length">
-            <article v-for="item in notices" :key="item.noticeId" class="notice-item">
+            <article v-for="item in notices" :key="item.noticeId" class="notice-item notice-item--compact">
               <div class="notice-head">
                 <span class="notice-badge" :class="item.noticeType === '2' ? 'is-announce' : 'is-info'">
                   {{ item.noticeType === '2' ? '公告' : '通知' }}
@@ -32,25 +32,6 @@
                 <h3 class="notice-title">{{ item.noticeTitle || '系统消息' }}</h3>
                 <time class="notice-time">{{ formatTime(item.createTime) }}</time>
               </div>
-              <div
-                v-if="item.noticeContent"
-                class="notice-body"
-                :class="{ collapsed: !expandedMap[item.noticeId] }"
-                :data-nid="item.noticeId"
-              >
-                <MdViewer :value="item.noticeContent" />
-              </div>
-              <button
-                v-if="overflowMap[item.noticeId]"
-                class="notice-toggle"
-                type="button"
-                @click="toggleExpand(item.noticeId)"
-              >
-                {{ expandedMap[item.noticeId] ? '收起' : '展开' }}
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ flip: expandedMap[item.noticeId] }" aria-hidden="true">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
             </article>
             <CommonPagination v-model:page="page" :total="total" :page-size="PAGE_SIZE" />
           </template>
@@ -311,8 +292,6 @@ const loadNotices = async () => {
   } finally {
     loading.value = false
   }
-  await nextTick()
-  measureOverflow()
 }
 
 // ---------- 收到的评论（评论栏默认子页）：他人评论我的文章/回复我的评论，掘金式接收流 ----------
@@ -481,27 +460,6 @@ watch(receivedPage, loadReceivedComments)
 watch(commentPage, loadMyComments)
 watch(likePage, loadReceivedLikes)
 
-// ---------- 内容展开/收起：Markdown 长文默认收起（72px），渲染后量 scrollHeight 决定是否出「展开」按钮 ----------
-const expandedMap = ref<Record<number, boolean>>({})
-const overflowMap = ref<Record<number, boolean>>({})
-
-const COLLAPSED_HEIGHT = 72
-
-const measureOverflow = () => {
-  const map: Record<number, boolean> = {}
-  document.querySelectorAll<HTMLElement>('.notice-body[data-nid]').forEach((el) => {
-    const nid = Number(el.dataset.nid)
-    if (Number.isFinite(nid)) {
-      map[nid] = el.scrollHeight > COLLAPSED_HEIGHT + 2
-    }
-  })
-  overflowMap.value = map
-}
-
-const toggleExpand = (noticeId: number) => {
-  expandedMap.value = { ...expandedMap.value, [noticeId]: !expandedMap.value[noticeId] }
-}
-
 const formatTime = (value?: string | null) => {
   if (!value) {
     return ''
@@ -620,6 +578,11 @@ onMounted(() => {
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-md);
   overflow: hidden;
+
+  // 系统通知首行与左菜单首项文字顶边对齐（左：菜单 12 + 条目 10，右：此处 14 + 条目 8）
+  &--system {
+    padding-top: 14px;
+  }
 }
 
 // 评论栏子切换（收到的评论/我发表的）：页头胶囊组，同左菜单 active 视觉
@@ -659,6 +622,11 @@ onMounted(() => {
 
   & + .notice-item {
     border-top: 1px solid var(--color-border-light);
+  }
+
+  // 系统通知只有单行标题，收紧上下留白让同屏容纳更多条目
+  &--compact {
+    padding: 8px 20px;
   }
 }
 
@@ -893,23 +861,6 @@ onMounted(() => {
         text-underline-offset: 2px;
       }
     }
-  }
-}
-
-.notice-body {
-  margin-top: 10px;
-
-  // 卡片内 Markdown 不带纸面底色（github 主题深底色比卡片更深会形成色块），文字配色仍随站点主题
-  :deep(.markdown-body) {
-    background-color: transparent;
-  }
-
-  // 收起态：限高 + 底部渐隐提示还有内容
-  &.collapsed {
-    max-height: 72px;
-    overflow: hidden;
-    -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
-    mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
   }
 }
 
