@@ -110,17 +110,46 @@ const authorName = computed(() => article.value.userInfo?.nickName || article.va
 const coverUrl = computed(() => toCoverUrl(config.public.apiBase, article.value.cover))
 // publishTime 常为 null，回退 createTime
 const publishLabel = computed(() => article.value.publishTime || article.value.createTime)
-const readLabel = computed(() => (typeof article.value.readNum === 'number' ? String(article.value.readNum) : ''))
 // article 是 computed 拼装的普通对象，直接改它的字段不会触发视图更新；
 // 计数以本地覆盖值优先，接口回写只改覆盖值
+const readNumLocal = ref<number | null>(null)
 const likeNumLocal = ref<number | null>(null)
 const commentNumLocal = ref<number | null>(null)
+const readCount = computed(() =>
+  readNumLocal.value ?? (typeof article.value.readNum === 'number' ? article.value.readNum : 0)
+)
+const readLabel = computed(() => String(readCount.value))
 const likeCount = computed(() =>
   likeNumLocal.value ?? (typeof article.value.likeNum === 'number' ? article.value.likeNum : 0)
 )
 const commentCount = computed(() =>
   commentNumLocal.value ?? (typeof article.value.commentNum === 'number' ? article.value.commentNum : 0)
 )
+
+// ---------- 阅读数：客户端上报一次，服务端原子自增；按文章+自然日去重，防刷新灌水 ----------
+const recordRead = async () => {
+  const id = article.value.id
+  if (!id) {
+    return
+  }
+  const now = new Date()
+  const day = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`
+  const storageKey = `article-read:${id}:${day}`
+  if (localStorage.getItem(storageKey)) {
+    return
+  }
+  try {
+    const res = await apiFetch<{ readNum: number }>(`/api/post/article/guest/read/${id}`, { method: 'POST' })
+    // 请求期间切到别的文章时不回写，避免把上一篇的计数记到当前文章
+    if (article.value.id === id && typeof res.data?.readNum === 'number') {
+      readNumLocal.value = res.data.readNum
+    }
+    localStorage.setItem(storageKey, '1')
+  } catch {
+    // 上报失败不阻塞阅读，下次进入再试
+  }
+}
+onMounted(recordRead)
 
 // ---------- 点赞：登录态下查询/切换，未登录点击引导登录 ----------
 const { isLoggedIn } = useUser()
@@ -152,9 +181,11 @@ const syncLikeStatus = () => {
 onMounted(syncLikeStatus)
 watch(isLoggedIn, syncLikeStatus)
 watch(() => article.value.id, () => {
+  readNumLocal.value = null
   likeNumLocal.value = null
   commentNumLocal.value = null
   syncLikeStatus()
+  recordRead()
 })
 
 const onLike = async () => {

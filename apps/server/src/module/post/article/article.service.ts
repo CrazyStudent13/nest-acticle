@@ -279,6 +279,32 @@ export class PostArticleService {
   }
 
   /**
+   * 记录一次阅读（游客端详情页打开时调用）
+   * 仅已发布未删除文章可计；原子自增避免并发丢失，返回自增后的最新阅读数
+   */
+  async recordRead(id: number) {
+    if (!Number.isInteger(id) || id <= 0) {
+      throw new BusinessException(400, '文章ID不合法');
+    }
+
+    const updated = await this.postArticleRepository
+      .createQueryBuilder()
+      .update(PostArticleEntity)
+      .set({ readNum: () => 'read_num + 1' })
+      .where('id = :id', { id })
+      .andWhere('del_flag = :delFlag', { delFlag: '0' })
+      .andWhere('publish_status = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED })
+      .execute();
+
+    if (!updated.affected) {
+      throw new BusinessException(500, '文章不存在或未发布');
+    }
+
+    const fresh = await this.postArticleRepository.findOne({ where: { id }, select: ['readNum'] });
+    return ResultData.ok({ readNum: fresh?.readNum ?? 0 });
+  }
+
+  /**
    * 更新文章
    * @param updateDto 更新数据
    * @param user 当前登录用户信息
