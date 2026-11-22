@@ -207,8 +207,9 @@ const avatarUrl = computed(() => {
   return toCoverUrl(config.public.apiBase, raw)
 })
 const avatarFallback = computed(() => profileName.value.slice(0, 1))
-// 性别标签走数据字典（0男 1女 2未知），字典未加载或未设置时不在昵称后展示
-const sexOptions = useDict('sys_user_sex')
+// 性别标签走数据字典（0男 1女 2未知），字典未加载或未设置时不在昵称后展示；
+// 字典接口只要求登录态，挂在 isSelf 上按需拉取——游客/过期会话不发这条请求（401 会弹登录框）
+const sexOptions = useDict('sys_user_sex', { enabled: isSelf })
 const sexTag = computed(() => {
   // 他人空间只有公开昵称/头像,性别仅本人在自己的空间展示
   if (!isSelf.value) {

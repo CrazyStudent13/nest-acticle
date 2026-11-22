@@ -21,17 +21,22 @@ const handleUnauthorized = (url: string) => {
 
 export const apiFetch = async <T = any>(url: string, opts: Record<string, any> = {}): Promise<ApiResponse<T>> => {
   const config = useRuntimeConfig()
+  // silent401：静默恢复登录态等后台调用用——401 只抛错不弹登录框不清态，
+  // 由调用方兜底（公开页保持游客态继续渲染，需要登录的页面由 auth middleware 拦）
+  const { silent401, ...fetchOpts } = opts
   try {
     const body = await $fetch<ApiResponse<T>>(`${config.public.apiBase}${url}`, {
-      ...opts,
+      ...fetchOpts,
       headers: {
         Authorization: `Bearer ${getToken() || ''}`,
-        ...(opts.headers || {})
+        ...(fetchOpts.headers || {})
       }
     })
     if (body.code !== 200) {
       if (body.code === 401) {
-        handleUnauthorized(url)
+        if (!silent401) {
+          handleUnauthorized(url)
+        }
       }
       throw new Error(body.msg || '请求失败')
     }
@@ -40,7 +45,9 @@ export const apiFetch = async <T = any>(url: string, opts: Record<string, any> =
     // ofetch 的 HTTP 层错误（非 2xx）带 data.msg，统一转成带 msg 的 Error 供调用方提示
     // HTTP 层 401（信封约定之外的形态）同样走统一出口
     if (error?.status === 401 || error?.data?.code === 401) {
-      handleUnauthorized(url)
+      if (!silent401) {
+        handleUnauthorized(url)
+      }
     }
     throw new Error(error?.data?.msg || error?.message || '请求失败')
   }

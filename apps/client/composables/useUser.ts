@@ -66,7 +66,9 @@ export const useUser = () => {
   // 当前登录用户信息（token 失效时清空登录态）
   const fetchUserInfo = async () => {
     try {
-      const res = await apiFetch('/api/getInfo')
+      // silent401：会话过期时安静退回游客态（清 token 由下方 catch 兜底），
+      // 不弹登录框——公开页继续以游客渲染，需要登录的页面由 auth middleware 拦
+      const res = await apiFetch('/api/getInfo', { silent401: true })
       // getInfo 的 user 在顶层而非 data 里；响应带密码散列，只保留展示需要的字段
       const raw: any = (res as any).user
       user.value = raw
