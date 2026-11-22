@@ -3,68 +3,64 @@
   <div class="detail">
     <!-- 左侧悬浮工具栏：fixed 挂视口，不占布局宽度 -->
     <ArticleActionBar :liked="liked" :like-num="likeCount" :comment-num="commentCount" @like="onLike" @comment="scrollToComments" />
-    <template v-if="article.title || article.content">
-      <div class="detail-layout">
-        <article class="panel">
-          <h1 class="title">{{ article.title || '无标题' }}</h1>
+    <CommonReadingLayout :flush="!(article.title || article.content)">
+      <template v-if="article.title || article.content">
+        <h1 class="title">{{ article.title || '无标题' }}</h1>
 
-          <!-- 元信息行：作者 时间 阅读 专栏，编辑入口靠右（仅作者本人可见），掘金式单行 -->
-          <div class="meta-line">
-            <span class="meta-author">{{ authorName }}</span>
-            <span v-if="publishLabel" class="meta-item">{{ publishLabel }}</span>
-            <span v-if="readLabel" class="meta-item">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-              {{ readLabel }} 阅读
-            </span>
-            <NuxtLink
-              v-if="subject.title && article.subjectId"
-              class="meta-subject"
-              target="_blank"
-              :to="{ path: '/column/detail', query: { id: String(article.subjectId) } }"
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              </svg>
-              {{ subject.title }}
-            </NuxtLink>
-            <span v-if="canEdit" class="meta-actions">
-              <button class="edit-btn" type="button" @click="goEdit">编辑</button>
-              <button class="del-btn" type="button" :disabled="deleting" @click="removeArticle">
-                {{ deleting ? '删除中…' : '删除' }}
-              </button>
-            </span>
-          </div>
+        <!-- 元信息行：作者 时间 阅读 专栏，编辑入口靠右（仅作者本人可见），掘金式单行 -->
+        <div class="meta-line">
+          <span class="meta-author">{{ authorName }}</span>
+          <span v-if="publishLabel" class="meta-item">{{ publishLabel }}</span>
+          <span v-if="readLabel" class="meta-item">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            {{ readLabel }} 阅读
+          </span>
+          <NuxtLink
+            v-if="subject.title && article.subjectId"
+            class="meta-subject"
+            target="_blank"
+            :to="{ path: '/column/detail', query: { id: String(article.subjectId) } }"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+            {{ subject.title }}
+          </NuxtLink>
+          <span v-if="canEdit" class="meta-actions">
+            <button class="edit-btn" type="button" @click="goEdit">编辑</button>
+            <button class="del-btn" type="button" :disabled="deleting" @click="removeArticle">
+              {{ deleting ? '删除中…' : '删除' }}
+            </button>
+          </span>
+        </div>
 
-          <img v-if="coverUrl" class="cover" :src="coverUrl" :alt="article.title" />
+        <img v-if="coverUrl" class="cover" :src="coverUrl" :alt="article.title" />
 
-          <div class="panel-body">
-            <MdViewer :value="article.content" />
-          </div>
+        <div class="panel-body">
+          <MdViewer :value="article.content" />
+        </div>
 
-          <!-- 评论区：抽成组件（掘金式两级结构），计数增删由组件回抛，页面同步文章冗余计数；工具栏评论按钮滚动到此处 -->
-          <ArticleCommentSection
-            ref="commentSectionRef"
-            :article-id="article.id || ''"
-            :comment-num="commentCount"
-            :author-user-id="article.userInfo?.userId"
-            @update:comment-num="onCommentNumChange"
-          />
-        </article>
+        <!-- 评论区：抽成组件（掘金式两级结构），计数增删由组件回抛，页面同步文章冗余计数；工具栏评论按钮滚动到此处 -->
+        <ArticleCommentSection
+          ref="commentSectionRef"
+          :article-id="article.id || ''"
+          :comment-num="commentCount"
+          :author-user-id="article.userInfo?.userId"
+          @update:comment-num="onCommentNumChange"
+        />
+      </template>
+      <CommonEmptyState v-else>文章不存在或已下架</CommonEmptyState>
 
-        <!-- 右侧信息栏：作者卡 + 目录 + 相关推荐（吸顶跟随，窄屏隐藏） -->
-        <aside v-if="hasToc || article.userInfo?.userId || article.subjectId" class="toc-aside">
-          <ArticleAuthorCard v-if="article.userInfo?.userId" :author="article.userInfo" />
-          <ArticleToc v-if="hasToc" :content="article.content" />
-          <ArticleRelatedCard :subject-id="article.subjectId" :exclude-id="article.id" />
-        </aside>
-      </div>
-    </template>
-    <div v-else class="panel panel-empty">
-      <CommonEmptyState>文章不存在或已下架</CommonEmptyState>
-    </div>
+      <!-- 右侧信息栏：作者卡 + 目录 + 相关推荐（吸顶跟随，窄屏隐藏） -->
+      <template v-if="hasToc || article.userInfo?.userId || article.subjectId" #aside>
+        <ArticleAuthorCard v-if="article.userInfo?.userId" :author="article.userInfo" />
+        <ArticleToc v-if="hasToc" :content="article.content" />
+        <ArticleRelatedCard :subject-id="article.subjectId" :exclude-id="article.id" />
+      </template>
+    </CommonReadingLayout>
   </div>
 </template>
 
@@ -285,38 +281,6 @@ useHead(() => {
 </script>
 
 <style lang="less" scoped>
-.detail-layout {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 24px;
-}
-
-.panel {
-  flex: 1;
-  min-width: 0;
-  max-width: 820px;
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-md);
-  padding: 36px 44px;
-
-  &.panel-empty {
-    padding: 0;
-  }
-}
-
-// 右侧信息栏：作者卡 + 目录，吸顶跟随，窄屏隐藏
-.toc-aside {
-  position: sticky;
-  top: 76px;
-  flex-shrink: 0;
-  width: 240px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
 .title {
   font-size: 28px;
   font-weight: 600;
@@ -408,17 +372,7 @@ useHead(() => {
   margin-bottom: 24px;
 }
 
-@media (max-width: 1000px) {
-  .toc-aside {
-    display: none;
-  }
-}
-
 @media (max-width: 640px) {
-  .panel {
-    padding: 24px 20px;
-  }
-
   .title {
     font-size: 22px;
   }

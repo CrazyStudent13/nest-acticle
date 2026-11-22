@@ -1,4 +1,4 @@
-<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知，互动两分类带未读数红标）+ 右侧列表；系统通知接 /api/system/notice/list（仅展示徽标/标题/时间，不展开内容，节省行高，分页）；评论栏双子栏——「收到的评论」接 /api/post/comment/received/list（他人评论我的文章/回复我的评论，掘金式四行结构：动作短句/内容/文章引用行/时间），「我发表的」接 /api/post/comment/my/list（类型徽标区分，支持删除）；赞和收藏接 /api/post/like/received/list（同款结构；收藏与评论点赞功能未建）；新增粉丝后端未建占位空态；进入互动分类栏即逐栏清该栏红标（水位打点）；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
+<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知，互动两分类带未读数红标）+ 右侧列表；系统通知接 /api/system/notice/list（列表行收成徽标/标题/时间，点击进入独立详情页阅读 Markdown 正文，分页）；评论栏双子栏——「收到的评论」接 /api/post/comment/received/list（他人评论我的文章/回复我的评论，掘金式四行结构：动作短句/内容/文章引用行/时间），「我发表的」接 /api/post/comment/my/list（类型徽标区分，支持删除）；赞和收藏接 /api/post/like/received/list（同款结构；收藏与评论点赞功能未建）；新增粉丝后端未建占位空态；进入互动分类栏即逐栏清该栏红标（水位打点）；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
 <template>
   <div class="notification-page">
     <div class="notice-panel">
@@ -24,15 +24,23 @@
         <!-- 系统通知：真实列表 -->
         <template v-if="activeTab === 'system'">
           <template v-if="notices.length">
-            <article v-for="item in notices" :key="item.noticeId" class="notice-item notice-item--compact">
+            <NuxtLink
+              v-for="item in notices"
+              :key="item.noticeId"
+              class="notice-item notice-item--compact notice-item--clickable"
+              :to="{ path: '/notice/detail', query: { id: String(item.noticeId) } }"
+            >
               <div class="notice-head">
                 <span class="notice-badge" :class="item.noticeType === '2' ? 'is-announce' : 'is-info'">
                   {{ item.noticeType === '2' ? '公告' : '通知' }}
                 </span>
                 <h3 class="notice-title">{{ item.noticeTitle || '系统消息' }}</h3>
                 <time class="notice-time">{{ formatTime(item.createTime) }}</time>
+                <svg class="notice-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="9 18 15 12 9 6" />
+                </svg>
               </div>
-            </article>
+            </NuxtLink>
             <CommonPagination v-model:page="page" :total="total" :page-size="PAGE_SIZE" />
           </template>
           <CommonEmptyState v-else-if="loading" text="加载中…" />
@@ -628,6 +636,24 @@ onMounted(() => {
   &--compact {
     padding: 8px 20px;
   }
+
+  // 可点击行（NuxtLink）：悬浮/键盘聚焦给出反馈，跳转独立通知详情页
+  &--clickable {
+    display: block;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+
+    &:hover,
+    &:focus-visible {
+      background-color: var(--color-bg);
+      outline: none;
+    }
+
+    &:hover .notice-arrow,
+    &:focus-visible .notice-arrow {
+      color: var(--color-primary);
+    }
+  }
 }
 
 // 收到的评论/赞：掘金式接收流——头像+动作短句 / 评论内容 / 文章引用行 / 时间
@@ -744,25 +770,6 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
 
-  .notice-badge {
-    flex-shrink: 0;
-    padding: 1px 8px;
-    border-radius: var(--radius-sm);
-    font-size: 12px;
-    line-height: 18px;
-
-    // 通知=品牌蓝浅底；公告=橙色浅底
-    &.is-info {
-      background-color: var(--color-primary-light);
-      color: var(--color-primary);
-    }
-
-    &.is-announce {
-      background-color: rgba(230, 132, 41, 0.12);
-      color: #e68429;
-    }
-  }
-
   .notice-title {
     flex: 1;
     min-width: 0;
@@ -778,6 +785,32 @@ onMounted(() => {
     flex-shrink: 0;
     font-size: 12px;
     color: var(--color-text-3);
+  }
+
+  // 行尾箭头：提示整行可点击查看正文
+  .notice-arrow {
+    flex-shrink: 0;
+    color: var(--color-text-3);
+    transition: color 0.2s ease;
+  }
+}
+
+// 徽标（列表行）：通知=品牌蓝浅底；公告=橙色浅底
+.notice-badge {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 18px;
+
+  &.is-info {
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+  }
+
+  &.is-announce {
+    background-color: rgba(230, 132, 41, 0.12);
+    color: #e68429;
   }
 }
 

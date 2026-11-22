@@ -37,6 +37,8 @@ export default defineNuxtConfig({
     '/user/settings': { ssr: false },
     // 通知中心：依赖客户端 token 与登录态，关闭 SSR
     '/notification': { ssr: false },
+    // 通知/公告详情：同上，且按 id 取数需登录态
+    '/notice/detail': { ssr: false },
     // 写文章：独立编辑器流程，依赖客户端 token
     '/editor/new': { ssr: false },
     // 创作者中心：依赖客户端 token 与登录态，关闭 SSR

@@ -10,15 +10,18 @@ export interface NoticeItem {
   noticeType: string
   noticeContent: string
   status: string
+  createBy?: string
   createTime: string
 }
 
 export const useNotice = () => {
-  // 系统通知/公告列表：分页拉取，status 传 '0' 只取正常公告（关闭的不计入 total）
+  // 系统通知/公告列表：分页拉取，status 传 '0' 只取正常公告（关闭的不计入 total）；
+  // 详情页按 noticeId 取单条（复用 list 权限）
   const fetchNotices = async (params: {
     pageNum?: number
     pageSize?: number
     status?: string
+    noticeId?: number
   }): Promise<PageResult<NoticeItem>> => {
     const res = await apiFetch<PageResult<NoticeItem>>('/api/system/notice/list', {
       query: { ...params }
