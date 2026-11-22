@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import { Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PostCommentService } from './comment.service';
 import { CreateCommentDto, ListCommentDto, ListCommentGuestDto, ListMyCommentDto } from './dto/index';
@@ -79,7 +79,7 @@ export class PostCommentController {
    */
   @ApiOperation({ summary: '评论-删除自己的评论' })
   @Delete('/:id')
-  removeOwn(@Param('id') id: string, @User() user: UserDto) {
-    return this.commentService.removeOwn(+id, user.userId);
+  removeOwn(@Param('id', ParseIntPipe) id: number, @User() user: UserDto) {
+    return this.commentService.removeOwn(id, user.userId);
   }
 }

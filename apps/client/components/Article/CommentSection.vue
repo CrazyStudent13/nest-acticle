@@ -199,7 +199,8 @@ const cancelReply = () => {
 
 // ---------- 列表加载:guest 平铺分页,最新在前 ----------
 const comments = ref<CommentItem[]>([])
-const commentTotal = ref(0)
+// 文章切换时旧请求可能后到:序号只认最新一次加载，避免旧文章结果覆盖新列表
+let listSeq = 0
 // 根评论线程总数（服务端按线程分页的「查看更多」判断依据）
 const rootTotal = ref(0)
 const commentPageNum = ref(1)
@@ -208,12 +209,17 @@ const commentLoading = ref(false)
 const expandedThreads = ref(new Set<number>())
 
 const loadComments = async (page = 1) => {
-  if (!props.articleId) {
+  const articleId = props.articleId
+  if (!articleId) {
     return
   }
+  const seq = ++listSeq
   commentLoading.value = true
   try {
-    const data = await fetchComments(props.articleId, { pageNum: page, pageSize: 10 })
+    const data = await fetchComments(articleId, { pageNum: page, pageSize: 10 })
+    if (seq !== listSeq) {
+      return
+    }
     if (page === 1) {
       comments.value = data.list || []
       expandedThreads.value = new Set()
@@ -222,15 +228,17 @@ const loadComments = async (page = 1) => {
       const seen = new Set(comments.value.map((item) => item.id))
       comments.value = [...comments.value, ...(data.list || []).filter((item) => !seen.has(item.id))]
     }
-    commentTotal.value = data.total || 0
     rootTotal.value = data.rootTotal ?? 0
     commentPageNum.value = page
   } catch {
-    if (page === 1) {
+    if (seq === listSeq && page === 1) {
       comments.value = []
     }
   } finally {
-    commentLoading.value = false
+    // 过期请求不要打断新请求的加载态
+    if (seq === listSeq) {
+      commentLoading.value = false
+    }
   }
 }
 
@@ -253,6 +261,11 @@ watch(
   (id) => {
     if (id) {
       cancelReply()
+      // 先清旧文章的状态,避免新文章加载期间仍显示上一篇的评论
+      comments.value = []
+      rootTotal.value = 0
+      commentPageNum.value = 1
+      expandedThreads.value = new Set()
       loadComments(1)
     }
   }
@@ -320,16 +333,20 @@ const submitComment = async () => {
   if (!content || commentBusy.value) {
     return
   }
-  if (!props.articleId) {
+  const articleId = props.articleId
+  if (!articleId) {
     return
   }
   commentBusy.value = true
   try {
-    const created = await addComment(props.articleId, content, replyTo.value?.id ?? undefined)
+    const created = await addComment(articleId, content, replyTo.value?.id ?? undefined)
+    // 请求期间已切到别的文章:评论虽已发出,但不能写进当前文章的列表与计数
+    if (props.articleId !== articleId) {
+      return
+    }
     if (created) {
       // 列表为最新在前,新评论插头部后由归组逻辑落到对应线程（根评论则新起线程）
       comments.value = [created, ...comments.value]
-      commentTotal.value += 1
       if (!created.parentId) {
         rootTotal.value += 1
       }
@@ -381,14 +398,18 @@ const removeComment = async (item: CommentItem) => {
   if (!confirmed) {
     return
   }
+  const articleId = props.articleId
   commentDeletingId.value = item.id
   try {
     const serverRemoved = await deleteComment(item.id)
+    // 请求期间已切到别的文章:删除已生效,但不再动当前文章的列表与计数
+    if (props.articleId !== articleId) {
+      return
+    }
     const doomed = collectDoomedIds(item.id)
     comments.value = comments.value.filter((c) => !doomed.has(c.id))
     // 以服务端实际删除条数为准（含未加载的级联后代），接口无回抛时退回本地统计
     const removed = serverRemoved || doomed.size
-    commentTotal.value = Math.max(0, commentTotal.value - removed)
     if (!item.parentId) {
       rootTotal.value = Math.max(0, rootTotal.value - 1)
     }
