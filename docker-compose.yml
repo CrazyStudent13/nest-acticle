@@ -112,6 +112,11 @@ services:
     mem_limit: 64m
     ports:
       - '${ADMIN_PORT:-8081}:80'
+    volumes:
+      - ./deploy/nginx/api-docs.html:/usr/share/nginx/html/api-docs.html:ro
+      - ./deploy/nginx/redoc.html:/usr/share/nginx/html/redoc.html:ro
+      - ./deploy/nginx/swagger-ui:/usr/share/nginx/html/swagger-ui:ro
+      - ./deploy/nginx/redoc:/usr/share/nginx/html/redoc:ro
     depends_on:
       - server
 
