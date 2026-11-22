@@ -1,4 +1,4 @@
-import { IsDateString, IsNumber, IsNumberString, IsObject, IsOptional, IsString, IsEnum } from 'class-validator';
+import { IsDateString, IsNumber, IsNumberString, IsObject, IsOptional, IsString, IsEnum, Min } from 'class-validator';
 import { ApiProperty } from '@nestjs/swagger';
 import { Transform } from 'class-transformer';
 import { SortRuleEnum } from 'src/common/enum/index';
@@ -25,6 +25,7 @@ export class PagingDto {
     const num = parseInt(value, 10);
     return isNaN(num) ? 1 : num;
   })
+  @Min(1, { message: 'pageNum 必须大于等于 1' })
   pageNum?: number;
 
   @ApiProperty({ required: false, description: '每页数量', default: 10 })
@@ -34,6 +35,7 @@ export class PagingDto {
     const num = parseInt(value, 10);
     return isNaN(num) ? 10 : num;
   })
+  @Min(1, { message: 'pageSize 必须大于等于 1' })
   pageSize?: number;
 
   /**

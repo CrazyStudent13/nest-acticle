@@ -115,6 +115,12 @@
             :card-info="item"
             @click="goArticle(item)"
           />
+          <CommonPagination
+            :page="likedPage"
+            :total="likedTotal"
+            :page-size="LIKED_PAGE_SIZE"
+            @update:page="onLikedPageChange"
+          />
         </template>
         <CommonEmptyState v-else-if="likedLoading" text="加载中…" />
         <CommonEmptyState v-else-if="keyword">
@@ -179,6 +185,8 @@ const initSpace = () => {
   // 切换空间时清掉搜索词/点赞列表/上一位的资料，避免带到下一位
   keyword.value = ''
   likedArticles.value = []
+  likedPage.value = 1
+  likedTotal.value = 0
   spaceProfile.value = {}
   loadMyArticles()
   if (activeTab.value === 'like') {
@@ -322,28 +330,38 @@ const loadMySubjects = async () => {
 }
 
 // ---------- 点赞 tab：空间主人点赞过的已发布文章（公开接口，guest/list 按 userId 查询） ----------
+const LIKED_PAGE_SIZE = 10
 const likedArticles = ref<LikedArticleItem[]>([])
 const likedLoading = ref(false)
+const likedPage = ref(1)
+const likedTotal = ref(0)
 
-const loadLikedArticles = async () => {
+const loadLikedArticles = async (page = 1) => {
   const userId = targetUserId.value
   if (!userId) {
     return
   }
+  likedPage.value = page
   likedLoading.value = true
   try {
     const data = await fetchUserLikedArticles(userId, {
-      pageNum: 1,
-      pageSize: 50,
+      pageNum: page,
+      pageSize: LIKED_PAGE_SIZE,
       isAsc: timeOrder.value === 'desc' ? 'descending' : 'ascending',
       ...(keyword.value.trim() ? { title: keyword.value.trim() } : {})
     })
     likedArticles.value = data.list || []
+    likedTotal.value = data.total || 0
   } catch {
     likedArticles.value = []
+    likedTotal.value = 0
   } finally {
     likedLoading.value = false
   }
+}
+
+const onLikedPageChange = (page: number) => {
+  loadLikedArticles(page)
 }
 
 const switchTab = (key: string) => {

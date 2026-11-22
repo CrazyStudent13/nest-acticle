@@ -101,8 +101,9 @@ export class PostCommentService {
     }
 
     const comments = await this.commentRepo.find({ where: { articleId: query.articleId } });
-    const pageNum = query.pageNum ?? 1;
-    const pageSize = query.pageSize ?? 10;
+    const pageNum = Math.max(query.pageNum ?? 1, 1);
+    // 公开接口给单页线程数封顶，避免一次拉走整篇文章的评论树
+    const pageSize = Math.min(Math.max(query.pageSize ?? 10, 1), 100);
 
     const roots = comments
       .filter((item) => !item.parentId)
