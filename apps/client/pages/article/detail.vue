@@ -2,7 +2,18 @@
 <template>
   <div class="detail">
     <!-- 左侧悬浮工具栏：fixed 挂视口，不占布局宽度 -->
-    <ArticleActionBar :liked="liked" :like-num="likeCount" :comment-num="commentCount" @like="onLike" @comment="scrollToComments" />
+    <ArticleActionBar
+      :liked="liked"
+      :like-num="likeCount"
+      :comment-num="commentCount"
+      :collected="collected"
+      :collect-num="collectCount"
+      @like="onLike"
+      @comment="scrollToComments"
+      @collect="onCollect"
+    />
+    <!-- 收藏弹窗：勾选收藏集（含行内新建），确认后回抛高亮与计数变化 -->
+    <CollectModal v-if="collectOpen" :article-id="article.id || ''" @close="collectOpen = false" @done="onCollectDone" />
     <CommonReadingLayout :flush="!(article.title || article.content)">
       <template v-if="article.title || article.content">
         <h1 class="title">{{ article.title || '无标题' }}</h1>
@@ -125,6 +136,10 @@ const likeCount = computed(() =>
 const commentCount = computed(() =>
   commentNumLocal.value ?? (typeof article.value.commentNum === 'number' ? article.value.commentNum : 0)
 )
+const collectNumLocal = ref<number | null>(null)
+const collectCount = computed(() =>
+  collectNumLocal.value ?? (typeof article.value.collectNum === 'number' ? article.value.collectNum : 0)
+)
 
 // ---------- 阅读数：客户端上报一次，服务端原子自增；按文章+自然日去重，防刷新灌水 ----------
 const recordRead = async () => {
@@ -184,7 +199,9 @@ watch(() => article.value.id, () => {
   readNumLocal.value = null
   likeNumLocal.value = null
   commentNumLocal.value = null
+  collectNumLocal.value = null
   syncLikeStatus()
+  syncCollectStatus()
   recordRead()
 })
 
@@ -228,6 +245,49 @@ const onLike = async () => {
     likeBusy.value = false
   }
 }
+
+// ---------- 收藏：登录态下查询收藏集勾选态，未登录点击引导登录；弹窗确认后回抛状态 ----------
+const { fetchCollectStatus } = useCollect()
+const collected = ref(false)
+const collectOpen = ref(false)
+// 文章切换时旧请求可能后到，序号保证只认最新一次查询
+let collectSeq = 0
+
+const syncCollectStatus = () => {
+  const id = article.value.id
+  const seq = ++collectSeq
+  if (!isLoggedIn.value || !id) {
+    collected.value = false
+    return
+  }
+  fetchCollectStatus(id)
+    .then((list) => {
+      if (seq === collectSeq) {
+        collected.value = list.some((item) => item.collected)
+      }
+    })
+    .catch(() => {})
+}
+
+const onCollect = () => {
+  if (!isLoggedIn.value) {
+    openLogin()
+    return
+  }
+  collectOpen.value = true
+}
+
+const onCollectDone = (value: boolean, delta: number) => {
+  collectOpen.value = false
+  collected.value = value
+  if (delta) {
+    collectNumLocal.value = Math.max(0, collectCount.value + delta)
+  }
+}
+
+// 收藏状态同样依赖 token 与文章 id，时机与点赞态补查一致
+onMounted(syncCollectStatus)
+watch(isLoggedIn, syncCollectStatus)
 
 // ---------- 评论区：逻辑收进 ArticleCommentSection，页面只持有计数与滚动定位 ----------
 const commentSectionRef = ref<{ $el?: HTMLElement | null } | null>(null)

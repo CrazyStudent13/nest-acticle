@@ -49,25 +49,35 @@
             {{ t.label }}
           </button>
         </div>
-        <!-- 文章 tab 的搜索与时间排序：排序内嵌搜索框前置位 -->
+        <!-- 文章/点赞 tab 的搜索与时间排序；收藏集 tab 显示新建入口（排序内嵌搜索框前置位） -->
         <div class="tab-tools">
-          <div class="article-search">
-            <button class="time-toggle" type="button" @click="toggleTimeOrder">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ flip: timeOrder === 'asc' }" aria-hidden="true">
-                <line x1="12" y1="5" x2="12" y2="19" />
-                <polyline points="19 12 12 19 5 12" />
-              </svg>
-              {{ timeOrder === 'desc' ? '时间倒序' : '时间正序' }}
-            </button>
-            <input
-              v-model="keyword"
-              class="search-input"
-              type="search"
-              placeholder="搜索文章标题"
-              maxlength="64"
-              @input="onKeywordInput"
-            />
-          </div>
+          <template v-if="activeTab !== 'collect'">
+            <div class="article-search">
+              <button class="time-toggle" type="button" @click="toggleTimeOrder">
+                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ flip: timeOrder === 'asc' }" aria-hidden="true">
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <polyline points="19 12 12 19 5 12" />
+                </svg>
+                {{ timeOrder === 'desc' ? '时间倒序' : '时间正序' }}
+              </button>
+              <input
+                v-model="keyword"
+                class="search-input"
+                type="search"
+                placeholder="搜索文章标题"
+                maxlength="64"
+                @input="onKeywordInput"
+              />
+            </div>
+          </template>
+          <!-- 新建收藏集入口（仅本人空间，同掘金收藏集栏右上角） -->
+          <button v-else-if="isSelf" class="create-collect-btn" type="button" @click="openCollectEdit(null)">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            新建收藏集
+          </button>
         </div>
       </div>
 
@@ -130,13 +140,80 @@
           {{ isSelf ? '还没有点赞过文章，去信息流给好内容点个赞吧' : 'TA 还没有点赞过文章' }}
         </CommonEmptyState>
       </template>
+
+      <!-- 收藏集 tab：我创建的/我订阅的子栏（guest 接口本人含私密集，他人仅公开），最近更新在前 -->
+      <template v-else-if="activeTab === 'collect'">
+        <div class="collect-bar">
+          <button
+            class="pill"
+            :class="{ active: collectBox === 'created' }"
+            type="button"
+            @click="switchCollectBox('created')"
+          >
+            我创建的 {{ createdTotal }}
+          </button>
+          <button
+            class="pill"
+            :class="{ active: collectBox === 'subscribed' }"
+            type="button"
+            @click="switchCollectBox('subscribed')"
+          >
+            我订阅的 {{ subscribedTotal }}
+          </button>
+        </div>
+
+        <template v-if="collectBox === 'created'">
+          <div v-if="createdCollections.length" class="collection-list">
+            <collect-collection-row
+              v-for="item in createdCollections"
+              :key="item.id || item.name"
+              :collection-info="item"
+              @click="goCollection(item)"
+            />
+          </div>
+          <CommonEmptyState v-else-if="collectLoading" text="加载中…" />
+          <CommonEmptyState v-else>
+            {{ isSelf ? '还没有收藏集，点击右上角新建一个吧' : 'TA 还没有创建收藏集' }}
+          </CommonEmptyState>
+          <CommonPagination
+            :page="createdPage"
+            :total="createdTotal"
+            :page-size="COLLECT_PAGE_SIZE"
+            @update:page="onCreatedPageChange"
+          />
+        </template>
+
+        <template v-else>
+          <div v-if="subscribedCollections.length" class="collection-list">
+            <collect-collection-row
+              v-for="item in subscribedCollections"
+              :key="item.id || item.name"
+              :collection-info="item"
+              @click="goCollection(item)"
+            />
+          </div>
+          <CommonEmptyState v-else-if="collectLoading" text="加载中…" />
+          <CommonEmptyState v-else>
+            {{ isSelf ? '还没有订阅收藏集，去别人的收藏集页点订阅吧' : 'TA 还没有订阅收藏集' }}
+          </CommonEmptyState>
+          <CommonPagination
+            :page="subscribedPage"
+            :total="subscribedTotal"
+            :page-size="COLLECT_PAGE_SIZE"
+            @update:page="onSubscribedPageChange"
+          />
+        </template>
+      </template>
     </div>
+
+    <!-- 新建/编辑收藏集弹窗（父条件渲染，同创作者中心专栏弹窗模式） -->
+    <CollectCollectionEditModal v-if="collectEditOpen" :collection="editingCollection" @close="collectEditOpen = false" @saved="onCollectSaved" />
   </div>
 </template>
 
 <script setup lang="ts">
 import dayjs from 'dayjs'
-import type { LikedArticleItem, Subject } from '@nest-acticle/shared'
+import type { Collection, LikedArticleItem, Subject } from '@nest-acticle/shared'
 
 // 登录守卫走 auth middleware：未登录/恢复失败回首页；带 ?id= 看他人空间时走 guest 旁路公开可看（authGuestQuery）
 definePageMeta({
@@ -150,6 +227,7 @@ const { user, fetchGuestProfile } = useUser()
 const { fetchUserLikedArticles } = useLike()
 const { fetchGuestArticles } = useArticleManage()
 const { fetchGuestSubjects } = useSubject()
+const { fetchGuestCollections, fetchGuestSubscribed } = useCollect()
 
 // 签名：取用户资料，未设置时给占位文案
 const signature = computed(() => user.value?.signature?.trim() || '暂未设置签名')
@@ -182,15 +260,25 @@ const loadGuestProfile = async (userId: number) => {
 
 // ---------- 页面初始化：自己的空间要求登录，他人空间公开可看（两种情形都由 auth middleware 判定先行） ----------
 const initSpace = () => {
-  // 切换空间时清掉搜索词/点赞列表/上一位的资料，避免带到下一位
+  // 切换空间时清掉搜索词/点赞列表/收藏集/上一位的资料，避免带到下一位
   keyword.value = ''
   likedArticles.value = []
   likedPage.value = 1
   likedTotal.value = 0
   spaceProfile.value = {}
+  createdCollections.value = []
+  createdPage.value = 1
+  createdTotal.value = 0
+  createdLoaded.value = false
+  subscribedCollections.value = []
+  subscribedPage.value = 1
+  subscribedTotal.value = 0
+  subscribedLoaded.value = false
   loadMyArticles()
   if (activeTab.value === 'like') {
     loadLikedArticles()
+  } else if (activeTab.value === 'collect') {
+    loadCollectBox()
   }
 }
 
@@ -242,10 +330,11 @@ const goSettings = () => {
   return navigateTo('/user/settings')
 }
 
-// ---------- 内容 tab：文章/专栏/点赞（点赞栏公开可见，同掘金「赞」栏） ----------
+// ---------- 内容 tab：文章/专栏/点赞/收藏集（点赞栏与收藏集栏公开可见，同掘金） ----------
 const tabs = [
   { key: 'article', label: '文章' },
   { key: 'subject', label: '专栏' },
+  { key: 'collect', label: '收藏集' },
   { key: 'like', label: '点赞' }
 ]
 const activeTab = ref('article')
@@ -364,18 +453,127 @@ const onLikedPageChange = (page: number) => {
   loadLikedArticles(page)
 }
 
+// ---------- 收藏集 tab：我创建的/我订阅的子栏，各自独立分页，首次进入才拉取 ----------
+const COLLECT_PAGE_SIZE = 10
+const collectBox = ref<'created' | 'subscribed'>('created')
+const collectLoading = ref(false)
+
+const createdCollections = ref<Collection[]>([])
+const createdPage = ref(1)
+const createdTotal = ref(0)
+const createdLoaded = ref(false)
+
+const subscribedCollections = ref<Collection[]>([])
+const subscribedPage = ref(1)
+const subscribedTotal = ref(0)
+const subscribedLoaded = ref(false)
+
+const loadCreatedCollections = async (page = 1) => {
+  const userId = targetUserId.value
+  if (!userId) {
+    return
+  }
+  createdPage.value = page
+  collectLoading.value = true
+  try {
+    const data = await fetchGuestCollections(userId, { pageNum: page, pageSize: COLLECT_PAGE_SIZE })
+    createdCollections.value = data.list || []
+    createdTotal.value = data.total || 0
+  } catch {
+    createdCollections.value = []
+    createdTotal.value = 0
+  } finally {
+    collectLoading.value = false
+    createdLoaded.value = true
+  }
+}
+
+const loadSubscribedCollections = async (page = 1) => {
+  const userId = targetUserId.value
+  if (!userId) {
+    return
+  }
+  subscribedPage.value = page
+  collectLoading.value = true
+  try {
+    const data = await fetchGuestSubscribed(userId, { pageNum: page, pageSize: COLLECT_PAGE_SIZE })
+    subscribedCollections.value = data.list || []
+    subscribedTotal.value = data.total || 0
+  } catch {
+    subscribedCollections.value = []
+    subscribedTotal.value = 0
+  } finally {
+    collectLoading.value = false
+    subscribedLoaded.value = true
+  }
+}
+
+// 按当前子栏拉取（tab 切换/空间切换共用入口）
+const loadCollectBox = () => {
+  if (collectBox.value === 'created') {
+    loadCreatedCollections()
+  } else {
+    loadSubscribedCollections()
+  }
+}
+
+const switchCollectBox = (box: 'created' | 'subscribed') => {
+  if (collectBox.value === box) {
+    return
+  }
+  collectBox.value = box
+  // 各子栏首次进入才拉取；已加载过的翻页态保留
+  if (box === 'created' && !createdLoaded.value) {
+    loadCreatedCollections()
+  } else if (box === 'subscribed' && !subscribedLoaded.value) {
+    loadSubscribedCollections()
+  }
+}
+
+const onCreatedPageChange = (page: number) => {
+  loadCreatedCollections(page)
+}
+
+const onSubscribedPageChange = (page: number) => {
+  loadSubscribedCollections(page)
+}
+
+// ---------- 新建/编辑收藏集弹窗（仅本人空间入口） ----------
+const collectEditOpen = ref(false)
+const editingCollection = ref<Collection | null>(null)
+
+const openCollectEdit = (collection: Collection | null) => {
+  editingCollection.value = collection
+  collectEditOpen.value = true
+}
+
+const onCollectSaved = () => {
+  collectEditOpen.value = false
+  showToast('收藏集已保存', 'success')
+  loadCreatedCollections()
+}
+
+const goCollection = (item: Collection) => {
+  return navigateTo({
+    path: '/collect/detail',
+    query: { id: item.id }
+  })
+}
+
 const switchTab = (key: string) => {
   if (activeTab.value === key) {
     return
   }
   activeTab.value = key
-  // 文章/点赞两 tab 共用搜索与排序控件，切入时按当前控件状态重载；专栏首次进入才拉取
+  // 文章/点赞两 tab 共用搜索与排序控件，切入时按当前控件状态重载；专栏/收藏集首次进入才拉取
   if (key === 'like') {
     loadLikedArticles()
   } else if (key === 'article') {
     loadMyArticles()
   } else if (key === 'subject' && !subjectsLoaded.value) {
     loadMySubjects()
+  } else if (key === 'collect' && !createdLoaded.value && !subscribedLoaded.value) {
+    loadCollectBox()
   }
 }
 
@@ -533,6 +731,60 @@ const goColumn = (item: any) => {
 // 专栏行列表容器（ColumnCard 自带行分隔线）
 .column-list {
   overflow: hidden;
+}
+
+// 收藏集行列表容器（CollectionRow 自带行分隔线）
+.collection-list {
+  overflow: hidden;
+}
+
+// 收藏集 tab 的子栏切换（我创建的/我订阅的，掘金同款胶囊）
+.collect-bar {
+  display: flex;
+  gap: 8px;
+  padding: 16px 20px 4px;
+
+  .pill {
+    padding: 6px 16px;
+    border: 0;
+    border-radius: var(--radius-full);
+    background-color: var(--color-bg);
+    font-size: 13px;
+    color: var(--color-text-2);
+    cursor: pointer;
+    transition:
+      background-color 0.2s ease,
+      color 0.2s ease;
+
+    &:hover {
+      color: var(--color-text-1);
+    }
+
+    &.active {
+      background-color: var(--color-primary-light);
+      color: var(--color-primary);
+      font-weight: 500;
+    }
+  }
+}
+
+// 新建收藏集入口（tab 工具区右端，仅本人空间）
+.create-collect-btn {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 14px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background-color: var(--color-primary);
+  font-size: 13px;
+  color: #fff;
+  cursor: pointer;
+  transition: background-color 0.2s ease;
+
+  &:hover {
+    background-color: var(--color-primary-hover);
+  }
 }
 
 // 内容卡

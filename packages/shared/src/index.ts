@@ -6,3 +6,4 @@ export * from './types/subject';
 export * from './types/like';
 export * from './types/comment';
 export * from './types/notify';
+export * from './types/collection';

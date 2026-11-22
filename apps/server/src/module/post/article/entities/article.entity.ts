@@ -77,6 +77,10 @@ export class PostArticleEntity extends DeleteStatusEntity {
   @Column({ type: 'int', name: 'comment_num', default: 0, comment: '评论数' })
   public commentNum: number;
 
+  @ApiProperty({ type: Number, description: '收藏数' })
+  @Column({ type: 'int', name: 'collect_num', default: 0, comment: '收藏数' })
+  public collectNum: number;
+
   @ApiProperty({ type: String, description: '发布状态（0 草稿 1 待发布 2 已发布 3 已下架）' })
   @Column({ type: 'char', name: 'publish_status', length: 1, default: '0', comment: '发布状态（0 草稿 1 待发布 2 已发布 3 已下架）' })
   public publishStatus: string;

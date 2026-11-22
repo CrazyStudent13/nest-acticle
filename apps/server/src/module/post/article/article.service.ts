@@ -247,6 +247,7 @@ export class PostArticleService {
         'likeNum',
         'readNum',
         'commentNum',
+        'collectNum',
         'createTime',
       ],
     });

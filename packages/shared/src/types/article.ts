@@ -48,6 +48,8 @@ export interface Article {
   likeNum?: number;
   readNum?: number;
   commentNum?: number;
+  /** 收藏数（被收进收藏集的次数，收藏动作维护） */
+  collectNum?: number;
   /** 发布状态，取值见 PublishStatusEnum */
   publishStatus?: string;
   /** 审核状态，取值见 AuditStatusEnum */

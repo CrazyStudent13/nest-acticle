@@ -1,4 +1,4 @@
-<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知，互动两分类带未读数红标）+ 右侧列表；系统通知接 /api/system/notice/list（列表行收成徽标/标题/时间，点击进入独立详情页阅读 Markdown 正文，分页）；评论栏双子栏——「收到的评论」接 /api/post/comment/received/list（他人评论我的文章/回复我的评论，掘金式四行结构：动作短句/内容/文章引用行/时间），「我发表的」接 /api/post/comment/my/list（类型徽标区分，支持删除）；赞和收藏接 /api/post/like/received/list（同款结构；收藏与评论点赞功能未建）；新增粉丝后端未建占位空态；进入互动分类栏即逐栏清该栏红标（水位打点）；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
+<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知，互动两分类带未读数红标）+ 右侧列表；系统通知接 /api/system/notice/list（列表行收成徽标/标题/时间，点击进入独立详情页阅读 Markdown 正文，分页）；评论栏双子栏——「收到的评论」接 /api/post/comment/received/list（他人评论我的文章/回复我的评论，掘金式四行结构：动作短句/内容/文章引用行/时间），「我发表的」接 /api/post/comment/my/list（类型徽标区分，支持删除）；赞和收藏栏双子栏——「收到的赞」接 /api/post/like/received/list、「收到的收藏」接 /api/post/collection/received/list（他人把我的文章收进 ta 的公开收藏集，同款结构）；新增粉丝后端未建占位空态；进入互动分类栏即逐栏清该栏红标（赞和收藏栏一次推平 like+collect 两水位）；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
 <template>
   <div class="notification-page">
     <div class="notice-panel">
@@ -148,39 +148,89 @@
           </template>
         </template>
 
-        <!-- 赞和收藏：他人点赞我发布的文章（掘金式接收流：头像+动作短句 / 文章引用行 / 时间） -->
+        <!-- 赞和收藏：双子栏（收到的赞 / 收到的收藏），掘金式接收流：头像+动作短句 / 文章引用行 / 时间 -->
         <template v-else-if="activeTab === 'like'">
-          <template v-if="receivedLikes.length">
-            <article v-for="row in receivedLikes" :key="row.id" class="notice-item notify-item">
-              <NuxtLink class="notify-avatar" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
-                <img v-if="row.avatar" :src="coverUrl(row.avatar)" :alt="row.nickName" loading="lazy" />
-                <span v-else class="avatar-fallback">{{ (row.nickName || '用').slice(0, 1) }}</span>
-              </NuxtLink>
-              <div class="notify-main">
-                <p class="notify-head">
-                  <NuxtLink class="notify-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
-                    {{ row.nickName || '用户' }}
-                  </NuxtLink>
-                  赞了你的文章
-                </p>
-                <NuxtLink class="notify-quote" :to="{ path: '/article/detail', query: { id: String(row.articleId) } }">
-                  《{{ row.articleTitle || '文章已删除' }}》
+          <div class="comment-box-bar">
+            <button class="box-tab" :class="{ active: likeBox === 'like' }" type="button" @click="switchLikeBox('like')">收到的赞</button>
+            <button class="box-tab" :class="{ active: likeBox === 'collect' }" type="button" @click="switchLikeBox('collect')">收到的收藏</button>
+          </div>
+
+          <!-- 收到的赞 -->
+          <template v-if="likeBox === 'like'">
+            <template v-if="receivedLikes.length">
+              <article v-for="row in receivedLikes" :key="row.id" class="notice-item notify-item">
+                <NuxtLink class="notify-avatar" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                  <img v-if="row.avatar" :src="coverUrl(row.avatar)" :alt="row.nickName" loading="lazy" />
+                  <span v-else class="avatar-fallback">{{ (row.nickName || '用').slice(0, 1) }}</span>
                 </NuxtLink>
-                <time class="notify-time">{{ formatRelativeTime(row.createTime) }}</time>
-              </div>
-              <NuxtLink
-                v-if="row.articleCover"
-                class="notify-thumb"
-                :to="{ path: '/article/detail', query: { id: String(row.articleId) } }"
-              >
-                <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
-              </NuxtLink>
-            </article>
-            <CommonPagination v-model:page="likePage" :total="likeTotal" :page-size="PAGE_SIZE" />
+                <div class="notify-main">
+                  <p class="notify-head">
+                    <NuxtLink class="notify-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                      {{ row.nickName || '用户' }}
+                    </NuxtLink>
+                    赞了你的文章
+                  </p>
+                  <NuxtLink class="notify-quote" :to="{ path: '/article/detail', query: { id: String(row.articleId) } }">
+                    《{{ row.articleTitle || '文章已删除' }}》
+                  </NuxtLink>
+                  <time class="notify-time">{{ formatRelativeTime(row.createTime) }}</time>
+                </div>
+                <NuxtLink
+                  v-if="row.articleCover"
+                  class="notify-thumb"
+                  :to="{ path: '/article/detail', query: { id: String(row.articleId) } }"
+                >
+                  <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
+                </NuxtLink>
+              </article>
+              <CommonPagination v-model:page="likePage" :total="likeTotal" :page-size="PAGE_SIZE" />
+            </template>
+            <CommonEmptyState v-else-if="likeLoading" text="加载中…" />
+            <CommonEmptyState v-else-if="likeError">{{ likeError }}</CommonEmptyState>
+            <CommonEmptyState v-else>还没有收到点赞，发布优质文章就会有互动了</CommonEmptyState>
           </template>
-          <CommonEmptyState v-else-if="likeLoading" text="加载中…" />
-          <CommonEmptyState v-else-if="likeError">{{ likeError }}</CommonEmptyState>
-          <CommonEmptyState v-else>还没有收到点赞，发布优质文章就会有互动了</CommonEmptyState>
+
+          <!-- 收到的收藏：他人把我的文章收进 ta 的公开收藏集（私密集不产生通知行） -->
+          <template v-else>
+            <template v-if="receivedCollects.length">
+              <article v-for="row in receivedCollects" :key="row.id" class="notice-item notify-item">
+                <NuxtLink class="notify-avatar" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                  <img v-if="row.avatar" :src="coverUrl(row.avatar)" :alt="row.nickName" loading="lazy" />
+                  <span v-else class="avatar-fallback">{{ (row.nickName || '用').slice(0, 1) }}</span>
+                </NuxtLink>
+                <div class="notify-main">
+                  <p class="notify-head">
+                    <NuxtLink class="notify-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                      {{ row.nickName || '用户' }}
+                    </NuxtLink>
+                    将你的文章收进了
+                    <NuxtLink
+                      v-if="row.collectionId"
+                      class="notify-quote-inline"
+                      :to="{ path: '/collect/detail', query: { id: String(row.collectionId) } }"
+                    >
+                      《{{ row.collectionName || '收藏集' }}》
+                    </NuxtLink>
+                  </p>
+                  <NuxtLink class="notify-quote" :to="{ path: '/article/detail', query: { id: String(row.articleId) } }">
+                    《{{ row.articleTitle || '文章已删除' }}》
+                  </NuxtLink>
+                  <time class="notify-time">{{ formatRelativeTime(row.createTime) }}</time>
+                </div>
+                <NuxtLink
+                  v-if="row.articleCover"
+                  class="notify-thumb"
+                  :to="{ path: '/article/detail', query: { id: String(row.articleId) } }"
+                >
+                  <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
+                </NuxtLink>
+              </article>
+              <CommonPagination v-model:page="collectPage" :total="collectTotal" :page-size="PAGE_SIZE" />
+            </template>
+            <CommonEmptyState v-else-if="collectLoading" text="加载中…" />
+            <CommonEmptyState v-else-if="collectError">{{ collectError }}</CommonEmptyState>
+            <CommonEmptyState v-else>还没有收到收藏，发布优质内容等着被收进别人的收藏集吧</CommonEmptyState>
+          </template>
         </template>
 
         <!-- 其余分类：互动功能未建，占位空态 -->
@@ -193,7 +243,7 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
 import { formatRelativeTime } from '@nest-acticle/utils'
-import type { MyCommentItem, ReceivedCommentItem, ReceivedLikeItem } from '@nest-acticle/shared'
+import type { MyCommentItem, ReceivedCollectItem, ReceivedCommentItem, ReceivedLikeItem } from '@nest-acticle/shared'
 import type { NoticeItem } from '~/composables/useNotice'
 
 // 登录守卫走 auth middleware：未登录弹登录框并回首页，数据加载保持在组件内（守卫先行不发必 401 的请求）
@@ -264,18 +314,26 @@ const { user } = useUser()
 // 当前登录人 id：收到的评论行判定「回复了我的评论」用
 const currentUserId = computed(() => user.value?.userId ?? null)
 
-// 菜单未读数：与铃铛同源，仅互动两分类有计数
+// 菜单未读数：与铃铛同源，仅互动两分类有计数（赞和收藏栏合并展示赞+收藏未读）
 const catUnread = (key: NoticeTab) => {
-  if (key === 'comment' || key === 'like') {
-    return unread.value[key]
+  if (key === 'comment') {
+    return unread.value.comment
+  }
+  if (key === 'like') {
+    return unread.value.like + unread.value.collect
   }
   return 0
 }
 
-// 分类栏进入即清该栏红标（水位推至当前）：评论/赞逐栏清，系统通知/新增粉丝无计数
+// 分类栏进入即清该栏红标（水位推至当前）：评论/赞和收藏逐栏清，系统通知/新增粉丝无计数
+// 赞和收藏栏同时推平 like 与 collect 两个水位（红标为两者合计，进入即全清）
 const onTabEnter = (tab: NoticeTab) => {
-  if (tab === 'comment' || tab === 'like') {
-    markRead(tab).catch(() => {})
+  if (tab === 'comment') {
+    markRead('comment').catch(() => {})
+  }
+  if (tab === 'like') {
+    markRead('like').catch(() => {})
+    markRead('collect').catch(() => {})
   }
 }
 
@@ -415,7 +473,9 @@ const removeMyComment = async (row: MyCommentItem) => {
   }
 }
 
-// ---------- 收到的赞（赞和收藏 tab）：他人点赞我发布的文章，服务端按登录态过滤，最新在前 ----------
+// ---------- 收到的赞 / 收到的收藏（赞和收藏 tab 双子栏）：服务端按登录态过滤，最新在前 ----------
+const likeBox = ref<'like' | 'collect'>('like')
+
 const receivedLikes = ref<ReceivedLikeItem[]>([])
 const likePage = ref(1)
 const likeTotal = ref(0)
@@ -440,6 +500,45 @@ const loadReceivedLikes = async () => {
   }
 }
 
+const { fetchReceivedCollects } = useCollect()
+
+const receivedCollects = ref<ReceivedCollectItem[]>([])
+const collectPage = ref(1)
+const collectTotal = ref(0)
+const collectLoading = ref(false)
+const collectError = ref('')
+
+const loadReceivedCollects = async () => {
+  collectLoading.value = true
+  collectError.value = ''
+  try {
+    const data = await fetchReceivedCollects({ pageNum: collectPage.value, pageSize: PAGE_SIZE })
+    receivedCollects.value = data.list || []
+    collectTotal.value = data.total || 0
+  } catch (error: any) {
+    receivedCollects.value = []
+    collectTotal.value = 0
+    collectError.value = error?.message || '收藏列表加载失败'
+  } finally {
+    collectLoading.value = false
+  }
+}
+
+// 子栏切换：重置到第一页并重拉（切走的子页在切回时再拉，保证数据新鲜）
+const switchLikeBox = (box: 'like' | 'collect') => {
+  if (likeBox.value === box) {
+    return
+  }
+  likeBox.value = box
+  if (box === 'like') {
+    likePage.value = 1
+    loadReceivedLikes()
+  } else {
+    collectPage.value = 1
+    loadReceivedCollects()
+  }
+}
+
 // 首屏加载放到登录守卫之后（onMounted），避免未登录先发一轮必然 401 的请求
 watch(activeTab, (tab) => {
   onTabEnter(tab)
@@ -459,7 +558,13 @@ watch(activeTab, (tab) => {
   }
   if (tab === 'like') {
     likePage.value = 1
-    loadReceivedLikes()
+    collectPage.value = 1
+    // 按当前子栏加载（双子栏独立分页，切回时经 switchLikeBox 重拉）
+    if (likeBox.value === 'like') {
+      loadReceivedLikes()
+    } else {
+      loadReceivedCollects()
+    }
   }
 })
 
@@ -467,6 +572,7 @@ watch(page, loadNotices)
 watch(receivedPage, loadReceivedComments)
 watch(commentPage, loadMyComments)
 watch(likePage, loadReceivedLikes)
+watch(collectPage, loadReceivedCollects)
 
 const formatTime = (value?: string | null) => {
   if (!value) {
@@ -489,7 +595,11 @@ onMounted(() => {
       loadMyComments()
     }
   } else if (activeTab.value === 'like') {
-    loadReceivedLikes()
+    if (likeBox.value === 'like') {
+      loadReceivedLikes()
+    } else {
+      loadReceivedCollects()
+    }
   }
 })
 </script>
@@ -733,6 +843,18 @@ onMounted(() => {
     white-space: nowrap;
     overflow: hidden;
     text-overflow: ellipsis;
+    transition: color 0.2s ease;
+
+    &:hover {
+      color: var(--color-primary);
+    }
+  }
+
+  // 动作短句内嵌的收藏集入口（「收进了《xx》」），主题色弱化字重
+  .notify-quote-inline {
+    color: var(--color-text-2);
+    font-weight: 500;
+    white-space: nowrap;
     transition: color 0.2s ease;
 
     &:hover {

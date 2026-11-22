@@ -6,6 +6,8 @@ import { PublishStatusEnum } from '@nest-acticle/shared';
 import { PostNotifyReadEntity } from './entities/notify-read.entity';
 import { PostCommentEntity } from '../comment/entities/comment.entity';
 import { PostLikeEntity } from '../like/entities/like.entity';
+import { PostCollectionArticleEntity } from '../collection/entities/collection-article.entity';
+import { PostCollectionEntity } from '../collection/entities/collection.entity';
 import { PostArticleEntity } from '../article/entities/article.entity';
 
 /**
@@ -15,6 +17,7 @@ import { PostArticleEntity } from '../article/entities/article.entity';
 export const NotifyCategory = {
   COMMENT: 'comment',
   LIKE: 'like',
+  COLLECT: 'collect',
 } as const;
 
 /**
@@ -31,6 +34,10 @@ export class PostNotifyService {
     private readonly commentRepo: Repository<PostCommentEntity>,
     @InjectRepository(PostLikeEntity)
     private readonly likeRepo: Repository<PostLikeEntity>,
+    @InjectRepository(PostCollectionArticleEntity)
+    private readonly collectRepo: Repository<PostCollectionArticleEntity>,
+    @InjectRepository(PostCollectionEntity)
+    private readonly collectionRepo: Repository<PostCollectionEntity>,
     @InjectRepository(PostArticleEntity)
     private readonly articleRepo: Repository<PostArticleEntity>,
   ) {}
@@ -64,6 +71,23 @@ export class PostNotifyService {
   }
 
   /**
+   * 收到的收藏未读条件：他人把我的已发布文章收进 ta 的公开收藏集，
+   * 与 collection.service.findReceivedList 口径严格一致（私密集不产生通知，自收藏不计）
+   */
+  private receivedCollectQb(userId: number) {
+    return this.collectRepo
+      .createQueryBuilder('relation')
+      .innerJoin(PostArticleEntity, 'article', 'article.id = relation.articleId')
+      .innerJoin(PostCollectionEntity, 'collection', 'collection.id = relation.collectionId')
+      .where('article.userId = :userId', { userId })
+      .andWhere('article.delFlag = :delFlag', { delFlag: '0' })
+      .andWhere('article.publishStatus = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED })
+      .andWhere('relation.userId <> :userId', { userId })
+      .andWhere('collection.delFlag = :delFlag', { delFlag: '0' })
+      .andWhere('collection.visibility = :visibility', { visibility: '0' });
+  }
+
+  /**
    * 未读计数（铃铛红标）：按分类返回，total 为互动分类合计（粉丝/系统通知未建不计）
    */
   async unreadCount(userId: number) {
@@ -84,7 +108,14 @@ export class PostNotifyService {
     }
     const like = await likeQb.getCount();
 
-    return ResultData.ok({ comment, like, total: comment + like });
+    const collectQb = this.receivedCollectQb(userId);
+    const collectRead = readMap.get(NotifyCategory.COLLECT);
+    if (collectRead) {
+      collectQb.andWhere('relation.createTime > :collectRead', { collectRead });
+    }
+    const collect = await collectQb.getCount();
+
+    return ResultData.ok({ comment, like, collect, total: comment + like + collect });
   }
 
   /**

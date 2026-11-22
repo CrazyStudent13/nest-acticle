@@ -215,8 +215,12 @@ const goNotification = () => {
 const { unread, refreshBadge } = useNotify()
 
 const catUnread = (key: NoticeCat['key']) => {
-  if (key === 'comment' || key === 'like') {
-    return unread.value[key]
+  // 赞和收藏栏合并展示赞+收藏未读（通知中心同款口径）
+  if (key === 'comment') {
+    return unread.value.comment
+  }
+  if (key === 'like') {
+    return unread.value.like + unread.value.collect
   }
   return 0
 }
