@@ -95,15 +95,12 @@ export class PostNotifyService {
     const now = new Date();
     const categories = category ? [category] : Object.values(NotifyCategory);
     await this.readRepo.manager.transaction(async (manager) => {
-      for (const category of categories) {
-        const existing = await manager.findOne(PostNotifyReadEntity, {
-          where: { userId, category },
-        });
-        if (existing) {
-          await manager.update(PostNotifyReadEntity, { userId, category }, { readTime: now });
-        } else {
-          await manager.insert(PostNotifyReadEntity, { userId, category, readTime: now });
-        }
+      for (const cat of categories) {
+        // 先查后插在并发首次进入时会撞 (user_id, category) 主键，直接原子 upsert 推进水位
+        await manager.query(
+          'INSERT INTO post_notify_read (user_id, category, read_time) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE read_time = ?',
+          [userId, cat, now, now],
+        );
       }
     });
     return ResultData.ok();
