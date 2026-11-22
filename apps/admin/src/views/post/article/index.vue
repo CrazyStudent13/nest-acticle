@@ -123,9 +123,8 @@
         <el-table-column align="left" label="评论" prop="commentNum" width="80" />
         <el-table-column align="left" label="发布时间" prop="publishTime" width="170" />
         <el-table-column align="left" label="创建时间" prop="createTime" width="170" />
-        <el-table-column align="center" class-name="small-padding" fixed="right" label="操作" width="220">
+        <el-table-column align="center" class-name="small-padding" fixed="right" label="操作" width="150">
           <template #default="scope">
-            <el-button :icon="View" link type="primary" @click="handlePreview(scope.row)">预览</el-button>
             <el-button v-hasPermi="['post:article:edit']" :icon="Edit" link type="primary" @click="article.handleUpdate(scope.row)">修改</el-button>
             <el-button v-hasPermi="['post:article:remove']" :icon="Delete" link type="danger" @click="article.handleDelete(scope.row)">删除</el-button>
           </template>
@@ -137,20 +136,17 @@
     </el-card>
 
     <article-form v-model="article.open" :title="article.title" :initial-data="article.form" :subject-list="subject.state.list" @success="handleArticleSuccess" />
-
-    <preview ref="previewRef" />
   </div>
 </template>
 
 <script setup name="Article">
-import { Delete, Edit, Loading, Plus, Refresh, Search, View } from '@element-plus/icons-vue';
+import { Delete, Edit, Loading, Plus, Refresh, Search } from '@element-plus/icons-vue';
 
 import { listArticle, delArticle, getArticle } from '@/api/post/article';
 import { useSubject } from '@/composables/post/useSubject';
 import { useCrud } from '@/composables/useCrud';
 
 import ArticleForm from './components/ArticleForm';
-import Preview from './components/Preview';
 
 const router = useRouter();
 
@@ -159,7 +155,6 @@ const { post_article_publish_status, post_article_audit_status } = useDict('post
 // 使用专栏管理 composable
 const subject = useSubject();
 
-const previewRef = ref();
 const queryArticleRef = ref(null);
 
 // 文章管理（编辑对话框复用 ArticleForm 子组件，绑定 open/title/form）
@@ -206,11 +201,6 @@ const handleSubjectRowClick = (row) => {
     article.queryParams.subjectId = subjectId;
     article.getList();
   });
-};
-
-// 预览文章
-const handlePreview = (row) => {
-  previewRef.value.handleOpen(row);
 };
 
 // 打开编辑器（新窗口）

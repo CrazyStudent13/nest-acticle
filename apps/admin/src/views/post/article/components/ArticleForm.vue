@@ -25,12 +25,6 @@
       <el-form-item label="文章简介" prop="desc">
         <el-input v-model="formData.desc" maxlength="500" placeholder="请输入文章简介" :autosize="{ minRows: 5, maxRows: 8 }" :show-word-limit="true" type="textarea" @blur="handleDescBlur" />
       </el-form-item>
-      <el-form-item label="正文">
-        <div class="content-guide">
-          <span>正文请在编辑器中维护，本抽屉仅作元数据快速编辑（不回传正文）</span>
-          <el-button type="primary" link @click="handleOpenEditor">打开编辑器</el-button>
-        </div>
-      </el-form-item>
       <el-form-item label="封面图片" prop="cover">
         <ImageUploadCover v-model="formData.cover" path="article" :max-size="5" :quality="0.85" :before-upload-check="validateBeforeUpload" width="400px" aspect-ratio="16 / 9" />
       </el-form-item>
@@ -287,14 +281,5 @@ const handleOpenEditor = () => {
   line-height: 32px;
   font-size: 14px;
   color: var(--el-text-color-regular);
-}
-
-.content-guide {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  width: 100%;
-  font-size: 13px;
-  color: var(--el-text-color-secondary);
 }
 </style>
