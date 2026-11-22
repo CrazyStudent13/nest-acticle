@@ -4764,7 +4764,8 @@ create table
     primary key (id),
     key idx_article_id (article_id),
     key idx_user_id (user_id),
-    key idx_parent_id (parent_id)
+    key idx_parent_id (parent_id),
+    key idx_reply_user_id (reply_user_id)
   ) engine = innodb comment = '评论库';
 
 -- ----------------------------

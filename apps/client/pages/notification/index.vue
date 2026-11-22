@@ -248,7 +248,7 @@ const switchCat = (key: NoticeTab) => {
   return navigateTo({ path: '/notification', query: key === 'system' ? {} : { tab: key } })
 }
 
-// ---------- 系统通知列表：分页拉取，status='1'（已关闭）前端过滤；403 等业务错误降级为空态提示 ----------
+// ---------- 系统通知列表：分页拉取，服务端按 status='0' 过滤已关闭公告；403 等业务错误降级为空态提示 ----------
 const { fetchNotices, fetchMyComments } = useNotice()
 const { unread, markRead, fetchReceivedComments } = useNotify()
 const { user } = useUser()
@@ -282,8 +282,8 @@ const loadNotices = async () => {
   loading.value = true
   errorMsg.value = ''
   try {
-    const data = await fetchNotices({ pageNum: page.value, pageSize: PAGE_SIZE })
-    notices.value = (data.list || []).filter((item) => item.status === '0')
+    const data = await fetchNotices({ pageNum: page.value, pageSize: PAGE_SIZE, status: '0' })
+    notices.value = data.list || []
     total.value = data.total || 0
   } catch (error: any) {
     notices.value = []

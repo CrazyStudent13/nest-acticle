@@ -173,6 +173,8 @@ const onLike = async () => {
   if (!id) {
     return
   }
+  // 作废在途的状态查询：点击发生在状态回包前时，旧结果不能覆盖这次点击
+  ++likeSeq
   // 乐观更新：点击即翻转高亮并增减计数，请求返回后再以服务端结果校准，失败回滚
   const wasLiked = liked.value
   const prevCount = likeCount.value

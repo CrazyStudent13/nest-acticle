@@ -57,6 +57,12 @@ export class ListNoticeDto extends PagingDto {
   @IsEnum(TypeEnum)
   noticeType?: string;
 
+  // 0 正常 / 1 关闭：通知中心取 '0'，关闭的公告不计入分页 total
+  @IsOptional()
+  @IsString()
+  @IsEnum(StatusEnum)
+  status?: string;
+
   @IsOptional()
   @IsString()
   createBy?: string;

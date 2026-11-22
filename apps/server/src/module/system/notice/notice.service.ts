@@ -28,6 +28,10 @@ export class NoticeService {
       entity.andWhere('entity.noticeType = :noticeType', { noticeType: query.noticeType });
     }
 
+    if (query.status) {
+      entity.andWhere('entity.status = :status', { status: query.status });
+    }
+
     if (query.params?.beginTime && query.params?.endTime) {
       entity.andWhere('entity.createTime BETWEEN :start AND :end', { start: query.params.beginTime, end: query.params.endTime });
     }
