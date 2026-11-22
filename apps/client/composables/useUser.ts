@@ -160,6 +160,18 @@ export const useUser = () => {
     await apiFetch('/api/system/user/profile/updatePwd', { method: 'PUT', body: payload })
   }
 
+  // 他人空间公开资料（guest 免登录，仅昵称与头像，与文章列表携带的 userInfo 同口径）；
+  // 用户不存在/已删除返回 null，调用方降级占位展示
+  const fetchGuestProfile = async (
+    userId: number
+  ): Promise<{ userId: number; nickName: string; avatar?: string | null } | null> => {
+    const res = await apiFetch<{ userId: number; nickName: string; avatar?: string | null }>(
+      '/api/system/user/guest/profile',
+      { query: { id: userId } }
+    )
+    return res.data ?? null
+  }
+
   return {
     user,
     isLoggedIn,
@@ -174,6 +186,7 @@ export const useUser = () => {
     logout,
     updateProfile,
     updateAvatar,
-    updatePassword
+    updatePassword,
+    fetchGuestProfile
   }
 }

@@ -1,4 +1,4 @@
-<!-- 个人空间页：带 ?id= 看他人空间（公开昵称/头像+文章统计+点赞栏），否则自己的空间（完整账号信息+编辑资料入口）；文章 tab 标题搜索+时间正/倒序（400ms 防抖），专栏 tab 复用 ColumnCard，点赞 tab 展示空间主人点赞过的文章（公开） -->
+<!-- 个人空间页：带 ?id= 看他人空间（公开资料接口取昵称/头像+文章统计+点赞栏，零文章用户同样能解析出资料），否则自己的空间（完整账号信息+编辑资料入口）；文章 tab 标题搜索+时间正/倒序（400ms 防抖），专栏 tab 复用 ColumnCard，点赞 tab 展示空间主人点赞过的文章（公开） -->
 <template>
   <div class="space-page">
     <!-- 资料卡：自己的空间展示完整字段，他人空间只展示公开信息 -->
@@ -140,7 +140,7 @@ definePageMeta({
 
 const config = useRuntimeConfig()
 const route = useRoute()
-const { user } = useUser()
+const { user, fetchGuestProfile } = useUser()
 const { fetchUserLikedArticles } = useLike()
 const { fetchGuestArticles } = useArticleManage()
 const { fetchGuestSubjects } = useSubject()
@@ -158,15 +158,28 @@ const targetUserId = computed(() => {
 })
 const isSelf = computed(() => !!user.value?.userId && user.value.userId === targetUserId.value)
 
-// 他人资料来自文章列表携带的 userInfo（后端仅公开昵称与头像）
+// 他人资料：公开资料接口取昵称头像（不依赖文章行捎带——零文章用户的空间此前
+// 只能显示占位名）；加载失败或用户不存在时保留空值走占位
 const spaceProfile = ref<{ nickName?: string; avatar?: string }>({})
 const spaceStats = ref({ total: 0, reads: 0, likes: 0 })
 
+const loadGuestProfile = async (userId: number) => {
+  try {
+    const profile = await fetchGuestProfile(userId)
+    if (profile) {
+      spaceProfile.value = { nickName: profile.nickName, avatar: profile.avatar ?? undefined }
+    }
+  } catch {
+    /* 静默：保留占位名 */
+  }
+}
+
 // ---------- 页面初始化：自己的空间要求登录，他人空间公开可看（两种情形都由 auth middleware 判定先行） ----------
 const initSpace = () => {
-  // 切换空间时清掉搜索词与点赞列表，避免上一位的过滤条件/数据带到下一位
+  // 切换空间时清掉搜索词/点赞列表/上一位的资料，避免带到下一位
   keyword.value = ''
   likedArticles.value = []
+  spaceProfile.value = {}
   loadMyArticles()
   if (activeTab.value === 'like') {
     loadLikedArticles()
@@ -252,12 +265,9 @@ const loadMyArticles = async () => {
     })
     const list = data.list || []
     articles.value = list
-    // 公开统计（自己/他人同一套）+ 他人资料从文章携带的 userInfo 取
+    // 他人空间资料走公开资料接口（零文章用户也能取到昵称头像）
     if (!isSelf.value) {
-      const info = list[0]?.userInfo
-      if (info?.nickName || info?.avatar) {
-        spaceProfile.value = { nickName: info.nickName, avatar: info.avatar }
-      }
+      loadGuestProfile(userId)
     }
     spaceStats.value = {
       total: data.total || 0,

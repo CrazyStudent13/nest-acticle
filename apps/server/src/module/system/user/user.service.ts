@@ -127,6 +127,22 @@ export class UserService {
     });
   }
 
+  /**
+   * 用户公开资料（guest 公开）：仅昵称与头像，与文章列表携带的 userInfo 同口径；
+   * 供他人空间资料卡使用——零文章用户的空间此前只能从文章行捎带资料，取不到时显示占位名。
+   * 用户不存在/已删除时返回 null，前端降级占位展示
+   */
+  async findGuestProfile(userId: number) {
+    if (!userId || userId < 1) {
+      return ResultData.ok(null);
+    }
+    const data = await this.userRepo.findOne({
+      where: { userId, delFlag: '0' },
+      select: ['userId', 'nickName', 'avatar'],
+    });
+    return ResultData.ok(data ? { userId: data.userId, nickName: data.nickName, avatar: data.avatar || null } : null);
+  }
+
   @Cacheable(CacheEnum.SYS_USER_KEY, '{userId}')
   async findOne(userId: number) {
     const data = await this.userRepo.findOne({
