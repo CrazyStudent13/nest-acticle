@@ -533,7 +533,7 @@ const confirmRemoveArticle = async (item: Article) => {
 
 // 内容卡统计行（掘金「N篇文章 · N订阅」口径）：覆盖全站 feed-header 的紧凑标题样式，常规字重灰字、内边距更舒展
 .feed-panel > .feed-header {
-  padding: 18px 24px;
+  padding: 24px 24px;
 }
 
 .feed-title {
