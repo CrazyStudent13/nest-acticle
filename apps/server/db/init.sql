@@ -4371,6 +4371,124 @@ values
     '0'
   );
 
+-- 收藏集可见性字典（post_collection.visibility：0 公开 1 私密，文案/颜色可在管理端字典维护）
+insert into
+  sys_dict_type
+values
+  (
+    16,
+    '收藏集可见性',
+    'sys_collection_visibility',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '收藏集可见性列表',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    50,
+    1,
+    '公开',
+    '0',
+    'sys_collection_visibility',
+    '',
+    'success',
+    'Y',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '收藏集-可见性-公开',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    51,
+    2,
+    '私密',
+    '1',
+    'sys_collection_visibility',
+    '',
+    'info',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '收藏集-可见性-私密',
+    '0'
+  );
+
+-- 收藏集类型字典（is_default 推导：'1' 默认 / '0' 自建，文案/颜色可在管理端字典维护）
+insert into
+  sys_dict_type
+values
+  (
+    17,
+    '收藏集类型',
+    'sys_collection_type',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '收藏集类型列表（默认/自建）',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    52,
+    1,
+    '默认',
+    '1',
+    'sys_collection_type',
+    '',
+    'warning',
+    'Y',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '收藏集-类型-默认',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    53,
+    2,
+    '自建',
+    '0',
+    'sys_collection_type',
+    '',
+    'primary',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '收藏集-类型-自建',
+    '0'
+  );
+
 -- ----------------------------
 -- 13、参数配置表
 -- ----------------------------

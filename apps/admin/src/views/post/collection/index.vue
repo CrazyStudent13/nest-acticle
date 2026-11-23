@@ -1,5 +1,6 @@
 <!-- 收藏管理（交互管理/收藏管理）：收藏集列表，支持按收藏集名称/创建者昵称模糊搜索与时间范围过滤；
-     私密集同样可见（visibility 标识），删除会软删收藏集并清理收藏/订阅关系、回减文章收藏数 -->
+     可见性与类型（默认/自建）标签走数据字典（sys_collection_visibility / sys_collection_type），
+     删除会软删收藏集并清理收藏/订阅关系、回减文章收藏数 -->
 <template>
   <div class="app-container">
     <div class="main-card">
@@ -22,14 +23,15 @@
         <el-table-column type="selection" width="55" />
         <el-table-column label="收藏集名称" min-width="180" prop="name" show-overflow-tooltip>
           <template #default="{ row }">
-            <el-tag v-if="row.isDefault" size="small" type="primary">默认</el-tag>
-            <span :class="{ 'name-text': row.isDefault }">{{ row.name }}</span>
+            <!-- 类型标签走字典（默认 warning / 自建 primary），文案与颜色可在字典管理维护 -->
+            <dict-tag type="sys_collection_type" :value="row.isDefault ? '1' : '0'" />
+            <span class="name-text">{{ row.name }}</span>
           </template>
         </el-table-column>
         <el-table-column label="简介" min-width="200" prop="desc" show-overflow-tooltip />
         <el-table-column label="可见性" prop="visibility" width="90">
           <template #default="{ row }">
-            <el-tag :type="row.visibility === '1' ? 'info' : 'success'" size="small">{{ row.visibility === '1' ? '私密' : '公开' }}</el-tag>
+            <dict-tag type="sys_collection_visibility" :value="row.visibility" />
           </template>
         </el-table-column>
         <el-table-column align="center" label="收录文章" prop="articleCount" width="90" />
