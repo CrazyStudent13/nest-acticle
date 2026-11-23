@@ -130,21 +130,27 @@ async function bootstrap() {
     }),
   );
 
-  // 设置 API 文档（Swagger UI + Redoc）
-  setupApiDocs(app, prefix, '#1890ff');
+  // API 文档开关（swagger.enable）：dev.yml 开、prod.yml 关。仅显式 true 才注册文档路由，
+  // 配置缺失或非布尔 true 一律按关闭处理（fail-safe），避免接口规格在默认配置下对外暴露
+  const apiDocsEnabled = config.get<boolean>('swagger.enable') === true;
 
-  // 为 Swagger UI 和 Redoc 静态资源添加 CORS 头
-  app.use('/swagger-ui*', (req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    next();
-  });
+  if (apiDocsEnabled) {
+    // 设置 API 文档（Swagger UI + Redoc）
+    setupApiDocs(app, prefix, '#1890ff');
 
-  app.use('/docs*', (req, res, next) => {
-    res.header('Access-Control-Allow-Origin', '*');
-    res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
-    next();
-  });
+    // 为 Swagger UI 和 Redoc 静态资源添加 CORS 头
+    app.use('/swagger-ui*', (req, res, next) => {
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      next();
+    });
+
+    app.use('/docs*', (req, res, next) => {
+      res.header('Access-Control-Allow-Origin', '*');
+      res.header('Access-Control-Allow-Methods', 'GET, OPTIONS');
+      next();
+    });
+  }
 
   // 信任一层反向代理（nginx），使 request.ip 取 X-Forwarded-For 中的真实客户端 IP（登录日志/注册限流依赖）
   // 注意：若后端端口可被公网直达，攻击者可伪造 X-Forwarded-For 绕过基于 IP 的限流，生产环境应仅暴露前端入口
@@ -154,14 +160,17 @@ async function bootstrap() {
   const port = config.get<number>('app.port') || 8080;
   await app.listen(port);
 
+  // 文档关闭时路由未注册，不再打印文档入口，改为一行状态便于部署后核对开关是否生效
+  const apiDocsBanner = apiDocsEnabled
+    ? [`\n📖 Swagger UI: http://localhost:${port}${prefix}/swagger-ui/`, `\n📚 Redoc 文档：http://localhost:${port}${prefix}/docs`, `\n🔧 Apifox 导入：http://localhost:${port}/openapi.json`]
+    : [`\n📖 API 文档：已关闭（swagger.enable 未开启）`];
+
   console.log(
     `\n========================================`,
     `\n✅ Nest-Admin 服务启动成功`,
     `\n========================================`,
     `\n📍 服务地址：http://localhost:${port}${prefix}/`,
-    `\n📖 Swagger UI: http://localhost:${port}${prefix}/swagger-ui/`,
-    `\n📚 Redoc 文档：http://localhost:${port}${prefix}/docs`,
-    `\n🔧 Apifox 导入：http://localhost:${port}/openapi.json`,
+    ...apiDocsBanner,
     `\n========================================\n`,
   );
 }
