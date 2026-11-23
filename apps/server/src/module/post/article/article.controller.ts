@@ -1,8 +1,10 @@
-import { Controller, Get, Post, Body, Put, Param, Query, Delete, HttpCode, ParseIntPipe } from '@nestjs/common';
+import { Controller, Get, Post, Body, Put, Param, Query, Delete, HttpCode, ParseIntPipe, Req } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
+import { Request } from 'express';
 import { PostArticleService } from './article.service';
 import { CreatePostArticleDto, UpdatePostArticleDto, ListPostArticleDto, AuditPostArticleDto } from './dto/index';
 import { RequirePermission } from 'src/common/decorators/require-premission.decorator';
+import { GetClientIp } from 'src/common/utils/index';
 import { NotRequireAuth, User, UserDto } from 'src/module/system/user/user.decorator';
 
 /**
@@ -48,13 +50,14 @@ export class PostArticleController {
 
   /**
    * 记录一次阅读（游客可访问，详情页打开时上报，阅读数原子自增）
+   * 同一 IP 对同一文章 24 小时内重复上报静默返回、不计数
    */
   @ApiOperation({ summary: '文章-游客-记录阅读' })
   @NotRequireAuth()
   @HttpCode(200)
   @Post('/guest/read/:id')
-  recordRead(@Param('id', ParseIntPipe) id: number) {
-    return this.postArticleService.recordRead(id);
+  recordRead(@Param('id', ParseIntPipe) id: number, @Req() request: Request) {
+    return this.postArticleService.recordRead(id, GetClientIp(request));
   }
 
   /**

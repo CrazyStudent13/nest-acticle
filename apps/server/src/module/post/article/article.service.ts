@@ -8,6 +8,14 @@ import { PostArticleEntity } from './entities/article.entity';
 import { CreatePostArticleDto, UpdatePostArticleDto, ListPostArticleDto, AuditPostArticleDto, PublishStatusEnum, AuditStatusEnum } from './dto/index';
 import { UserDto } from 'src/module/system/user/user.decorator';
 import { UserEntity } from 'src/module/system/user/entities/sys-user.entity';
+import { RedisService } from 'src/module/common/redis/redis.service';
+
+/**
+ * 阅读上报防刷：同一 IP 对同一文章在窗口内只计一次
+ * key 形如 read:dedup:{articleId}:{ip}；TTL 单位秒（SET EX），窗口 24 小时
+ */
+const READ_DEDUP_KEY_PREFIX = 'read:dedup:';
+const READ_DEDUP_EXPIRES_SECONDS = 24 * 60 * 60;
 
 /**
  * 文章服务类
@@ -20,6 +28,7 @@ export class PostArticleService {
     private readonly postArticleRepository: Repository<PostArticleEntity>,
     @InjectRepository(UserEntity)
     private readonly userRepository: Repository<UserEntity>,
+    private readonly redisService: RedisService,
   ) {}
 
   /**
@@ -282,10 +291,22 @@ export class PostArticleService {
   /**
    * 记录一次阅读（游客端详情页打开时调用）
    * 仅已发布未删除文章可计；原子自增避免并发丢失，返回自增后的最新阅读数
+   * 防刷：同一 IP 对同一文章 24 小时内只计一次——先 SET NX EX 原子占键，占键成功才自增，
+   * 并发重复请求只有一个能占到键；占键失败即重复上报，静默返回 ok（不增量、不报错，客户端无感）。
+   * 文章不存在/未发布时首次仍照常报错，键随之占住，重复请求同样静默返回、不再查库
+   * @param id 文章ID
+   * @param ip 客户端 IP（去重维度）
    */
-  async recordRead(id: number) {
+  async recordRead(id: number, ip: string) {
     if (!Number.isInteger(id) || id <= 0) {
       throw new BusinessException(400, '文章ID不合法');
+    }
+
+    const acquired = await this.redisService
+      .getClient()
+      .set(`${READ_DEDUP_KEY_PREFIX}${id}:${ip}`, 1, 'EX', READ_DEDUP_EXPIRES_SECONDS, 'NX');
+    if (!acquired) {
+      return ResultData.ok();
     }
 
     const updated = await this.postArticleRepository
