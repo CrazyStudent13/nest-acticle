@@ -1,5 +1,5 @@
 # 质量门禁：dev/master 推送与面向 master 的 PR 跑 lint/typecheck/test/build
-# 只挂本地实测会绿的检查；release 分支镜像构建仍由 docker.yml 负责，两者互不影响
+# 只挂本地实测会绿的检查；release 分支由 docker.yml 内的 quality job 跑同一套步骤、通过后才构建镜像——改这里的步骤须同步改 docker.yml
 name: quality-gate
 
 on:
