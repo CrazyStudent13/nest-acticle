@@ -1752,6 +1752,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/post/article/guest/read/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 文章-游客-记录阅读 */
+        post: operations["PostArticleController_recordRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/post/article/list": {
         parameters: {
             query?: never;
@@ -2208,6 +2225,213 @@ export interface paths {
         /** 通知-标记已读 */
         post: operations["PostNotifyController_markRead"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/collection/guest/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 收藏集-指定用户的收藏集列表 */
+        get: operations["PostCollectionController_findGuestList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/collection/guest/detail": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 收藏集-详情 */
+        get: operations["PostCollectionController_findGuestDetail"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/collection/guest/articles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 收藏集-集内文章列表 */
+        get: operations["PostCollectionController_findGuestArticles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/collection/guest/subscribed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 收藏集-指定用户订阅的收藏集列表 */
+        get: operations["PostCollectionController_findGuestSubscribed"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/collection/status/{articleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 收藏集-文章收藏状态 */
+        get: operations["PostCollectionController_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/collection/received/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 收藏集-收到的收藏列表 */
+        get: operations["PostCollectionController_findReceivedList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/collection/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 收藏集-管理列表 */
+        get: operations["PostCollectionController_findAdminList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/collection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 收藏集-更新 */
+        put: operations["PostCollectionController_update"];
+        /** 收藏集-新建 */
+        post: operations["PostCollectionController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/collection/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 收藏集-删除 */
+        delete: operations["PostCollectionController_remove"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/collection/batch/{ids}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 收藏集-批量删除 */
+        delete: operations["PostCollectionController_removeByIds"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/collection/{id}/subscribe": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 收藏集-订阅 */
+        post: operations["PostCollectionController_subscribe"];
+        /** 收藏集-退订 */
+        delete: operations["PostCollectionController_unsubscribe"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/collection/{collectionId}/{articleId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 收藏集-收藏文章 */
+        post: operations["PostCollectionController_collect"];
+        /** 收藏集-移出文章 */
+        delete: operations["PostCollectionController_uncollect"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2713,7 +2937,17 @@ export interface components {
              * @description 通知分类（缺省标记全部互动分类）
              * @enum {string}
              */
-            category?: "comment" | "like";
+            category?: "comment" | "like" | "collect";
+        };
+        SaveCollectionDto: {
+            /** @description 收藏集 id（更新时必传） */
+            id?: number;
+            /** @description 收藏集名称（1-32 字） */
+            name?: string;
+            /** @description 收藏集简介 */
+            desc?: string;
+            /** @description 可见性（0 公开 1 私密） */
+            visibility?: string;
         };
     };
     responses: never;
@@ -5160,6 +5394,25 @@ export interface operations {
             };
         };
     };
+    PostArticleController_recordRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     PostArticleController_findAll: {
         parameters: {
             query?: {
@@ -5574,7 +5827,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                articleId: string;
+                articleId: number;
             };
             cookie?: never;
         };
@@ -5593,7 +5846,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                articleId: string;
+                articleId: number;
             };
             cookie?: never;
         };
@@ -5612,7 +5865,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                articleId: string;
+                articleId: number;
             };
             cookie?: never;
         };
@@ -5787,7 +6040,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
-                id: string;
+                id: number;
             };
             cookie?: never;
         };
@@ -5830,6 +6083,346 @@ export interface operations {
                 "application/json": components["schemas"]["MarkReadDto"];
             };
         };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostCollectionController_findGuestList: {
+        parameters: {
+            query: {
+                /** @description 当前分页 */
+                pageNum?: number;
+                /** @description 每页数量 */
+                pageSize?: number;
+                /** @description 排序字段 */
+                orderByColumn?: string;
+                /** @description 排序规则 */
+                isAsc?: string;
+                /** @description 空间主人的用户ID */
+                userId: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostCollectionController_findGuestDetail: {
+        parameters: {
+            query: {
+                id: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostCollectionController_findGuestArticles: {
+        parameters: {
+            query: {
+                /** @description 当前分页 */
+                pageNum?: number;
+                /** @description 每页数量 */
+                pageSize?: number;
+                /** @description 排序字段 */
+                orderByColumn?: string;
+                /** @description 排序规则 */
+                isAsc?: string;
+                /** @description 收藏集 id */
+                collectionId: number;
+                /** @description 文章标题（模糊搜索） */
+                title?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostCollectionController_findGuestSubscribed: {
+        parameters: {
+            query: {
+                /** @description 当前分页 */
+                pageNum?: number;
+                /** @description 每页数量 */
+                pageSize?: number;
+                /** @description 排序字段 */
+                orderByColumn?: string;
+                /** @description 排序规则 */
+                isAsc?: string;
+                /** @description 订阅人的用户ID */
+                userId: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostCollectionController_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                articleId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostCollectionController_findReceivedList: {
+        parameters: {
+            query?: {
+                /** @description 当前分页 */
+                pageNum?: number;
+                /** @description 每页数量 */
+                pageSize?: number;
+                /** @description 排序字段 */
+                orderByColumn?: string;
+                /** @description 排序规则 */
+                isAsc?: string;
+                /** @description 文章标题（模糊搜索） */
+                title?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostCollectionController_findAdminList: {
+        parameters: {
+            query?: {
+                /** @description 当前分页 */
+                pageNum?: number;
+                /** @description 每页数量 */
+                pageSize?: number;
+                /** @description 排序字段 */
+                orderByColumn?: string;
+                /** @description 排序规则 */
+                isAsc?: string;
+                /** @description 收藏集名称（模糊搜索） */
+                name?: string;
+                /** @description 创建者昵称（模糊搜索，联 sys_user） */
+                nickName?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostCollectionController_update: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveCollectionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostCollectionController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SaveCollectionDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostCollectionController_remove: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostCollectionController_removeByIds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ids: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostCollectionController_subscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostCollectionController_unsubscribe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostCollectionController_collect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collectionId: number;
+                articleId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostCollectionController_uncollect: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                collectionId: number;
+                articleId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             200: {
                 headers: {
