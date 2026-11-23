@@ -23,7 +23,7 @@
         <el-table-column label="收藏集名称" min-width="180" prop="name" show-overflow-tooltip>
           <template #default="{ row }">
             <el-tag v-if="row.isDefault" size="small" type="primary">默认</el-tag>
-            <span>{{ row.name }}</span>
+            <span :class="{ 'name-text': row.isDefault }">{{ row.name }}</span>
           </template>
         </el-table-column>
         <el-table-column label="简介" min-width="200" prop="desc" show-overflow-tooltip />
@@ -41,18 +41,36 @@
         <el-table-column label="更新时间" prop="updateTime" width="170">
           <template #default="{ row }">{{ row.updateTime ? dayjs(row.updateTime).format('YYYY-MM-DD HH:mm:ss') : '' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="100">
-          <template #default="{ row }"><el-button v-hasPermi="['post:collection:remove']" :icon="Delete" link type="danger" @click="collection.handleDelete(row)">删除</el-button></template>
+        <el-table-column label="操作" width="130">
+          <template #default="{ row }">
+            <el-button :icon="Document" link type="primary" @click="openArticles(row)">文章</el-button>
+            <el-button v-hasPermi="['post:collection:remove']" :icon="Delete" link type="danger" @click="collection.handleDelete(row)">删除</el-button>
+          </template>
         </el-table-column>
       </el-table>
       <pagination v-show="collection.total > 0" v-model:limit="collection.queryParams.pageSize" v-model:page="collection.queryParams.pageNum" :total="collection.total" @pagination="collection.getList" />
     </div>
+
+    <!-- 收藏文章抽屉：查看收藏集收录的文章（guest 接口，管理员可看私密集） -->
+    <el-drawer v-model="articlesVisible" size="720px" :title="`收藏文章 · ${currentCollection?.name || ''}`">
+      <el-table v-loading="articlesLoading" :data="articles">
+        <el-table-column label="文章标题" min-width="200" prop="title" show-overflow-tooltip />
+        <el-table-column label="作者" prop="author" show-overflow-tooltip width="120" />
+        <el-table-column label="收藏时间" prop="collectTime" width="160">
+          <template #default="{ row }">{{ row.collectTime ? dayjs(row.collectTime).format('YYYY-MM-DD HH:mm:ss') : '' }}</template>
+        </el-table-column>
+        <el-table-column align="center" label="阅读" prop="readNum" width="70" />
+        <el-table-column align="center" label="点赞" prop="likeNum" width="70" />
+      </el-table>
+      <pagination v-show="articlesTotal > 0" v-model:limit="articlesQuery.pageSize" v-model:page="articlesQuery.pageNum" :total="articlesTotal" @pagination="loadArticles" />
+    </el-drawer>
   </div>
 </template>
 <script setup name="CollectionManagement">
-import { Delete, Refresh, Search } from '@element-plus/icons-vue';
+import dayjs from 'dayjs';
+import { Delete, Document, Refresh, Search } from '@element-plus/icons-vue';
 
-import { delCollection, listCollection } from '@/api/post/collection';
+import { delCollection, listCollection, listCollectionArticles } from '@/api/post/collection';
 import { addDateRange } from '@/composables/useCommon';
 import { useCrud } from '@/composables/useCrud';
 
@@ -81,6 +99,47 @@ const resetQuery = () => {
   collection.resetQuery();
 };
 
+// ---------- 收藏文章抽屉：查看收藏集收录的文章（含私密集，分页） ----------
+const articlesVisible = ref(false);
+const currentCollection = ref(null);
+const articles = ref([]);
+const articlesTotal = ref(0);
+const articlesLoading = ref(false);
+const articlesQuery = reactive({ pageNum: 1, pageSize: 10, collectionId: 0 });
+
+const openArticles = (row) => {
+  currentCollection.value = row;
+  articlesQuery.collectionId = row.id;
+  articlesQuery.pageNum = 1;
+  articlesVisible.value = true;
+  loadArticles();
+};
+
+const loadArticles = async () => {
+  articlesLoading.value = true;
+  try {
+    const res = await listCollectionArticles({
+      collectionId: articlesQuery.collectionId,
+      pageNum: articlesQuery.pageNum,
+      pageSize: articlesQuery.pageSize
+    });
+    articles.value = res.data?.list || [];
+    articlesTotal.value = res.data?.total || 0;
+  } catch {
+    articles.value = [];
+    articlesTotal.value = 0;
+  } finally {
+    articlesLoading.value = false;
+  }
+};
+
 // 初始化加载
 collection.getList();
 </script>
+
+<style lang="scss" scoped>
+// 「默认」标签与收藏集名称的间距
+.name-text {
+  margin-left: 8px;
+}
+</style>
