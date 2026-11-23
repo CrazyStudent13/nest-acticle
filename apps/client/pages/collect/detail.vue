@@ -388,7 +388,7 @@ const confirmRemoveArticle = async (item: Article) => {
   justify-content: space-between;
   gap: 16px;
   background-image: var(--gradient-brand);
-  border-radius: var(--radius-md);
+  border-radius: var(--radius-sm);
   color: #fff;
   overflow: hidden;
 
