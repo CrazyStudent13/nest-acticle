@@ -41,7 +41,7 @@
         <el-table-column label="更新时间" prop="updateTime" width="170">
           <template #default="{ row }">{{ row.updateTime ? dayjs(row.updateTime).format('YYYY-MM-DD HH:mm:ss') : '' }}</template>
         </el-table-column>
-        <el-table-column label="操作" width="130">
+        <el-table-column fixed="right" label="操作" width="160">
           <template #default="{ row }">
             <el-button :icon="Document" link type="primary" @click="openArticles(row)">文章</el-button>
             <el-button v-hasPermi="['post:collection:remove']" :icon="Delete" link type="danger" @click="collection.handleDelete(row)">删除</el-button>
@@ -53,16 +53,20 @@
 
     <!-- 收藏文章抽屉：查看收藏集收录的文章（guest 接口，管理员可看私密集） -->
     <el-drawer v-model="articlesVisible" size="720px" :title="`收藏文章 · ${currentCollection?.name || ''}`">
-      <el-table v-loading="articlesLoading" :data="articles">
-        <el-table-column label="文章标题" min-width="200" prop="title" show-overflow-tooltip />
-        <el-table-column label="作者" prop="author" show-overflow-tooltip width="120" />
-        <el-table-column label="收藏时间" prop="collectTime" width="160">
-          <template #default="{ row }">{{ row.collectTime ? dayjs(row.collectTime).format('YYYY-MM-DD HH:mm:ss') : '' }}</template>
-        </el-table-column>
-        <el-table-column align="center" label="阅读" prop="readNum" width="70" />
-        <el-table-column align="center" label="点赞" prop="likeNum" width="70" />
-      </el-table>
-      <pagination v-show="articlesTotal > 0" v-model:limit="articlesQuery.pageSize" v-model:page="articlesQuery.pageNum" :total="articlesTotal" @pagination="loadArticles" />
+      <div class="drawer-flex">
+        <el-table v-loading="articlesLoading" :data="articles">
+          <el-table-column label="文章标题" min-width="200" prop="title" show-overflow-tooltip />
+          <el-table-column label="作者" prop="author" show-overflow-tooltip width="120" />
+          <el-table-column label="收藏时间" prop="collectTime" width="160">
+            <template #default="{ row }">{{ row.collectTime ? dayjs(row.collectTime).format('YYYY-MM-DD HH:mm:ss') : '' }}</template>
+          </el-table-column>
+          <el-table-column align="center" label="阅读" prop="readNum" width="70" />
+          <el-table-column align="center" label="点赞" prop="likeNum" width="70" />
+        </el-table>
+        <div v-show="articlesTotal > 0" class="drawer-pagination">
+          <pagination v-model:limit="articlesQuery.pageSize" v-model:page="articlesQuery.pageNum" :total="articlesTotal" @pagination="loadArticles" />
+        </div>
+      </div>
     </el-drawer>
   </div>
 </template>
@@ -141,5 +145,23 @@ collection.getList();
 // 「默认」标签与收藏集名称的间距
 .name-text {
   margin-left: 8px;
+}
+
+// 抽屉内容纵向布局：表格占满，分页沉底右下角
+.drawer-flex {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+
+  .drawer-pagination {
+    margin-top: auto;
+
+    // 分页容器自带 margin-top/background，沉底场景下收紧
+    :deep(.pagination-container) {
+      margin-top: 0;
+      margin-bottom: 0;
+      padding: 10px 0;
+    }
+  }
 }
 </style>
