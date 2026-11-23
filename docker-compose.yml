@@ -53,7 +53,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_DB: 0
-      JWT_SECRETKEY: ${JWT_SECRETKEY:-please-change-me-to-a-random-secret}
+      JWT_SECRETKEY: ${JWT_SECRETKEY:?必须在 .env 配置 JWT_SECRETKEY}
       MAIL_ENABLED: ${MAIL_ENABLED:-false}
       MAIL_HOST: ${MAIL_HOST:-}
       MAIL_PORT: ${MAIL_PORT:-465}
