@@ -12,6 +12,7 @@ import { PostArticleEntity } from '../article/entities/article.entity';
 import { UserEntity } from 'src/module/system/user/entities/sys-user.entity';
 import { UserDto } from 'src/module/system/user/user.decorator';
 import {
+  ListAdminCollectionDto,
   ListCollectionArticleDto,
   ListGuestCollectionDto,
   ListGuestSubDto,
@@ -111,28 +112,36 @@ export class PostCollectionService {
         throw new BusinessException(403, '无权删除此收藏集');
       }
 
-      await manager.update(PostCollectionEntity, id, { delFlag: '1' });
-
-      // 物理清理收藏关系，按文章聚合回减 collect_num（下限 0）
-      const rows = await manager.find(PostCollectionArticleEntity, { where: { collectionId: id } });
-      if (rows.length) {
-        await manager.delete(PostCollectionArticleEntity, { collectionId: id });
-        const countByArticle = new Map<number, number>();
-        rows.forEach((row) => countByArticle.set(row.articleId, (countByArticle.get(row.articleId) || 0) + 1));
-        for (const [articleId, count] of countByArticle) {
-          await manager
-            .createQueryBuilder()
-            .update(PostArticleEntity)
-            .set({ collectNum: () => `GREATEST(collect_num - ${count}, 0)` })
-            .where('id = :id', { id: articleId })
-            .execute();
-        }
-      }
-
-      await manager.delete(PostCollectionSubEntity, { collectionId: id });
-      this.logger.log(`用户 ${user.userId} 删除收藏集 ${id}「${collection.name}」，清理收藏关系 ${rows.length} 条`);
+      await this.purgeCollection(manager, id);
+      this.logger.log(`用户 ${user.userId} 删除收藏集 ${id}「${collection.name}」`);
       return ResultData.ok();
     });
+  }
+
+  /**
+   * 收藏集删除的公共清理：软删集行 + 物理清收藏/订阅关系 + 按文章聚合 GREATEST 回减 collect_num
+   * 前台删除与管理端批量删除共用；调用方负责归属校验与事务
+   */
+  private async purgeCollection(manager: any, id: number) {
+    await manager.update(PostCollectionEntity, id, { delFlag: '1' });
+
+    const rows = await manager.find(PostCollectionArticleEntity, { where: { collectionId: id } });
+    if (rows.length) {
+      await manager.delete(PostCollectionArticleEntity, { collectionId: id });
+      const countByArticle = new Map<number, number>();
+      rows.forEach((row) => countByArticle.set(row.articleId, (countByArticle.get(row.articleId) || 0) + 1));
+      for (const [articleId, count] of countByArticle) {
+        await manager
+          .createQueryBuilder()
+          .update(PostArticleEntity)
+          .set({ collectNum: () => `GREATEST(collect_num - ${count}, 0)` })
+          .where('id = :id', { id: articleId })
+          .execute();
+      }
+    }
+
+    await manager.delete(PostCollectionSubEntity, { collectionId: id });
+    return rows.length;
   }
 
   /**
@@ -504,5 +513,72 @@ export class PostCollectionService {
     }));
 
     return ResultData.ok({ list, total });
+  }
+
+  /**
+   * 收藏集管理列表（管理端，联创建者昵称；私密集同样可见，软删行不展示）
+   * 取数走 getRawAndEntities：collection 实体 + join 出的用户昵称手动拼平
+   */
+  async findAdminList(query: ListAdminCollectionDto) {
+    const entity = this.collectionRepo.createQueryBuilder('collection');
+    entity
+      .leftJoin(UserEntity, 'user', 'user.userId = collection.userId')
+      .addSelect(['user.userId', 'user.nickName'])
+      .where('collection.delFlag = :delFlag', { delFlag: '0' });
+
+    applyLike(entity, 'collection.name', query.name);
+    applyLike(entity, 'user.nickName', query.nickName);
+
+    if (query.params?.beginTime && query.params?.endTime) {
+      entity.andWhere('collection.createTime BETWEEN :start AND :end', {
+        start: query.params.beginTime,
+        end: query.params.endTime,
+      });
+    }
+
+    paginate(entity, query);
+
+    entity.orderBy('collection.createTime', 'DESC');
+
+    const { raw, entities } = await entity.getRawAndEntities();
+    const total = await entity.getCount();
+
+    // raw 键格式为「别名_数据库列名」
+    const nickNameById = new Map(raw.map((row: Record<string, any>) => [row.collection_id, row.user_nick_name]));
+    const list = entities.map((item) => ({
+      id: item.id,
+      userId: item.userId,
+      name: item.name,
+      desc: item.desc,
+      visibility: item.visibility,
+      articleCount: item.articleCount,
+      subscriberCount: item.subscriberCount,
+      createTime: item.createTime,
+      updateTime: item.updateTime,
+      nickName: nickNameById.get(item.id) || '',
+    }));
+
+    return ResultData.ok({ list, total });
+  }
+
+  /**
+   * 管理端批量删除收藏集：逐个走 purgeCollection 清理（不存在的跳过），同步回减文章收藏数
+   */
+  async removeByIds(ids: number[]) {
+    return this.articleRepo.manager.transaction(async (manager) => {
+      let purged = 0;
+      let relationCount = 0;
+      for (const id of ids) {
+        const collection = await manager.findOne(PostCollectionEntity, { where: { id, delFlag: '0' } });
+        if (!collection) {
+          continue;
+        }
+        relationCount += await this.purgeCollection(manager, id);
+        purged++;
+      }
+
+      this.logger.log(`管理员批量删除收藏集 ${purged}/${ids.length} 个，清理收藏关系 ${relationCount} 条`);
+      return ResultData.ok();
+    });
   }
 }

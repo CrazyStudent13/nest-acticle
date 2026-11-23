@@ -2,21 +2,24 @@ import { Body, Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Post, Put
 import { ApiBody, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PostCollectionService } from './collection.service';
 import {
+  ListAdminCollectionDto,
   ListCollectionArticleDto,
   ListGuestCollectionDto,
   ListGuestSubDto,
   ListReceivedCollectDto,
   SaveCollectionDto,
 } from './dto/index';
+import { RequirePermission } from 'src/common/decorators/require-premission.decorator';
 import { NotRequireAuth, User, UserDto } from 'src/module/system/user/user.decorator';
 
 /**
  * 收藏集控制器
  * - guest 端点公开（可选登录识别创建者本人：私密集对本人可见、详情带订阅状态）
  * - 写路径（新建/编辑/删除/收藏/订阅）面向登录用户，只要求 JWT，不挂权限串（同点赞/评论口径）
+ * - 管理路径（列表/批量删除）挂 post:collection:* 权限串
  * - received/list 通知中心「赞和收藏」栏的收到的收藏
- * 注意：静态段与动态段的声明顺序——/guest/*、/status/:articleId、/received/list、/:id/subscribe
- * 必须在 /:collectionId/:articleId 之前，否则会被动态段吞掉（同 like 控制器注意事项）
+ * 注意：静态段与动态段的声明顺序——/guest/*、/status/:articleId、/received/list、/list、
+ * /batch/:ids、/:id/subscribe 必须在 /:collectionId/:articleId 等纯动态段之前，否则会被动态段吞掉（同 like 控制器注意事项）
  */
 @ApiTags('收藏集管理')
 @Controller('post/collection')
@@ -82,6 +85,16 @@ export class PostCollectionController {
   }
 
   /**
+   * 收藏集管理列表（管理端，联创建者昵称）
+   */
+  @ApiOperation({ summary: '收藏集-管理列表' })
+  @RequirePermission('post:collection:list')
+  @Get('/list')
+  findAdminList(@Query() query: ListAdminCollectionDto) {
+    return this.collectionService.findAdminList(query);
+  }
+
+  /**
    * 新建收藏集
    */
   @ApiOperation({ summary: '收藏集-新建' })
@@ -109,6 +122,16 @@ export class PostCollectionController {
   @Delete('/:id')
   remove(@Param('id', ParseIntPipe) id: number, @User() user: UserDto) {
     return this.collectionService.remove(id, user);
+  }
+
+  /**
+   * 批量删除收藏集（管理端，同步清理收藏/订阅关系并回减文章收藏数）
+   */
+  @ApiOperation({ summary: '收藏集-批量删除' })
+  @RequirePermission('post:collection:remove')
+  @Delete('/batch/:ids')
+  removeByIds(@Param('ids') ids: string) {
+    return this.collectionService.removeByIds(ids.split(',').map((id) => +id));
   }
 
   /**

@@ -859,6 +859,58 @@ insert into
   sys_menu
 values
   (
+    '208',
+    '收藏管理',
+    '6',
+    '3',
+    'collection',
+    'post/collection/index',
+    '',
+    '1',
+    '0',
+    'C',
+    '0',
+    '0',
+    'post:collection:list',
+    'clipboard',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '收藏管理菜单',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
+    '209',
+    '收藏删除',
+    '208',
+    '1',
+    '',
+    '',
+    '',
+    '1',
+    '0',
+    'F',
+    '0',
+    '0',
+    'post:collection:remove',
+    'form',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '收藏删除权限',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
     '500',
     '操作日志',
     '108',

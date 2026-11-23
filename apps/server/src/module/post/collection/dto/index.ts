@@ -83,3 +83,20 @@ export class ListReceivedCollectDto extends PagingDto {
   @Length(0, 64)
   title?: string;
 }
+
+/**
+ * 收藏集管理列表查询 DTO（管理端，联 sys_user 按创建者昵称过滤）
+ */
+export class ListAdminCollectionDto extends PagingDto {
+  @ApiProperty({ required: false, description: '收藏集名称（模糊搜索）' })
+  @IsOptional()
+  @IsString()
+  @Length(0, 32)
+  name?: string;
+
+  @ApiProperty({ required: false, description: '创建者昵称（模糊搜索，联 sys_user）' })
+  @IsOptional()
+  @IsString()
+  @Length(0, 64)
+  nickName?: string;
+}
