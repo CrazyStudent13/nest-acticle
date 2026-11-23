@@ -30,6 +30,10 @@ export class PostCollectionEntity extends DeleteStatusEntity {
   @Column({ type: 'char', name: 'visibility', length: 1, default: '0', comment: '可见性（0 公开 1 私密）' })
   public visibility: string;
 
+  @ApiProperty({ type: String, description: '默认收藏夹标记（1 默认，null 非默认）', required: false })
+  @Column({ type: 'char', name: 'is_default', length: 1, nullable: true, comment: '默认收藏夹标记（1 默认，null 非默认；注册时创建，不可删除）' })
+  public isDefault: string | null;
+
   @ApiProperty({ type: Number, description: '收录文章数量' })
   @Column({ type: 'int', name: 'article_count', default: 0, comment: '收录文章数量' })
   public articleCount: number;

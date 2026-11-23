@@ -37,6 +37,7 @@ import { ConfigService } from '../config/config.service';
 import { MailService } from 'src/module/common/mail/mail.service';
 import { LoginlogService } from 'src/module/monitor/loginlog/loginlog.service';
 import { AxiosService } from 'src/module/common/axios/axios.service';
+import { DEFAULT_COLLECTION_NAME } from 'src/module/post/collection/collection.service';
 
 @Injectable()
 export class AuthService {
@@ -237,10 +238,15 @@ export class AuthService {
     user['nickName'] = user.username;
     user['password'] = await bcrypt.hash(user.password, 10);
     try {
-      // 建用户与绑默认角色打包为事务：绑角色失败时连同用户一起回滚，避免出现"有账号无角色"的半成功状态
+      // 建用户、绑默认角色、建默认收藏夹打包为事务：任一失败连同用户一起回滚，避免"有账号无角色/无默认收藏夹"的半成功状态
       await this.userRepo.manager.transaction(async (manager) => {
         const createdUser = await manager.save(UserEntity, { ...user, userType: SYS_USER_TYPE.CUSTOM, loginDate });
         await this.assignRegisterRole(createdUser.userId, manager);
+        // 默认收藏夹与用户同事务创建；INSERT IGNORE + post_collection.uk_user_default 唯一索引幂等防并发
+        await manager.query(
+          'INSERT IGNORE INTO post_collection (user_id, name, `desc`, visibility, is_default) VALUES (?, ?, NULL, ?, ?)',
+          [createdUser.userId, DEFAULT_COLLECTION_NAME, '0', '1'],
+        );
       });
     } catch (error) {
       // 并发注册撞车时前置查重拦不住，靠 user_name 唯一索引兜底（ER_DUP_ENTRY）

@@ -20,7 +20,12 @@
       </el-row>
       <el-table v-loading="collection.loading" :data="collection.list" @selection-change="collection.handleSelectionChange">
         <el-table-column type="selection" width="55" />
-        <el-table-column label="收藏集名称" min-width="180" prop="name" show-overflow-tooltip />
+        <el-table-column label="收藏集名称" min-width="180" prop="name" show-overflow-tooltip>
+          <template #default="{ row }">
+            <el-tag v-if="row.isDefault" size="small" type="primary">默认</el-tag>
+            <span>{{ row.name }}</span>
+          </template>
+        </el-table-column>
         <el-table-column label="简介" min-width="200" prop="desc" show-overflow-tooltip />
         <el-table-column label="可见性" prop="visibility" width="90">
           <template #default="{ row }">

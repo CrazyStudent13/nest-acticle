@@ -24,6 +24,8 @@ export interface Collection {
   desc?: string;
   /** 可见性：'0' 公开（可订阅） / '1' 私密（仅创建者可见） */
   visibility?: string;
+  /** 是否默认收藏夹（每用户初始自带一个，不可删除；server 恒返回布尔） */
+  isDefault?: boolean;
   /** 收录文章数量（server 维护的实时计数） */
   articleCount?: number;
   /** 订阅人数（server 维护的实时计数） */
@@ -52,6 +54,8 @@ export interface CollectionStatusItem {
   name: string;
   /** '0' 公开 / '1' 私密 */
   visibility: string;
+  /** 是否默认收藏夹（置顶展示、不可删除） */
+  isDefault?: boolean;
   /** 该文章当前是否已收藏进此收藏集 */
   collected: boolean;
 }

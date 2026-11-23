@@ -27,7 +27,10 @@
                   <polyline points="20 6 9 17 4 12" />
                 </svg>
               </span>
-              <span class="item-name">{{ item.name }}</span>
+              <span class="item-name">
+                {{ item.name }}
+                <span v-if="item.isDefault" class="item-default-badge">默认</span>
+              </span>
               <svg v-if="item.visibility === '1'" class="item-lock" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
@@ -314,9 +317,22 @@ const confirmSubmit = async () => {
       .item-name {
         flex: 1;
         min-width: 0;
+        display: flex;
+        align-items: center;
+        gap: 6px;
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+
+        .item-default-badge {
+          flex-shrink: 0;
+          padding: 0 6px;
+          border: 1px solid var(--color-primary);
+          border-radius: var(--radius-full);
+          font-size: 10px;
+          line-height: 15px;
+          color: var(--color-primary);
+        }
       }
 
       .item-lock {

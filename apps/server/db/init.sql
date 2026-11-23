@@ -4846,12 +4846,14 @@ create table
     name varchar(32) not null comment '收藏集名称',
     `desc` varchar(255) default null comment '收藏集简介',
     visibility char(1) default '0' comment '可见性（0 公开 1 私密）',
+    is_default char(1) default null comment '默认收藏夹标记（1 默认，null 非默认；注册时创建，不可删除）',
     article_count int default '0' comment '收录文章数量',
     subscriber_count int default '0' comment '订阅人数',
     create_time datetime default current_timestamp comment '创建时间',
     update_time datetime default current_timestamp on update current_timestamp comment '更新时间',
     del_flag char(1) default '0' comment '删除标志（0 代表存在 1 代表删除）',
     primary key (id),
+    unique key uk_user_default (user_id, is_default),
     key idx_user_id (user_id)
   ) engine = innodb comment = '收藏集库';
 

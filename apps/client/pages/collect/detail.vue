@@ -13,6 +13,7 @@
       <div class="header-main">
         <h1 class="title">
           {{ detail?.name || '收藏集详情' }}
+          <span v-if="detail?.isDefault" class="default-badge">默认</span>
           <svg v-if="detail?.visibility === '1'" class="lock-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
             <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
             <path d="M7 11V7a5 5 0 0 1 10 0v4" />
@@ -32,10 +33,10 @@
       </div>
 
       <div class="header-actions">
-        <!-- 本人：编辑/删除收藏集 -->
+        <!-- 本人：编辑/删除收藏集（默认收藏夹不可删除，不显示删除入口，后端同样拦截） -->
         <template v-if="detail?.isMine">
           <button class="action-btn" type="button" @click="openEdit">编辑收藏集</button>
-          <button class="action-btn danger" type="button" :disabled="deleting" @click="confirmRemoveCollection">
+          <button v-if="!detail?.isDefault" class="action-btn danger" type="button" :disabled="deleting" @click="confirmRemoveCollection">
             {{ deleting ? '删除中…' : '删除收藏集' }}
           </button>
         </template>
@@ -357,6 +358,17 @@ const confirmRemoveArticle = async (item: Article) => {
       font-size: 22px;
       font-weight: 600;
       color: var(--color-text-1);
+
+      .default-badge {
+        flex-shrink: 0;
+        padding: 2px 10px;
+        border: 1px solid var(--color-primary);
+        border-radius: var(--radius-full);
+        font-size: 12px;
+        font-weight: 400;
+        line-height: 18px;
+        color: var(--color-primary);
+      }
 
       .lock-icon {
         flex-shrink: 0;

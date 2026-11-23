@@ -168,7 +168,10 @@
               v-for="item in createdCollections"
               :key="item.id || item.name"
               :collection-info="item"
+              :mine="isSelf"
               @click="goCollection(item)"
+              @edit="openCollectEdit(item)"
+              @remove="onCollectionRemove(item)"
             />
           </div>
           <CommonEmptyState v-else-if="collectLoading" text="加载中…" />
@@ -538,7 +541,7 @@ const onSubscribedPageChange = (page: number) => {
   loadSubscribedCollections(page)
 }
 
-// ---------- 新建/编辑收藏集弹窗（仅本人空间入口） ----------
+// ---------- 新建/编辑/删除收藏集（仅本人空间入口） ----------
 const collectEditOpen = ref(false)
 const editingCollection = ref<Collection | null>(null)
 
@@ -551,6 +554,31 @@ const onCollectSaved = () => {
   collectEditOpen.value = false
   showToast('收藏集已保存', 'success')
   loadCreatedCollections()
+}
+
+// 行内删除：默认夹后端同样拦截（前端入口已隐藏），非默认夹二次确认后软删
+const { deleteCollection } = useCollect()
+
+const onCollectionRemove = async (item: Collection) => {
+  if (!item.id) {
+    return
+  }
+  const ok = await confirmAction({
+    title: '删除收藏集',
+    message: `确定删除收藏集「${item.name}」吗？收藏与订阅关系会一并清理。`,
+    confirmText: '删除',
+    danger: true
+  })
+  if (!ok) {
+    return
+  }
+  try {
+    await deleteCollection(item.id)
+    showToast('收藏集已删除', 'success')
+    loadCreatedCollections()
+  } catch (error: any) {
+    showToast(error?.message || '删除失败，请稍后重试', 'error')
+  }
 }
 
 const goCollection = (item: Collection) => {

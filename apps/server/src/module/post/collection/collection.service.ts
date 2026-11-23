@@ -20,6 +20,9 @@ import {
   SaveCollectionDto,
 } from './dto/index';
 
+/** 默认收藏夹固定名称（每用户初始自带，标识以 is_default 列为准，改名不影响逻辑） */
+export const DEFAULT_COLLECTION_NAME = '默认收藏夹';
+
 /**
  * 收藏集服务
  * 收藏/移出、订阅/退订统一走事务并同步维护计数：
@@ -54,6 +57,25 @@ export class PostCollectionService {
       return false;
     }
     return collection.userId === user.userId || user.roles?.includes('admin');
+  }
+
+  /**
+   * 确保用户存在默认收藏夹（惰性补建：注册钩子之外，覆盖历史存量用户首次触达收藏功能的场景）
+   * INSERT IGNORE + uk_user_default 唯一索引（null 不参与唯一约束）：并发首次触发只落一行，天然幂等
+   */
+  async ensureDefaultCollection(userId: number) {
+    const existing = await this.collectionRepo.findOne({
+      where: { userId, isDefault: '1', delFlag: '0' },
+      select: ['id'],
+    });
+    if (existing) {
+      return;
+    }
+    await this.collectionRepo.manager.query(
+      'INSERT IGNORE INTO post_collection (user_id, name, `desc`, visibility, is_default) VALUES (?, ?, NULL, ?, ?)',
+      [userId, DEFAULT_COLLECTION_NAME, '0', '1'],
+    );
+    this.logger.log(`用户 ${userId} 补建默认收藏夹`);
   }
 
   /**
@@ -110,6 +132,9 @@ export class PostCollectionService {
       }
       if (!assertOwnership(user, collection)) {
         throw new BusinessException(403, '无权删除此收藏集');
+      }
+      if (collection.isDefault === '1') {
+        throw new BusinessException(500, '默认收藏夹不可删除');
       }
 
       await this.purgeCollection(manager, id);
@@ -270,8 +295,11 @@ export class PostCollectionService {
 
   /**
    * 当前用户对文章的收藏状态：我的全部收藏集 + 各自 collected 布尔（收藏弹窗数据源，一集一文勾选）
+   * 打开弹窗顺手补建默认收藏夹；默认收藏夹排最前
    */
   async status(articleId: number, userId: number) {
+    await this.ensureDefaultCollection(userId);
+
     const entity = this.collectionRepo.createQueryBuilder('collection');
     entity
       .leftJoin(PostCollectionArticleEntity, 'relation', 'relation.collectionId = collection.id AND relation.articleId = :articleId', {
@@ -280,7 +308,8 @@ export class PostCollectionService {
       .addSelect('relation.id')
       .where('collection.userId = :userId', { userId })
       .andWhere('collection.delFlag = :delFlag', { delFlag: '0' })
-      .orderBy('collection.updateTime', 'DESC');
+      .orderBy('collection.isDefault', 'DESC')
+      .addOrderBy('collection.updateTime', 'DESC');
 
     const { raw, entities } = await entity.getRawAndEntities();
 
@@ -290,6 +319,7 @@ export class PostCollectionService {
       id: item.id,
       name: item.name,
       visibility: item.visibility,
+      isDefault: item.isDefault === '1',
       collected: collectedIds.has(item.id),
     }));
 
@@ -298,18 +328,24 @@ export class PostCollectionService {
 
   /**
    * 指定用户的收藏集列表（个人空间收藏集栏，本人/访客共用 guest/list）
-   * 可选登录识别创建者本人：本人含私密（前端锁图标），他人仅公开；最近更新在前
+   * 可选登录识别创建者本人：本人含私密（前端锁图标），他人仅公开；本人视角顺手补建默认收藏夹
+   * 默认收藏夹置顶，其余按最近更新在前
    */
   async findGuestList(query: ListGuestCollectionDto, user?: UserDto) {
+    const isOwnerView = !!user?.userId && (user.userId === query.userId || user.roles?.includes('admin'));
+    if (isOwnerView) {
+      await this.ensureDefaultCollection(query.userId);
+    }
+
     const entity = this.collectionRepo.createQueryBuilder('collection');
     entity.where('collection.userId = :userId', { userId: query.userId }).andWhere('collection.delFlag = :delFlag', { delFlag: '0' });
 
-    if (!user?.userId || (user.userId !== query.userId && !user.roles?.includes('admin'))) {
+    if (!isOwnerView) {
       entity.andWhere('collection.visibility = :visibility', { visibility: '0' });
     }
 
     paginate(entity, query);
-    entity.orderBy('collection.updateTime', 'DESC');
+    entity.orderBy('collection.isDefault', 'DESC').addOrderBy('collection.updateTime', 'DESC');
 
     const [list, total] = await entity.getManyAndCount();
     const rows = await attachUserInfo(
@@ -318,6 +354,7 @@ export class PostCollectionService {
         name: item.name,
         desc: item.desc,
         visibility: item.visibility,
+        isDefault: item.isDefault === '1',
         articleCount: item.articleCount,
         subscriberCount: item.subscriberCount,
         userId: item.userId,
@@ -354,6 +391,7 @@ export class PostCollectionService {
       name: collection.name,
       desc: collection.desc,
       visibility: collection.visibility,
+      isDefault: collection.isDefault === '1',
       articleCount: collection.articleCount,
       subscriberCount: collection.subscriberCount,
       userId: collection.userId,
@@ -551,6 +589,7 @@ export class PostCollectionService {
       name: item.name,
       desc: item.desc,
       visibility: item.visibility,
+      isDefault: item.isDefault === '1',
       articleCount: item.articleCount,
       subscriberCount: item.subscriberCount,
       createTime: item.createTime,
@@ -563,21 +602,29 @@ export class PostCollectionService {
 
   /**
    * 管理端批量删除收藏集：逐个走 purgeCollection 清理（不存在的跳过），同步回减文章收藏数
+   * 默认收藏夹不可删除，命中即跳过（保留夹子与其收藏关系）
    */
   async removeByIds(ids: number[]) {
     return this.articleRepo.manager.transaction(async (manager) => {
       let purged = 0;
+      let skippedDefault = 0;
       let relationCount = 0;
       for (const id of ids) {
         const collection = await manager.findOne(PostCollectionEntity, { where: { id, delFlag: '0' } });
         if (!collection) {
           continue;
         }
+        if (collection.isDefault === '1') {
+          skippedDefault++;
+          continue;
+        }
         relationCount += await this.purgeCollection(manager, id);
         purged++;
       }
 
-      this.logger.log(`管理员批量删除收藏集 ${purged}/${ids.length} 个，清理收藏关系 ${relationCount} 条`);
+      this.logger.log(
+        `管理员批量删除收藏集 ${purged}/${ids.length} 个，清理收藏关系 ${relationCount} 条${skippedDefault ? `，跳过默认收藏夹 ${skippedDefault} 个` : ''}`,
+      );
       return ResultData.ok();
     });
   }
