@@ -531,11 +531,18 @@ const confirmRemoveArticle = async (item: Article) => {
   }
 }
 
-// 内容卡统计行（掘金「N篇文章 · N订阅」口径）
+// 内容卡统计行（掘金「N篇文章 · N订阅」口径）：覆盖全站 feed-header 的紧凑标题样式，常规字重灰字、内边距更舒展
+.feed-panel > .feed-header {
+  padding: 18px 24px;
+}
+
 .feed-title {
   display: flex;
   align-items: baseline;
   gap: 12px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--color-text-2);
 
   .feed-meta {
     font-size: 12px;
