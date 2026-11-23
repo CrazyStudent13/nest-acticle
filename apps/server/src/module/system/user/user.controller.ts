@@ -9,7 +9,7 @@ import { CreateUserDto, UpdateUserDto, ListUserDto, ChangeStatusDto, ResetPwdDto
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ResultData } from 'src/common/utils/result';
 import { BusinessException } from 'src/common/exceptions/business.exception';
-import { User, UserDto, UserTool, UserToolType } from 'src/module/system/user/user.decorator';
+import { User, UserDto, UserTool, UserToolType, NotRequireAuth } from 'src/module/system/user/user.decorator';
 import { BusinessType } from 'src/common/constant/business.constant';
 import { Operlog } from 'src/common/decorators/operlog.decorator';
 import { UPLOAD_MAX_SIZE_BYTES, PERM_PROFILE_VIEW, PERM_PROFILE_EDIT } from 'src/common/constant/index';
@@ -33,6 +33,16 @@ export class UserController {
     // 会话快照含密码哈希（updatePwd 比对依赖），仅在响应层剥离
     const { password: _password, ...info } = user.user;
     return ResultData.ok(info);
+  }
+
+  @ApiOperation({
+    summary: '用户-公开资料（guest，仅昵称与头像）',
+  })
+  // 他人空间资料卡公开可看：与文章列表携带的 userInfo 同口径，仅公开昵称与头像
+  @NotRequireAuth()
+  @Get('/guest/profile')
+  findGuestProfile(@Query('id') id: string) {
+    return this.userService.findGuestProfile(+id);
   }
 
   @ApiOperation({

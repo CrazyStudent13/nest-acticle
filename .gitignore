@@ -22,6 +22,9 @@ ormlogs.log
 !apps/admin/.env.development
 !apps/admin/.env.production
 
+# 本地环境备份（dev.yml/.env 的换机拷贝，含密钥严禁入库）
+local-config/
+
 # uploads（目录本身保留，内容不入库）
 apps/server/upload/*
 !apps/server/upload/.gitkeep

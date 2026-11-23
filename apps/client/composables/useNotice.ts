@@ -1,6 +1,6 @@
 // 通知中心数据：系统通知/公告列表 + 我发表的评论列表。
 // 两个接口都按登录态过滤（未登录必 401），调用方须保证守卫先行（auth middleware / 组件级恢复）；
-// 通知行的展开收起、已关闭（status='1'）过滤等展示逻辑归页面管
+// 已关闭（status='1'）的公告由服务端按 status 参数过滤，分页 total 与列表一致
 import type { MyCommentItem, PageResult } from '@nest-acticle/shared'
 
 // 系统通知行数据（openapi 有对应 schema，shared 暂未沉淀线格式类型，先就地定义）
@@ -10,12 +10,19 @@ export interface NoticeItem {
   noticeType: string
   noticeContent: string
   status: string
+  createBy?: string
   createTime: string
 }
 
 export const useNotice = () => {
-  // 系统通知/公告列表：分页拉取，status 过滤由页面负责
-  const fetchNotices = async (params: { pageNum?: number; pageSize?: number }): Promise<PageResult<NoticeItem>> => {
+  // 系统通知/公告列表：分页拉取，status 传 '0' 只取正常公告（关闭的不计入 total）；
+  // 详情页按 noticeId 取单条（复用 list 权限）
+  const fetchNotices = async (params: {
+    pageNum?: number
+    pageSize?: number
+    status?: string
+    noticeId?: number
+  }): Promise<PageResult<NoticeItem>> => {
     const res = await apiFetch<PageResult<NoticeItem>>('/api/system/notice/list', {
       query: { ...params }
     })

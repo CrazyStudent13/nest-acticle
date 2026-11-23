@@ -2,69 +2,76 @@
 <template>
   <div class="detail">
     <!-- 左侧悬浮工具栏：fixed 挂视口，不占布局宽度 -->
-    <ArticleActionBar :liked="liked" :like-num="likeCount" :comment-num="commentCount" @like="onLike" @comment="scrollToComments" />
-    <template v-if="article.title || article.content">
-      <div class="detail-layout">
-        <article class="panel">
-          <h1 class="title">{{ article.title || '无标题' }}</h1>
+    <ArticleActionBar
+      :liked="liked"
+      :like-num="likeCount"
+      :comment-num="commentCount"
+      :collected="collected"
+      :collect-num="collectCount"
+      @like="onLike"
+      @comment="scrollToComments"
+      @collect="onCollect"
+    />
+    <!-- 收藏弹窗：勾选收藏集（含行内新建），确认后回抛高亮与计数变化 -->
+    <CollectModal v-if="collectOpen" :article-id="article.id || ''" @close="collectOpen = false" @done="onCollectDone" />
+    <CommonReadingLayout :flush="!(article.title || article.content)">
+      <template v-if="article.title || article.content">
+        <h1 class="title">{{ article.title || '无标题' }}</h1>
 
-          <!-- 元信息行：作者 时间 阅读 专栏，编辑入口靠右（仅作者本人可见），掘金式单行 -->
-          <div class="meta-line">
-            <span class="meta-author">{{ authorName }}</span>
-            <span v-if="publishLabel" class="meta-item">{{ publishLabel }}</span>
-            <span v-if="readLabel" class="meta-item">
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                <circle cx="12" cy="12" r="3" />
-              </svg>
-              {{ readLabel }} 阅读
-            </span>
-            <NuxtLink
-              v-if="subject.title && article.subjectId"
-              class="meta-subject"
-              target="_blank"
-              :to="{ path: '/column/detail', query: { id: String(article.subjectId) } }"
-            >
-              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-              </svg>
-              {{ subject.title }}
-            </NuxtLink>
-            <span v-if="canEdit" class="meta-actions">
-              <button class="edit-btn" type="button" @click="goEdit">编辑</button>
-              <button class="del-btn" type="button" :disabled="deleting" @click="removeArticle">
-                {{ deleting ? '删除中…' : '删除' }}
-              </button>
-            </span>
-          </div>
+        <!-- 元信息行：作者 时间 阅读 专栏，编辑入口靠右（仅作者本人可见），掘金式单行 -->
+        <div class="meta-line">
+          <span class="meta-author">{{ authorName }}</span>
+          <span v-if="publishLabel" class="meta-item">{{ publishLabel }}</span>
+          <span v-if="readLabel" class="meta-item">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+              <circle cx="12" cy="12" r="3" />
+            </svg>
+            {{ readLabel }} 阅读
+          </span>
+          <NuxtLink
+            v-if="subject.title && article.subjectId"
+            class="meta-subject"
+            target="_blank"
+            :to="{ path: '/column/detail', query: { id: String(article.subjectId) } }"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
+            </svg>
+            {{ subject.title }}
+          </NuxtLink>
+          <span v-if="canEdit" class="meta-actions">
+            <button class="edit-btn" type="button" @click="goEdit">编辑</button>
+            <button class="del-btn" type="button" :disabled="deleting" @click="removeArticle">
+              {{ deleting ? '删除中…' : '删除' }}
+            </button>
+          </span>
+        </div>
 
-          <img v-if="coverUrl" class="cover" :src="coverUrl" :alt="article.title" />
+        <img v-if="coverUrl" class="cover" :src="coverUrl" :alt="article.title" />
 
-          <div class="panel-body">
-            <MdViewer :value="article.content" />
-          </div>
+        <div class="panel-body">
+          <MdViewer :value="article.content" />
+        </div>
 
-          <!-- 评论区：抽成组件（掘金式两级结构），计数增删由组件回抛，页面同步文章冗余计数；工具栏评论按钮滚动到此处 -->
-          <ArticleCommentSection
-            ref="commentSectionRef"
-            :article-id="article.id || ''"
-            :comment-num="commentCount"
-            :author-user-id="article.userInfo?.userId"
-            @update:comment-num="onCommentNumChange"
-          />
-        </article>
+        <!-- 评论区：抽成组件（掘金式两级结构），计数增删由组件回抛，页面同步文章冗余计数；工具栏评论按钮滚动到此处 -->
+        <ArticleCommentSection
+          ref="commentSectionRef"
+          :article-id="article.id || ''"
+          :comment-num="commentCount"
+          :author-user-id="article.userInfo?.userId"
+          @update:comment-num="onCommentNumChange"
+        />
+      </template>
+      <CommonEmptyState v-else>文章不存在或已下架</CommonEmptyState>
 
-        <!-- 右侧信息栏：作者卡 + 目录 + 相关推荐（吸顶跟随，窄屏隐藏） -->
-        <aside v-if="hasToc || article.userInfo?.userId || article.subjectId" class="toc-aside">
-          <ArticleAuthorCard v-if="article.userInfo?.userId" :author="article.userInfo" />
-          <ArticleToc v-if="hasToc" :content="article.content" />
-          <ArticleRelatedCard :subject-id="article.subjectId" :exclude-id="article.id" />
-        </aside>
-      </div>
-    </template>
-    <div v-else class="panel panel-empty">
-      <CommonEmptyState>文章不存在或已下架</CommonEmptyState>
-    </div>
+      <!-- 右侧信息栏：作者卡 + 目录 + 相关推荐（吸顶跟随，窄屏隐藏） -->
+      <template v-if="hasToc || article.userInfo?.userId || article.subjectId" #aside>
+        <ArticleAuthorCard v-if="article.userInfo?.userId" :author="article.userInfo" />
+        <ArticleToc v-if="hasToc" :content="article.content" />
+        <ArticleRelatedCard :subject-id="article.subjectId" :exclude-id="article.id" />
+      </template>
+    </CommonReadingLayout>
   </div>
 </template>
 
@@ -114,9 +121,50 @@ const authorName = computed(() => article.value.userInfo?.nickName || article.va
 const coverUrl = computed(() => toCoverUrl(config.public.apiBase, article.value.cover))
 // publishTime 常为 null，回退 createTime
 const publishLabel = computed(() => article.value.publishTime || article.value.createTime)
-const readLabel = computed(() => (typeof article.value.readNum === 'number' ? String(article.value.readNum) : ''))
-const likeCount = computed(() => (typeof article.value.likeNum === 'number' ? article.value.likeNum : 0))
-const commentCount = computed(() => (typeof article.value.commentNum === 'number' ? article.value.commentNum : 0))
+// article 是 computed 拼装的普通对象，直接改它的字段不会触发视图更新；
+// 计数以本地覆盖值优先，接口回写只改覆盖值
+const readNumLocal = ref<number | null>(null)
+const likeNumLocal = ref<number | null>(null)
+const commentNumLocal = ref<number | null>(null)
+const readCount = computed(() =>
+  readNumLocal.value ?? (typeof article.value.readNum === 'number' ? article.value.readNum : 0)
+)
+const readLabel = computed(() => String(readCount.value))
+const likeCount = computed(() =>
+  likeNumLocal.value ?? (typeof article.value.likeNum === 'number' ? article.value.likeNum : 0)
+)
+const commentCount = computed(() =>
+  commentNumLocal.value ?? (typeof article.value.commentNum === 'number' ? article.value.commentNum : 0)
+)
+const collectNumLocal = ref<number | null>(null)
+const collectCount = computed(() =>
+  collectNumLocal.value ?? (typeof article.value.collectNum === 'number' ? article.value.collectNum : 0)
+)
+
+// ---------- 阅读数：客户端上报一次，服务端原子自增；按文章+自然日去重，防刷新灌水 ----------
+const recordRead = async () => {
+  const id = article.value.id
+  if (!id) {
+    return
+  }
+  const now = new Date()
+  const day = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`
+  const storageKey = `article-read:${id}:${day}`
+  if (localStorage.getItem(storageKey)) {
+    return
+  }
+  try {
+    const res = await apiFetch<{ readNum: number }>(`/api/post/article/guest/read/${id}`, { method: 'POST' })
+    // 请求期间切到别的文章时不回写，避免把上一篇的计数记到当前文章
+    if (article.value.id === id && typeof res.data?.readNum === 'number') {
+      readNumLocal.value = res.data.readNum
+    }
+    localStorage.setItem(storageKey, '1')
+  } catch {
+    // 上报失败不阻塞阅读，下次进入再试
+  }
+}
+onMounted(recordRead)
 
 // ---------- 点赞：登录态下查询/切换，未登录点击引导登录 ----------
 const { isLoggedIn } = useUser()
@@ -124,20 +172,38 @@ const { openLogin } = useAuthModal()
 const { fetchLikeStatus, likeArticle, unlikeArticle } = useLike()
 const liked = ref(false)
 const likeBusy = ref(false)
+// 文章切换时旧请求可能后到，序号保证只认最新一次查询
+let likeSeq = 0
 
 const syncLikeStatus = () => {
-  if (isLoggedIn.value && article.value.id) {
-    fetchLikeStatus(article.value.id)
-      .then((value) => (liked.value = value))
-      .catch(() => {})
-  } else {
+  const id = article.value.id
+  const seq = ++likeSeq
+  if (!isLoggedIn.value || !id) {
     liked.value = false
+    return
   }
+  fetchLikeStatus(id)
+    .then((value) => {
+      if (seq === likeSeq) {
+        liked.value = value
+      }
+    })
+    .catch(() => {})
 }
 
-// 点赞状态依赖 token，详情页 SSR 只出公共数据，状态在客户端补查
+// 点赞状态依赖 token，详情页 SSR 只出公共数据，状态在客户端补查；
+// 相关推荐等同路由跳转会复用页面组件，文章 id 变了必须重查，否则沿上一篇的点赞态
 onMounted(syncLikeStatus)
 watch(isLoggedIn, syncLikeStatus)
+watch(() => article.value.id, () => {
+  readNumLocal.value = null
+  likeNumLocal.value = null
+  commentNumLocal.value = null
+  collectNumLocal.value = null
+  syncLikeStatus()
+  syncCollectStatus()
+  recordRead()
+})
 
 const onLike = async () => {
   if (likeBusy.value) {
@@ -151,26 +217,82 @@ const onLike = async () => {
   if (!id) {
     return
   }
+  // 作废在途的状态查询：点击发生在状态回包前时，旧结果不能覆盖这次点击
+  ++likeSeq
+  // 乐观更新：点击即翻转高亮并增减计数，请求返回后再以服务端结果校准，失败回滚
+  const wasLiked = liked.value
+  const prevCount = likeCount.value
+  liked.value = !wasLiked
+  likeNumLocal.value = Math.max(0, prevCount + (wasLiked ? -1 : 1))
+
   likeBusy.value = true
   try {
-    const result = liked.value ? await unlikeArticle(id) : await likeArticle(id)
-    if (result) {
+    const result = wasLiked ? await unlikeArticle(id) : await likeArticle(id)
+    // 请求期间已切到别的文章时不回写，避免把上一篇的结果记到当前文章
+    if (result && article.value.id === id) {
       liked.value = result.liked
       if (typeof result.likeNum === 'number') {
-        article.value.likeNum = result.likeNum
+        likeNumLocal.value = result.likeNum
       }
     }
   } catch (error: any) {
+    if (article.value.id === id) {
+      liked.value = wasLiked
+      likeNumLocal.value = prevCount
+    }
     showToast(error?.message || '点赞失败，请稍后再试', 'error')
   } finally {
     likeBusy.value = false
   }
 }
 
+// ---------- 收藏：登录态下查询收藏集勾选态，未登录点击引导登录；弹窗确认后回抛状态 ----------
+const { fetchCollectStatus } = useCollect()
+const collected = ref(false)
+const collectOpen = ref(false)
+// 文章切换时旧请求可能后到，序号保证只认最新一次查询
+let collectSeq = 0
+
+const syncCollectStatus = () => {
+  const id = article.value.id
+  const seq = ++collectSeq
+  if (!isLoggedIn.value || !id) {
+    collected.value = false
+    return
+  }
+  fetchCollectStatus(id)
+    .then((list) => {
+      if (seq === collectSeq) {
+        collected.value = list.some((item) => item.collected)
+      }
+    })
+    .catch(() => {})
+}
+
+const onCollect = () => {
+  if (!isLoggedIn.value) {
+    openLogin()
+    return
+  }
+  collectOpen.value = true
+}
+
+const onCollectDone = (value: boolean, delta: number) => {
+  collectOpen.value = false
+  collected.value = value
+  if (delta) {
+    collectNumLocal.value = Math.max(0, collectCount.value + delta)
+  }
+}
+
+// 收藏状态同样依赖 token 与文章 id，时机与点赞态补查一致
+onMounted(syncCollectStatus)
+watch(isLoggedIn, syncCollectStatus)
+
 // ---------- 评论区：逻辑收进 ArticleCommentSection，页面只持有计数与滚动定位 ----------
 const commentSectionRef = ref<{ $el?: HTMLElement | null } | null>(null)
 const onCommentNumChange = (value: number) => {
-  article.value.commentNum = value
+  commentNumLocal.value = value
 }
 
 // 工具栏评论按钮：滚动定位到评论区
@@ -250,38 +372,6 @@ useHead(() => {
 </script>
 
 <style lang="less" scoped>
-.detail-layout {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  gap: 24px;
-}
-
-.panel {
-  flex: 1;
-  min-width: 0;
-  max-width: 820px;
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border-light);
-  border-radius: var(--radius-md);
-  padding: 36px 44px;
-
-  &.panel-empty {
-    padding: 0;
-  }
-}
-
-// 右侧信息栏：作者卡 + 目录，吸顶跟随，窄屏隐藏
-.toc-aside {
-  position: sticky;
-  top: 76px;
-  flex-shrink: 0;
-  width: 240px;
-  display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
 .title {
   font-size: 28px;
   font-weight: 600;
@@ -373,17 +463,7 @@ useHead(() => {
   margin-bottom: 24px;
 }
 
-@media (max-width: 1000px) {
-  .toc-aside {
-    display: none;
-  }
-}
-
 @media (max-width: 640px) {
-  .panel {
-    padding: 24px 20px;
-  }
-
   .title {
     font-size: 22px;
   }

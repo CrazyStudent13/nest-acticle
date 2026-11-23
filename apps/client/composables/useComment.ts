@@ -1,16 +1,16 @@
 // 文章评论：guest 列表公开；发表/删除自己的评论要求登录态
-// 服务端平铺一层评论（v1 无楼中楼），comment_num 计数在文章表冗余维护
+// 服务端按线程分页（每页 N 个根评论线程+各线程全部后代），comment_num 计数在文章表冗余维护
 import type { CommentItem, PageResult } from '@nest-acticle/shared'
 
 export const useComment = () => {
   const fetchComments = async (
     articleId: number | string,
     params: { pageNum?: number; pageSize?: number } = {}
-  ): Promise<PageResult<CommentItem>> => {
-    const res = await apiFetch<PageResult<CommentItem>>('/api/post/comment/guest/list', {
+  ): Promise<PageResult<CommentItem> & { rootTotal?: number }> => {
+    const res = await apiFetch<PageResult<CommentItem> & { rootTotal?: number }>('/api/post/comment/guest/list', {
       query: { articleId, ...params }
     })
-    return res.data ?? { list: [], total: 0 }
+    return res.data ?? { list: [], total: 0, rootTotal: 0 }
   }
 
   const addComment = async (

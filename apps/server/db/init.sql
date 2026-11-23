@@ -859,6 +859,58 @@ insert into
   sys_menu
 values
   (
+    '208',
+    '收藏管理',
+    '6',
+    '3',
+    'collection',
+    'post/collection/index',
+    '',
+    '1',
+    '0',
+    'C',
+    '0',
+    '0',
+    'post:collection:list',
+    'clipboard',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '收藏管理菜单',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
+    '209',
+    '收藏删除',
+    '208',
+    '1',
+    '',
+    '',
+    '',
+    '1',
+    '0',
+    'F',
+    '0',
+    '0',
+    'post:collection:remove',
+    'form',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '收藏删除权限',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
     '500',
     '操作日志',
     '108',
@@ -4675,6 +4727,7 @@ create table
     like_num int default '0' comment '点赞数',
     read_num int default '0' comment '阅读数',
     comment_num int default '0' comment '评论数',
+    collect_num int default '0' comment '收藏数',
     publish_status char(1) default '0' comment '发布状态（0 草稿 1 待发布 2 已发布 3 已下架）',
     audit_status char(1) default '0' comment '审核状态（0 未提交 1 审核中 2 审核通过 3 审核拒绝）',
     scheduled_publish_time datetime default null comment '定时发布时间',
@@ -4764,5 +4817,76 @@ create table
     primary key (id),
     key idx_article_id (article_id),
     key idx_user_id (user_id),
-    key idx_parent_id (parent_id)
+    key idx_parent_id (parent_id),
+    key idx_reply_user_id (reply_user_id)
   ) engine = innodb comment = '评论库';
+
+-- ----------------------------
+-- 23、通知已读水位库
+-- ----------------------------
+drop table if exists post_notify_read;
+
+create table
+  post_notify_read (
+    user_id int not null comment '用户 id',
+    category varchar(16) not null comment '通知分类（comment 评论 / like 点赞 / collect 收藏）',
+    read_time datetime default current_timestamp comment '最后已读时间',
+    primary key (user_id, category)
+  ) engine = innodb comment = '通知已读水位库';
+
+-- ----------------------------
+-- 24、收藏集库
+-- ----------------------------
+drop table if exists post_collection;
+
+create table
+  post_collection (
+    id int not null auto_increment comment '收藏集 id',
+    user_id int not null comment '创建者用户ID',
+    name varchar(32) not null comment '收藏集名称',
+    `desc` varchar(255) default null comment '收藏集简介',
+    visibility char(1) default '0' comment '可见性（0 公开 1 私密）',
+    is_default char(1) default null comment '默认收藏夹标记（1 默认，null 非默认；注册时创建，不可删除）',
+    article_count int default '0' comment '收录文章数量',
+    subscriber_count int default '0' comment '订阅人数',
+    create_time datetime default current_timestamp comment '创建时间',
+    update_time datetime default current_timestamp on update current_timestamp comment '更新时间',
+    del_flag char(1) default '0' comment '删除标志（0 代表存在 1 代表删除）',
+    primary key (id),
+    unique key uk_user_default (user_id, is_default),
+    key idx_user_id (user_id)
+  ) engine = innodb comment = '收藏集库';
+
+-- ----------------------------
+-- 25、收藏集文章关联库
+-- ----------------------------
+drop table if exists post_collection_article;
+
+create table
+  post_collection_article (
+    id int not null auto_increment comment '收藏记录 id',
+    collection_id int not null comment '收藏集 id',
+    article_id int not null comment '文章 id',
+    user_id int not null comment '收藏人用户ID（即收藏集创建者）',
+    create_time datetime default current_timestamp comment '收藏时间',
+    primary key (id),
+    unique key uk_collection_article (collection_id, article_id),
+    key idx_user_id (user_id),
+    key idx_article_id (article_id)
+  ) engine = innodb comment = '收藏集文章关联库';
+
+-- ----------------------------
+-- 26、收藏集订阅库
+-- ----------------------------
+drop table if exists post_collection_sub;
+
+create table
+  post_collection_sub (
+    id int not null auto_increment comment '订阅记录 id',
+    collection_id int not null comment '收藏集 id',
+    user_id int not null comment '订阅用户ID',
+    create_time datetime default current_timestamp comment '订阅时间',
+    primary key (id),
+    unique key uk_collection_user (collection_id, user_id),
+    key idx_user_id (user_id)
+  ) engine = innodb comment = '收藏集订阅库';

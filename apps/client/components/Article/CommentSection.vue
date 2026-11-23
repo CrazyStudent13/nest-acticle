@@ -129,13 +129,13 @@
         </div>
       </div>
 
-      <div v-if="comments.length < commentTotal" class="comment-more">
-        <button class="comment-more-btn" type="button" :disabled="commentLoading" @click="loadMoreComments">
-          {{ commentLoading ? '加载中…' : '查看更多评论' }}
-        </button>
-      </div>
     </div>
     <CommonEmptyState v-else-if="!commentLoading" text="还没有评论，来抢沙发" />
+
+    <!-- 查看更多：常驻视口右下角的悬浮按钮，线程分页还有余量时随时可拉，不必滚到列表末尾找入口 -->
+    <button v-if="hasMoreThreads" class="comment-more-fab" type="button" :disabled="commentLoading" @click="loadMoreComments">
+      {{ commentLoading ? '加载中…' : '查看更多评论' }}
+    </button>
   </div>
 </template>
 
@@ -199,19 +199,27 @@ const cancelReply = () => {
 
 // ---------- 列表加载:guest 平铺分页,最新在前 ----------
 const comments = ref<CommentItem[]>([])
-const commentTotal = ref(0)
+// 文章切换时旧请求可能后到:序号只认最新一次加载，避免旧文章结果覆盖新列表
+let listSeq = 0
+// 根评论线程总数（服务端按线程分页的「查看更多」判断依据）
+const rootTotal = ref(0)
 const commentPageNum = ref(1)
 const commentLoading = ref(false)
 /** 已展开回复的线程根 id 集合 */
 const expandedThreads = ref(new Set<number>())
 
 const loadComments = async (page = 1) => {
-  if (!props.articleId) {
+  const articleId = props.articleId
+  if (!articleId) {
     return
   }
+  const seq = ++listSeq
   commentLoading.value = true
   try {
-    const data = await fetchComments(props.articleId, { pageNum: page, pageSize: 10 })
+    const data = await fetchComments(articleId, { pageNum: page, pageSize: 10 })
+    if (seq !== listSeq) {
+      return
+    }
     if (page === 1) {
       comments.value = data.list || []
       expandedThreads.value = new Set()
@@ -220,18 +228,27 @@ const loadComments = async (page = 1) => {
       const seen = new Set(comments.value.map((item) => item.id))
       comments.value = [...comments.value, ...(data.list || []).filter((item) => !seen.has(item.id))]
     }
-    commentTotal.value = data.total || 0
+    rootTotal.value = data.rootTotal ?? 0
     commentPageNum.value = page
   } catch {
-    if (page === 1) {
+    if (seq === listSeq && page === 1) {
       comments.value = []
     }
   } finally {
-    commentLoading.value = false
+    // 过期请求不要打断新请求的加载态
+    if (seq === listSeq) {
+      commentLoading.value = false
+    }
   }
 }
 
 const loadMoreComments = () => loadComments(commentPageNum.value + 1)
+
+// 线程分页口径：已加载的根评论线程数 < 服务端线程总数时还有更多可拉
+const hasMoreThreads = computed(() => {
+  const loadedRoots = comments.value.filter((item) => !item.parentId).length
+  return loadedRoots < rootTotal.value
+})
 
 // 评论列表依赖文章 id:挂载后客户端补查,文章切换时重拉
 onMounted(() => {
@@ -244,6 +261,11 @@ watch(
   (id) => {
     if (id) {
       cancelReply()
+      // 先清旧文章的状态,避免新文章加载期间仍显示上一篇的评论
+      comments.value = []
+      rootTotal.value = 0
+      commentPageNum.value = 1
+      expandedThreads.value = new Set()
       loadComments(1)
     }
   }
@@ -311,16 +333,23 @@ const submitComment = async () => {
   if (!content || commentBusy.value) {
     return
   }
-  if (!props.articleId) {
+  const articleId = props.articleId
+  if (!articleId) {
     return
   }
   commentBusy.value = true
   try {
-    const created = await addComment(props.articleId, content, replyTo.value?.id ?? undefined)
+    const created = await addComment(articleId, content, replyTo.value?.id ?? undefined)
+    // 请求期间已切到别的文章:评论虽已发出,但不能写进当前文章的列表与计数
+    if (props.articleId !== articleId) {
+      return
+    }
     if (created) {
       // 列表为最新在前,新评论插头部后由归组逻辑落到对应线程（根评论则新起线程）
       comments.value = [created, ...comments.value]
-      commentTotal.value += 1
+      if (!created.parentId) {
+        rootTotal.value += 1
+      }
       emit('update:commentNum', props.commentNum + 1)
       // 命中已折叠线程时自动展开,保证刚发的回复可见
       const target = threads.value.find((thread) => thread.root.id === created.id || thread.replies.some((reply) => reply.id === created.id))
@@ -369,14 +398,21 @@ const removeComment = async (item: CommentItem) => {
   if (!confirmed) {
     return
   }
+  const articleId = props.articleId
   commentDeletingId.value = item.id
   try {
     const serverRemoved = await deleteComment(item.id)
+    // 请求期间已切到别的文章:删除已生效,但不再动当前文章的列表与计数
+    if (props.articleId !== articleId) {
+      return
+    }
     const doomed = collectDoomedIds(item.id)
     comments.value = comments.value.filter((c) => !doomed.has(c.id))
     // 以服务端实际删除条数为准（含未加载的级联后代），接口无回抛时退回本地统计
     const removed = serverRemoved || doomed.size
-    commentTotal.value = Math.max(0, commentTotal.value - removed)
+    if (!item.parentId) {
+      rootTotal.value = Math.max(0, rootTotal.value - 1)
+    }
     emit('update:commentNum', Math.max(0, props.commentNum - removed))
     // 回复目标被删（含级联）时退出回复模式
     if (replyTo.value && doomed.has(replyTo.value.id)) {
@@ -536,6 +572,38 @@ const removeComment = async (item: CommentItem) => {
 
     &:hover {
       color: var(--color-text-2);
+    }
+  }
+
+  // 查看更多评论：常驻视口右下角的悬浮胶囊按钮（脱离列表流，不随滚动消失；
+  // 放在 .comment-section 直属层级——按钮模板已移出 .comment-list，嵌套选择器会匹配不上）
+  .comment-more-fab {
+    position: fixed;
+    right: 28px;
+    bottom: 28px;
+    z-index: 90;
+    padding: 10px 20px;
+    border: 1px solid var(--color-border-light);
+    border-radius: 999px;
+    background-color: var(--color-surface);
+    font-size: 14px;
+    color: var(--color-text-1);
+    box-shadow: var(--shadow-2);
+    cursor: pointer;
+    transition:
+      color 0.2s ease,
+      border-color 0.2s ease,
+      transform 0.2s ease;
+
+    &:hover:not(:disabled) {
+      color: var(--color-primary);
+      border-color: var(--color-primary);
+      transform: translateY(-1px);
+    }
+
+    &:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
     }
   }
 
@@ -743,34 +811,6 @@ const removeComment = async (item: CommentItem) => {
 
         &:hover {
           color: var(--color-primary);
-        }
-      }
-    }
-
-    .comment-more {
-      padding: 16px 0 4px;
-      text-align: center;
-
-      .comment-more-btn {
-        padding: 6px 20px;
-        border: 1px solid var(--color-border-light);
-        border-radius: var(--radius-sm);
-        background-color: transparent;
-        font-size: 13px;
-        color: var(--color-text-2);
-        cursor: pointer;
-        transition:
-          color 0.2s ease,
-          border-color 0.2s ease;
-
-        &:hover {
-          color: var(--color-primary);
-          border-color: var(--color-primary);
-        }
-
-        &:disabled {
-          opacity: 0.5;
-          cursor: not-allowed;
         }
       }
     }

@@ -1,4 +1,4 @@
-<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知）+ 右侧列表；系统通知接 /api/system/notice/list（Markdown 内容超 3 行收起、就地展开，分页）；评论栏接 /api/post/comment/my/list（我发表的评论与回复，类型徽标区分，支持删除）；赞和收藏接 /api/post/like/received/list（他人点赞我发布的文章，掘金式接收流；收藏与评论点赞功能未建）；新增粉丝后端未建占位空态；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
+<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知，互动两分类带未读数红标）+ 右侧列表；系统通知接 /api/system/notice/list（列表行收成徽标/标题/时间，点击进入独立详情页阅读 Markdown 正文，分页）；评论栏双子栏——「收到的评论」接 /api/post/comment/received/list（他人评论我的文章/回复我的评论，掘金式四行结构：动作短句/内容/文章引用行/时间），「我发表的」接 /api/post/comment/my/list（类型徽标区分，支持删除）；赞和收藏栏双子栏——「收到的赞」接 /api/post/like/received/list、「收到的收藏」接 /api/post/collection/received/list（他人把我的文章收进 ta 的公开收藏集，同款结构）；新增粉丝后端未建占位空态；进入互动分类栏即逐栏清该栏红标（赞和收藏栏一次推平 like+collect 两水位）；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
 <template>
   <div class="notification-page">
     <div class="notice-panel">
@@ -14,42 +14,33 @@
         >
           <span class="menu-icon" v-html="cat.icon" />
           {{ cat.label }}
+          <!-- 未读数：与铃铛同源，进入对应分类栏即清（当前栏会先亮后清，掘金同款） -->
+          <i v-if="catUnread(cat.key) > 0" class="menu-count">{{ catUnread(cat.key) > 99 ? '99+' : catUnread(cat.key) }}</i>
         </button>
       </aside>
 
       <!-- 右侧内容区 -->
-      <section class="notice-main">
+      <section class="notice-main" :class="{ 'notice-main--system': activeTab === 'system' }">
         <!-- 系统通知：真实列表 -->
         <template v-if="activeTab === 'system'">
           <template v-if="notices.length">
-            <article v-for="item in notices" :key="item.noticeId" class="notice-item">
+            <NuxtLink
+              v-for="item in notices"
+              :key="item.noticeId"
+              class="notice-item notice-item--compact notice-item--clickable"
+              :to="{ path: '/notice/detail', query: { id: String(item.noticeId) } }"
+            >
               <div class="notice-head">
                 <span class="notice-badge" :class="item.noticeType === '2' ? 'is-announce' : 'is-info'">
                   {{ item.noticeType === '2' ? '公告' : '通知' }}
                 </span>
                 <h3 class="notice-title">{{ item.noticeTitle || '系统消息' }}</h3>
                 <time class="notice-time">{{ formatTime(item.createTime) }}</time>
-              </div>
-              <div
-                v-if="item.noticeContent"
-                class="notice-body"
-                :class="{ collapsed: !expandedMap[item.noticeId] }"
-                :data-nid="item.noticeId"
-              >
-                <MdViewer :value="item.noticeContent" />
-              </div>
-              <button
-                v-if="overflowMap[item.noticeId]"
-                class="notice-toggle"
-                type="button"
-                @click="toggleExpand(item.noticeId)"
-              >
-                {{ expandedMap[item.noticeId] ? '收起' : '展开' }}
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ flip: expandedMap[item.noticeId] }" aria-hidden="true">
-                  <polyline points="6 9 12 15 18 9" />
+                <svg class="notice-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                  <polyline points="9 18 15 12 9 6" />
                 </svg>
-              </button>
-            </article>
+              </div>
+            </NuxtLink>
             <CommonPagination v-model:page="page" :total="total" :page-size="PAGE_SIZE" />
           </template>
           <CommonEmptyState v-else-if="loading" text="加载中…" />
@@ -57,86 +48,189 @@
           <CommonEmptyState v-else>暂无系统通知</CommonEmptyState>
         </template>
 
-        <!-- 评论：我发表的评论与回复（服务端按当前登录人过滤） -->
+        <!-- 评论：子栏切换（收到的评论默认 / 我发表的），铃铛红标数由「收到的评论」承接 -->
         <template v-else-if="activeTab === 'comment'">
-          <template v-if="myComments.length">
-            <article v-for="row in myComments" :key="row.id" class="notice-item">
-              <div class="notice-head">
-                <!-- 徽标复用系统通知的配色：蓝=对文章的评论,橙=对他人评论的回复 -->
-                <span class="notice-badge" :class="row.parentId ? 'is-announce' : 'is-info'">
-                  {{ row.parentId ? '回复' : '评论' }}
-                </span>
-                <NuxtLink
-                  class="comment-article"
-                  :class="{ 'is-deleted': !row.articleTitle }"
-                  :to="{ path: '/article/detail', query: { id: String(row.articleId) } }"
-                  target="_blank"
-                >
-                  {{ row.articleTitle || '文章已删除' }}
-                </NuxtLink>
-                <time class="notice-time">{{ formatRelativeTime(row.createTime) }}</time>
-                <button class="comment-del" type="button" :disabled="deletingId === row.id" @click="removeMyComment(row)">
-                  {{ deletingId === row.id ? '删除中…' : '删除' }}
-                </button>
-              </div>
-              <p class="comment-content" :class="{ collapsed: !commentExpandedMap[row.id] }" :data-cid="row.id">
-                <span v-if="row.parentId" class="reply-mark">
-                  回复
-                  <!-- 被回复人昵称可跳其个人空间（与文章详情评论区一致） -->
-                  <NuxtLink v-if="row.replyUserId" class="reply-user" :to="{ path: '/user/space', query: { id: String(row.replyUserId) } }">
-                    @{{ row.replyNickName || '未知用户' }}：
-                  </NuxtLink>
-                  <template v-else>@{{ row.replyNickName || '未知用户' }}：</template>
-                </span>{{ row.content }}
-              </p>
-              <!-- 超长内容默认单行省略,溢出才出展开按钮 -->
-              <button v-if="commentOverflowMap[row.id]" class="notice-toggle" type="button" @click="toggleCommentExpand(row.id)">
-                {{ commentExpandedMap[row.id] ? '收起' : '展开' }}
-                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ flip: commentExpandedMap[row.id] }" aria-hidden="true">
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
-            </article>
-            <CommonPagination v-model:page="commentPage" :total="commentTotal" :page-size="PAGE_SIZE" />
-          </template>
-          <CommonEmptyState v-else-if="commentLoading" text="加载中…" />
-          <CommonEmptyState v-else-if="commentError">{{ commentError }}</CommonEmptyState>
-          <CommonEmptyState v-else>暂无评论或回复，去文章页说两句吧</CommonEmptyState>
-        </template>
+          <div class="comment-box-bar">
+            <button class="box-tab" :class="{ active: commentBox === 'received' }" type="button" @click="switchCommentBox('received')">收到的评论</button>
+            <button class="box-tab" :class="{ active: commentBox === 'mine' }" type="button" @click="switchCommentBox('mine')">我发表的</button>
+          </div>
 
-        <!-- 赞和收藏：他人点赞我发布的文章（掘金式接收流：左头像、中间文案+相对时间、右文章封面） -->
-        <template v-else-if="activeTab === 'like'">
-          <template v-if="receivedLikes.length">
-            <article v-for="row in receivedLikes" :key="row.id" class="notice-item like-item">
-              <NuxtLink class="like-avatar" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
-                <img v-if="row.avatar" :src="coverUrl(row.avatar)" :alt="row.nickName" loading="lazy" />
-                <span v-else class="avatar-fallback">{{ (row.nickName || '用').slice(0, 1) }}</span>
-              </NuxtLink>
-              <div class="like-main">
-                <p class="like-text">
-                  <NuxtLink class="like-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
-                    {{ row.nickName || '用户' }}
-                  </NuxtLink>
-                  赞了你的文章
-                  <NuxtLink class="like-article" :to="{ path: '/article/detail', query: { id: String(row.articleId) } }">
+          <!-- 收到的评论：掘金式接收流（头像+动作短句 / 评论内容 / 文章引用行 / 时间） -->
+          <template v-if="commentBox === 'received'">
+            <template v-if="receivedComments.length">
+              <article v-for="row in receivedComments" :key="row.id" class="notice-item notify-item">
+                <NuxtLink class="notify-avatar" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                  <img v-if="row.avatar" :src="coverUrl(row.avatar)" :alt="row.nickName" loading="lazy" />
+                  <span v-else class="avatar-fallback">{{ (row.nickName || '评').slice(0, 1) }}</span>
+                </NuxtLink>
+                <div class="notify-main">
+                  <p class="notify-head">
+                    <NuxtLink class="notify-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                      {{ row.nickName || '用户' }}
+                    </NuxtLink>
+                    <!-- 三种动作文案：回复我的评论 / 回复他人评论 / 直接评论我的文章，文章由引用行承载 -->
+                    <template v-if="row.parentId && row.replyUserId === currentUserId">回复了你的评论</template>
+                    <template v-else-if="row.parentId">
+                      回复了
+                      <NuxtLink class="notify-user" :to="{ path: '/user/space', query: { id: String(row.replyUserId) } }">
+                        @{{ row.replyNickName || '未知用户' }}
+                      </NuxtLink>
+                      的评论
+                    </template>
+                    <template v-else>评论了你的文章</template>
+                  </p>
+                  <p class="notify-content">{{ row.content }}</p>
+                  <NuxtLink class="notify-quote" :to="{ path: '/article/detail', query: { id: String(row.articleId) } }">
                     《{{ row.articleTitle || '文章已删除' }}》
                   </NuxtLink>
-                </p>
-                <time class="like-time">{{ formatRelativeTime(row.createTime) }}</time>
-              </div>
-              <NuxtLink
-                v-if="row.articleCover"
-                class="like-thumb"
-                :to="{ path: '/article/detail', query: { id: String(row.articleId) } }"
-              >
-                <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
-              </NuxtLink>
-            </article>
-            <CommonPagination v-model:page="likePage" :total="likeTotal" :page-size="PAGE_SIZE" />
+                  <time class="notify-time">{{ formatRelativeTime(row.createTime) }}</time>
+                </div>
+                <NuxtLink
+                  v-if="row.articleCover"
+                  class="notify-thumb"
+                  :to="{ path: '/article/detail', query: { id: String(row.articleId) } }"
+                >
+                  <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
+                </NuxtLink>
+              </article>
+              <CommonPagination v-model:page="receivedPage" :total="receivedTotal" :page-size="PAGE_SIZE" />
+            </template>
+            <CommonEmptyState v-else-if="receivedLoading" text="加载中…" />
+            <CommonEmptyState v-else-if="receivedError">{{ receivedError }}</CommonEmptyState>
+            <CommonEmptyState v-else>还没有收到评论，文章写得越多人气越旺</CommonEmptyState>
           </template>
-          <CommonEmptyState v-else-if="likeLoading" text="加载中…" />
-          <CommonEmptyState v-else-if="likeError">{{ likeError }}</CommonEmptyState>
-          <CommonEmptyState v-else>还没有收到点赞，发布优质文章就会有互动了</CommonEmptyState>
+
+          <!-- 我发表的评论与回复（原管理流，服务端按当前登录人过滤） -->
+          <template v-else>
+            <template v-if="myComments.length">
+              <article v-for="row in myComments" :key="row.id" class="notice-item">
+                <div class="notice-head">
+                  <!-- 徽标复用系统通知的配色：蓝=对文章的评论,橙=对他人评论的回复 -->
+                  <span class="notice-badge" :class="row.parentId ? 'is-announce' : 'is-info'">
+                    {{ row.parentId ? '回复' : '评论' }}
+                  </span>
+                  <NuxtLink
+                    class="comment-article"
+                    :class="{ 'is-deleted': !row.articleTitle }"
+                    :to="{ path: '/article/detail', query: { id: String(row.articleId) } }"
+                    target="_blank"
+                  >
+                    {{ row.articleTitle || '文章已删除' }}
+                  </NuxtLink>
+                  <time class="notice-time">{{ formatRelativeTime(row.createTime) }}</time>
+                  <button class="comment-del" type="button" :disabled="deletingId === row.id" @click="removeMyComment(row)">
+                    {{ deletingId === row.id ? '删除中…' : '删除' }}
+                  </button>
+                </div>
+                <p class="comment-content" :class="{ collapsed: !commentExpandedMap[row.id] }" :data-cid="row.id">
+                  <span v-if="row.parentId" class="reply-mark">
+                    回复
+                    <!-- 被回复人昵称可跳其个人空间（与文章详情评论区一致） -->
+                    <NuxtLink v-if="row.replyUserId" class="reply-user" :to="{ path: '/user/space', query: { id: String(row.replyUserId) } }">
+                      @{{ row.replyNickName || '未知用户' }}：
+                    </NuxtLink>
+                    <template v-else>@{{ row.replyNickName || '未知用户' }}：</template>
+                  </span>{{ row.content }}
+                </p>
+                <!-- 超长内容默认单行省略,溢出才出展开按钮 -->
+                <button v-if="commentOverflowMap[row.id]" class="notice-toggle" type="button" @click="toggleCommentExpand(row.id)">
+                  {{ commentExpandedMap[row.id] ? '收起' : '展开' }}
+                  <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ flip: commentExpandedMap[row.id] }" aria-hidden="true">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
+              </article>
+              <CommonPagination v-model:page="commentPage" :total="commentTotal" :page-size="PAGE_SIZE" />
+            </template>
+            <CommonEmptyState v-else-if="commentLoading" text="加载中…" />
+            <CommonEmptyState v-else-if="commentError">{{ commentError }}</CommonEmptyState>
+            <CommonEmptyState v-else>暂无评论或回复，去文章页说两句吧</CommonEmptyState>
+          </template>
+        </template>
+
+        <!-- 赞和收藏：双子栏（收到的赞 / 收到的收藏），掘金式接收流：头像+动作短句 / 文章引用行 / 时间 -->
+        <template v-else-if="activeTab === 'like'">
+          <div class="comment-box-bar">
+            <button class="box-tab" :class="{ active: likeBox === 'like' }" type="button" @click="switchLikeBox('like')">收到的赞</button>
+            <button class="box-tab" :class="{ active: likeBox === 'collect' }" type="button" @click="switchLikeBox('collect')">收到的收藏</button>
+          </div>
+
+          <!-- 收到的赞 -->
+          <template v-if="likeBox === 'like'">
+            <template v-if="receivedLikes.length">
+              <article v-for="row in receivedLikes" :key="row.id" class="notice-item notify-item">
+                <NuxtLink class="notify-avatar" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                  <img v-if="row.avatar" :src="coverUrl(row.avatar)" :alt="row.nickName" loading="lazy" />
+                  <span v-else class="avatar-fallback">{{ (row.nickName || '用').slice(0, 1) }}</span>
+                </NuxtLink>
+                <div class="notify-main">
+                  <p class="notify-head">
+                    <NuxtLink class="notify-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                      {{ row.nickName || '用户' }}
+                    </NuxtLink>
+                    赞了你的文章
+                  </p>
+                  <NuxtLink class="notify-quote" :to="{ path: '/article/detail', query: { id: String(row.articleId) } }">
+                    《{{ row.articleTitle || '文章已删除' }}》
+                  </NuxtLink>
+                  <time class="notify-time">{{ formatRelativeTime(row.createTime) }}</time>
+                </div>
+                <NuxtLink
+                  v-if="row.articleCover"
+                  class="notify-thumb"
+                  :to="{ path: '/article/detail', query: { id: String(row.articleId) } }"
+                >
+                  <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
+                </NuxtLink>
+              </article>
+              <CommonPagination v-model:page="likePage" :total="likeTotal" :page-size="PAGE_SIZE" />
+            </template>
+            <CommonEmptyState v-else-if="likeLoading" text="加载中…" />
+            <CommonEmptyState v-else-if="likeError">{{ likeError }}</CommonEmptyState>
+            <CommonEmptyState v-else>还没有收到点赞，发布优质文章就会有互动了</CommonEmptyState>
+          </template>
+
+          <!-- 收到的收藏：他人把我的文章收进 ta 的公开收藏集（私密集不产生通知行） -->
+          <template v-else>
+            <template v-if="receivedCollects.length">
+              <article v-for="row in receivedCollects" :key="row.id" class="notice-item notify-item">
+                <NuxtLink class="notify-avatar" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                  <img v-if="row.avatar" :src="coverUrl(row.avatar)" :alt="row.nickName" loading="lazy" />
+                  <span v-else class="avatar-fallback">{{ (row.nickName || '用').slice(0, 1) }}</span>
+                </NuxtLink>
+                <div class="notify-main">
+                  <p class="notify-head">
+                    <NuxtLink class="notify-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                      {{ row.nickName || '用户' }}
+                    </NuxtLink>
+                    将你的文章收进了
+                    <NuxtLink
+                      v-if="row.collectionId"
+                      class="notify-quote-inline"
+                      :to="{ path: '/collect/detail', query: { id: String(row.collectionId) } }"
+                    >
+                      《{{ row.collectionName || '收藏集' }}》
+                    </NuxtLink>
+                  </p>
+                  <NuxtLink class="notify-quote" :to="{ path: '/article/detail', query: { id: String(row.articleId) } }">
+                    《{{ row.articleTitle || '文章已删除' }}》
+                  </NuxtLink>
+                  <time class="notify-time">{{ formatRelativeTime(row.createTime) }}</time>
+                </div>
+                <NuxtLink
+                  v-if="row.articleCover"
+                  class="notify-thumb"
+                  :to="{ path: '/article/detail', query: { id: String(row.articleId) } }"
+                >
+                  <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
+                </NuxtLink>
+              </article>
+              <CommonPagination v-model:page="collectPage" :total="collectTotal" :page-size="PAGE_SIZE" />
+            </template>
+            <CommonEmptyState v-else-if="collectLoading" text="加载中…" />
+            <CommonEmptyState v-else-if="collectError">{{ collectError }}</CommonEmptyState>
+            <CommonEmptyState v-else>还没有收到收藏，发布优质内容等着被收进别人的收藏集吧</CommonEmptyState>
+          </template>
         </template>
 
         <!-- 其余分类：互动功能未建，占位空态 -->
@@ -149,7 +243,7 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
 import { formatRelativeTime } from '@nest-acticle/utils'
-import type { MyCommentItem, ReceivedLikeItem } from '@nest-acticle/shared'
+import type { MyCommentItem, ReceivedCollectItem, ReceivedCommentItem, ReceivedLikeItem } from '@nest-acticle/shared'
 import type { NoticeItem } from '~/composables/useNotice'
 
 // 登录守卫走 auth middleware：未登录弹登录框并回首页，数据加载保持在组件内（守卫先行不发必 401 的请求）
@@ -212,8 +306,36 @@ const switchCat = (key: NoticeTab) => {
   return navigateTo({ path: '/notification', query: key === 'system' ? {} : { tab: key } })
 }
 
-// ---------- 系统通知列表：分页拉取，status='1'（已关闭）前端过滤；403 等业务错误降级为空态提示 ----------
+// ---------- 系统通知列表：分页拉取，服务端按 status='0' 过滤已关闭公告；403 等业务错误降级为空态提示 ----------
 const { fetchNotices, fetchMyComments } = useNotice()
+const { unread, markRead, fetchReceivedComments } = useNotify()
+const { user } = useUser()
+
+// 当前登录人 id：收到的评论行判定「回复了我的评论」用
+const currentUserId = computed(() => user.value?.userId ?? null)
+
+// 菜单未读数：与铃铛同源，仅互动两分类有计数（赞和收藏栏合并展示赞+收藏未读）
+const catUnread = (key: NoticeTab) => {
+  if (key === 'comment') {
+    return unread.value.comment
+  }
+  if (key === 'like') {
+    return unread.value.like + unread.value.collect
+  }
+  return 0
+}
+
+// 分类栏进入即清该栏红标（水位推至当前）：评论/赞和收藏逐栏清，系统通知/新增粉丝无计数
+// 赞和收藏栏同时推平 like 与 collect 两个水位（红标为两者合计，进入即全清）
+const onTabEnter = (tab: NoticeTab) => {
+  if (tab === 'comment') {
+    markRead('comment').catch(() => {})
+  }
+  if (tab === 'like') {
+    markRead('like').catch(() => {})
+    markRead('collect').catch(() => {})
+  }
+}
 
 const PAGE_SIZE = 10
 const page = ref(1)
@@ -226,8 +348,8 @@ const loadNotices = async () => {
   loading.value = true
   errorMsg.value = ''
   try {
-    const data = await fetchNotices({ pageNum: page.value, pageSize: PAGE_SIZE })
-    notices.value = (data.list || []).filter((item) => item.status === '0')
+    const data = await fetchNotices({ pageNum: page.value, pageSize: PAGE_SIZE, status: '0' })
+    notices.value = data.list || []
     total.value = data.total || 0
   } catch (error: any) {
     notices.value = []
@@ -236,8 +358,46 @@ const loadNotices = async () => {
   } finally {
     loading.value = false
   }
-  await nextTick()
-  measureOverflow()
+}
+
+// ---------- 收到的评论（评论栏默认子页）：他人评论我的文章/回复我的评论，掘金式接收流 ----------
+const commentBox = ref<'received' | 'mine'>('received')
+
+const receivedComments = ref<ReceivedCommentItem[]>([])
+const receivedPage = ref(1)
+const receivedTotal = ref(0)
+const receivedLoading = ref(false)
+const receivedError = ref('')
+
+const loadReceivedComments = async () => {
+  receivedLoading.value = true
+  receivedError.value = ''
+  try {
+    const data = await fetchReceivedComments({ pageNum: receivedPage.value, pageSize: PAGE_SIZE })
+    receivedComments.value = data.list || []
+    receivedTotal.value = data.total || 0
+  } catch (error: any) {
+    receivedComments.value = []
+    receivedTotal.value = 0
+    receivedError.value = error?.message || '评论加载失败'
+  } finally {
+    receivedLoading.value = false
+  }
+}
+
+// 子栏切换：重置到第一页并按需加载（切走的子页在切回时再拉，保证数据新鲜）
+const switchCommentBox = (box: 'received' | 'mine') => {
+  if (commentBox.value === box) {
+    return
+  }
+  commentBox.value = box
+  if (box === 'received') {
+    receivedPage.value = 1
+    loadReceivedComments()
+  } else {
+    commentPage.value = 1
+    loadMyComments()
+  }
 }
 
 // ---------- 我的评论列表（评论 tab）：分页拉取当前登录人的评论与回复，删除后重拉保证计数准确 ----------
@@ -313,7 +473,9 @@ const removeMyComment = async (row: MyCommentItem) => {
   }
 }
 
-// ---------- 收到的赞（赞和收藏 tab）：他人点赞我发布的文章，服务端按登录态过滤，最新在前 ----------
+// ---------- 收到的赞 / 收到的收藏（赞和收藏 tab 双子栏）：服务端按登录态过滤，最新在前 ----------
+const likeBox = ref<'like' | 'collect'>('like')
+
 const receivedLikes = ref<ReceivedLikeItem[]>([])
 const likePage = ref(1)
 const likeTotal = ref(0)
@@ -338,46 +500,79 @@ const loadReceivedLikes = async () => {
   }
 }
 
+const { fetchReceivedCollects } = useCollect()
+
+const receivedCollects = ref<ReceivedCollectItem[]>([])
+const collectPage = ref(1)
+const collectTotal = ref(0)
+const collectLoading = ref(false)
+const collectError = ref('')
+
+const loadReceivedCollects = async () => {
+  collectLoading.value = true
+  collectError.value = ''
+  try {
+    const data = await fetchReceivedCollects({ pageNum: collectPage.value, pageSize: PAGE_SIZE })
+    receivedCollects.value = data.list || []
+    collectTotal.value = data.total || 0
+  } catch (error: any) {
+    receivedCollects.value = []
+    collectTotal.value = 0
+    collectError.value = error?.message || '收藏列表加载失败'
+  } finally {
+    collectLoading.value = false
+  }
+}
+
+// 子栏切换：重置到第一页并重拉（切走的子页在切回时再拉，保证数据新鲜）
+const switchLikeBox = (box: 'like' | 'collect') => {
+  if (likeBox.value === box) {
+    return
+  }
+  likeBox.value = box
+  if (box === 'like') {
+    likePage.value = 1
+    loadReceivedLikes()
+  } else {
+    collectPage.value = 1
+    loadReceivedCollects()
+  }
+}
+
 // 首屏加载放到登录守卫之后（onMounted），避免未登录先发一轮必然 401 的请求
 watch(activeTab, (tab) => {
+  onTabEnter(tab)
   if (tab === 'system') {
     page.value = 1
     loadNotices()
   }
   if (tab === 'comment') {
+    receivedPage.value = 1
     commentPage.value = 1
-    loadMyComments()
+    // 按当前子栏加载（两子栏都有独立分页，切回时经 switchCommentBox 重拉）
+    if (commentBox.value === 'received') {
+      loadReceivedComments()
+    } else {
+      loadMyComments()
+    }
   }
   if (tab === 'like') {
     likePage.value = 1
-    loadReceivedLikes()
+    collectPage.value = 1
+    // 按当前子栏加载（双子栏独立分页，切回时经 switchLikeBox 重拉）
+    if (likeBox.value === 'like') {
+      loadReceivedLikes()
+    } else {
+      loadReceivedCollects()
+    }
   }
 })
 
 watch(page, loadNotices)
+watch(receivedPage, loadReceivedComments)
 watch(commentPage, loadMyComments)
 watch(likePage, loadReceivedLikes)
-
-// ---------- 内容展开/收起：Markdown 长文默认收起（72px），渲染后量 scrollHeight 决定是否出「展开」按钮 ----------
-const expandedMap = ref<Record<number, boolean>>({})
-const overflowMap = ref<Record<number, boolean>>({})
-
-const COLLAPSED_HEIGHT = 72
-
-const measureOverflow = () => {
-  const map: Record<number, boolean> = {}
-  document.querySelectorAll<HTMLElement>('.notice-body[data-nid]').forEach((el) => {
-    const nid = Number(el.dataset.nid)
-    if (Number.isFinite(nid)) {
-      map[nid] = el.scrollHeight > COLLAPSED_HEIGHT + 2
-    }
-  })
-  overflowMap.value = map
-}
-
-const toggleExpand = (noticeId: number) => {
-  expandedMap.value = { ...expandedMap.value, [noticeId]: !expandedMap.value[noticeId] }
-}
+watch(collectPage, loadReceivedCollects)
 
 const formatTime = (value?: string | null) => {
   if (!value) {
@@ -389,12 +584,22 @@ const formatTime = (value?: string | null) => {
 
 // ---------- 首屏加载：登录守卫已由 auth middleware 先行（未登录不会到达这里），避免发一轮必然 401 的请求 ----------
 onMounted(() => {
+  // 直达分类栏（?tab=comment/like）时同样逐栏清红标
+  onTabEnter(activeTab.value)
   if (activeTab.value === 'system') {
     loadNotices()
   } else if (activeTab.value === 'comment') {
-    loadMyComments()
+    if (commentBox.value === 'received') {
+      loadReceivedComments()
+    } else {
+      loadMyComments()
+    }
   } else if (activeTab.value === 'like') {
-    loadReceivedLikes()
+    if (likeBox.value === 'like') {
+      loadReceivedLikes()
+    } else {
+      loadReceivedCollects()
+    }
   }
 })
 </script>
@@ -464,6 +669,23 @@ onMounted(() => {
         color: var(--color-primary);
       }
     }
+
+    // 未读数：右侧小圆角红标（与铃铛/头部面板同色系）
+    .menu-count {
+      margin-left: auto;
+      min-width: 18px;
+      height: 18px;
+      padding: 0 5px;
+      border-radius: 9px;
+      background-color: #f04142;
+      font-size: 11px;
+      line-height: 18px;
+      font-style: normal;
+      font-weight: 500;
+      color: #fff;
+      text-align: center;
+      box-sizing: border-box;
+    }
   }
 }
 
@@ -474,26 +696,86 @@ onMounted(() => {
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-md);
   overflow: hidden;
+
+  // 系统通知首行与左菜单首项文字顶边对齐（左：菜单 12 + 条目 10，右：此处 14 + 条目 8）
+  &--system {
+    padding-top: 14px;
+  }
+}
+
+// 评论栏子切换（收到的评论/我发表的）：页头胶囊组，同左菜单 active 视觉
+.comment-box-bar {
+  display: flex;
+  gap: 8px;
+  padding: 12px 20px;
+  border-bottom: 1px solid var(--color-border-light);
+
+  .box-tab {
+    padding: 4px 12px;
+    border: 0;
+    border-radius: var(--radius-sm);
+    background-color: transparent;
+    font-size: 13px;
+    color: var(--color-text-2);
+    cursor: pointer;
+    transition:
+      color 0.2s ease,
+      background-color 0.2s ease;
+
+    &:hover {
+      color: var(--color-text-1);
+      background-color: var(--color-bg);
+    }
+
+    &.active {
+      color: var(--color-primary);
+      background-color: var(--color-primary-light);
+      font-weight: 500;
+    }
+  }
 }
 
 .notice-item {
-  padding: 16px 20px;
+  padding: 12px 20px;
 
   & + .notice-item {
     border-top: 1px solid var(--color-border-light);
   }
+
+  // 系统通知只有单行标题，收紧上下留白让同屏容纳更多条目
+  &--compact {
+    padding: 8px 20px;
+  }
+
+  // 可点击行（NuxtLink）：悬浮/键盘聚焦给出反馈，跳转独立通知详情页
+  &--clickable {
+    display: block;
+    cursor: pointer;
+    transition: background-color 0.2s ease;
+
+    &:hover,
+    &:focus-visible {
+      background-color: var(--color-bg);
+      outline: none;
+    }
+
+    &:hover .notice-arrow,
+    &:focus-visible .notice-arrow {
+      color: var(--color-primary);
+    }
+  }
 }
 
-// 赞和收藏：掘金式接收流——左头像、中间「谁赞了哪篇」+相对时间、右文章封面
-.like-item {
+// 收到的评论/赞：掘金式接收流——头像+动作短句 / 评论内容 / 文章引用行 / 时间
+.notify-item {
   display: flex;
   align-items: flex-start;
   gap: 12px;
 
-  .like-avatar {
+  .notify-avatar {
     flex-shrink: 0;
-    width: 40px;
-    height: 40px;
+    width: 36px;
+    height: 36px;
     border-radius: 50%;
     overflow: hidden;
 
@@ -511,48 +793,88 @@ onMounted(() => {
       width: 100%;
       height: 100%;
       background-color: var(--color-primary-light);
-      font-size: 16px;
+      font-size: 14px;
       color: var(--color-primary);
     }
   }
 
-  .like-main {
+  .notify-main {
     flex: 1;
     min-width: 0;
   }
 
-  .like-text {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
+  .notify-head {
+    margin: 0;
     font-size: 15px;
     line-height: 22px;
     color: var(--color-text-1);
-  }
 
-  // 昵称与文章标题走主题蓝，悬浮加下划线；文章已删时仍可点（详情页有空态）
-  .like-user,
-  .like-article {
-    color: var(--color-primary);
-    transition: color 0.2s ease;
+    // 昵称走主题蓝与动作文案/正文做颜色区分（链接语义），悬浮加下划线
+    .notify-user {
+      margin-right: 4px;
+      color: var(--color-primary);
+      transition: color 0.2s ease;
 
-    &:hover {
-      text-decoration: underline;
-      text-underline-offset: 2px;
+      &:hover {
+        text-decoration: underline;
+        text-underline-offset: 2px;
+      }
     }
   }
 
-  .like-time {
+  .notify-content {
+    margin: 4px 0 0;
+    font-size: 14px;
+    line-height: 22px;
+    color: var(--color-text-1);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
+
+  // 文章引用行：左竖线灰字（同掘金被回复对象引用），超长单行省略
+  .notify-quote {
     display: block;
-    margin-top: 10px;
+    margin-top: 8px;
+    padding-left: 8px;
+    border-left: 2px solid var(--color-border);
     font-size: 13px;
+    line-height: 20px;
+    color: var(--color-text-3);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    transition: color 0.2s ease;
+
+    &:hover {
+      color: var(--color-primary);
+    }
+  }
+
+  // 动作短句内嵌的收藏集入口（「收进了《xx》」），主题色弱化字重
+  .notify-quote-inline {
+    color: var(--color-text-2);
+    font-weight: 500;
+    white-space: nowrap;
+    transition: color 0.2s ease;
+
+    &:hover {
+      color: var(--color-primary);
+    }
+  }
+
+  .notify-time {
+    display: block;
+    margin-top: 8px;
+    font-size: 12px;
     color: var(--color-text-3);
   }
 
-  .like-thumb {
+  // 右侧文章封面缩略图：64px 圆角小图，垂直居中，链接到文章详情
+  .notify-thumb {
     flex-shrink: 0;
-    width: 72px;
-    height: 72px;
+    align-self: center;
+    width: 64px;
+    height: 64px;
     border-radius: var(--radius-sm);
     overflow: hidden;
 
@@ -570,25 +892,6 @@ onMounted(() => {
   align-items: center;
   gap: 8px;
 
-  .notice-badge {
-    flex-shrink: 0;
-    padding: 1px 8px;
-    border-radius: var(--radius-sm);
-    font-size: 12px;
-    line-height: 18px;
-
-    // 通知=品牌蓝浅底；公告=橙色浅底
-    &.is-info {
-      background-color: var(--color-primary-light);
-      color: var(--color-primary);
-    }
-
-    &.is-announce {
-      background-color: rgba(230, 132, 41, 0.12);
-      color: #e68429;
-    }
-  }
-
   .notice-title {
     flex: 1;
     min-width: 0;
@@ -604,6 +907,32 @@ onMounted(() => {
     flex-shrink: 0;
     font-size: 12px;
     color: var(--color-text-3);
+  }
+
+  // 行尾箭头：提示整行可点击查看正文
+  .notice-arrow {
+    flex-shrink: 0;
+    color: var(--color-text-3);
+    transition: color 0.2s ease;
+  }
+}
+
+// 徽标（列表行）：通知=品牌蓝浅底；公告=橙色浅底
+.notice-badge {
+  flex-shrink: 0;
+  padding: 1px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  line-height: 18px;
+
+  &.is-info {
+    background-color: var(--color-primary-light);
+    color: var(--color-primary);
+  }
+
+  &.is-announce {
+    background-color: rgba(230, 132, 41, 0.12);
+    color: #e68429;
   }
 }
 
@@ -687,23 +1016,6 @@ onMounted(() => {
         text-underline-offset: 2px;
       }
     }
-  }
-}
-
-.notice-body {
-  margin-top: 10px;
-
-  // 卡片内 Markdown 不带纸面底色（github 主题深底色比卡片更深会形成色块），文字配色仍随站点主题
-  :deep(.markdown-body) {
-    background-color: transparent;
-  }
-
-  // 收起态：限高 + 底部渐隐提示还有内容
-  &.collapsed {
-    max-height: 72px;
-    overflow: hidden;
-    -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
-    mask-image: linear-gradient(180deg, #000 55%, transparent 100%);
   }
 }
 

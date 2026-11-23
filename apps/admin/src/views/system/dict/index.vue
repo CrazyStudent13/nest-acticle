@@ -180,7 +180,7 @@ const loading = ref(false);
 const dictGroup = reactive({
   query: {
     pageNum: 1,
-    pageSize: 9999,
+    pageSize: 1000,
     dictName: '',
     dictType: '',
     status: ''
@@ -285,7 +285,7 @@ const dictGroup = reactive({
 const dictData = reactive({
   query: {
     pageNum: 1,
-    pageSize: 9999,
+    pageSize: 1000,
     dictName: undefined,
     dictType: undefined,
     status: undefined

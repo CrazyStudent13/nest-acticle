@@ -1,4 +1,4 @@
-<!-- 文章详情页左侧悬浮工具栏：点赞/评论接真实交互（由父组件处理登录态与请求），收藏/举报为占位，分享=复制链接，回顶部按滚动距离显现 -->
+<!-- 文章详情页左侧悬浮工具栏：点赞/评论/收藏接真实交互（由父组件处理登录态与请求），举报为占位，分享=复制链接，回顶部按滚动距离显现 -->
 <template>
   <div class="action-bar">
     <!-- 点赞：已点赞高亮，点击由父组件切换 -->
@@ -17,11 +17,12 @@
       <span v-if="commentNum > 0" class="action-badge">{{ commentNum }}</span>
     </button>
 
-    <!-- 收藏：占位 -->
-    <button class="action-btn" type="button" title="收藏" @click="showTip('收藏功能即将上线')">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+    <!-- 收藏：已收藏（任一收藏集）星星填充高亮，点击由父组件打开收藏弹窗 -->
+    <button :class="{ collected }" class="action-btn" type="button" title="收藏" @click="emit('collect')">
+      <svg :fill="collected ? 'currentColor' : 'none'" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
       </svg>
+      <span v-if="collectNum > 0" class="action-badge">{{ collectNum }}</span>
     </button>
 
     <!-- 分享：复制文章链接 -->
@@ -61,17 +62,24 @@ const props = withDefaults(
     commentNum?: number
     /** 当前用户是否已点赞（点赞高亮由父组件依据登录态与接口结果传入） */
     liked?: boolean
+    /** 当前用户是否已收藏（收藏高亮由父组件依据登录态与收藏弹窗结果传入） */
+    collected?: boolean
+    /** 文章收藏总数（被收进收藏集次数） */
+    collectNum?: number
   }>(),
   {
     likeNum: 0,
     commentNum: 0,
-    liked: false
+    liked: false,
+    collected: false,
+    collectNum: 0
   }
 )
 
 const emit = defineEmits<{
   (e: 'like'): void
   (e: 'comment'): void
+  (e: 'collect'): void
 }>()
 
 // 占位功能的轻提示，2 秒自动消失
@@ -191,6 +199,12 @@ onBeforeUnmount(() => {
 
     // 已点赞态：主题色高亮
     &.liked {
+      color: var(--color-primary);
+      box-shadow: 0 2px 10px rgba(79, 107, 255, 0.25);
+    }
+
+    // 已收藏态：主题色高亮（同点赞）
+    &.collected {
       color: var(--color-primary);
       box-shadow: 0 2px 10px rgba(79, 107, 255, 0.25);
     }

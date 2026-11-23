@@ -89,22 +89,61 @@ export class PostCommentService {
    * 评论 guest 列表（公开：仅已发布文章的评论，联评论人与被回复人公开信息，最新在前，平铺不嵌套）
    */
   async findGuestList(query: ListCommentGuestDto) {
+    // 按线程分页：回复总比根评论新，若按单条评论倒序分页，首页会装满「根评论在后页」的
+    // 回复，前端归组找不到父评论只能让回复暂居根位，翻页后整批重新归组，线程关系跨页错乱。
+    // 改为以根评论为分页单位，每页返回 N 个线程 + 各线程全部后代，线程永不跨页断裂；
+    // total=文章全部评论数（展示口径不变），rootTotal=根评论线程数（前端「查看更多」以此判断）
+    const article = await this.articleRepo.findOne({
+      where: { id: query.articleId, delFlag: '0', publishStatus: PublishStatusEnum.PUBLISHED },
+    });
+    if (!article) {
+      return ResultData.ok({ list: [], total: 0, rootTotal: 0 });
+    }
+
+    const comments = await this.commentRepo.find({ where: { articleId: query.articleId } });
+    const pageNum = Math.max(query.pageNum ?? 1, 1);
+    // 公开接口给单页线程数封顶，避免一次拉走整篇文章的评论树
+    const pageSize = Math.min(Math.max(query.pageSize ?? 10, 1), 100);
+
+    const roots = comments
+      .filter((item) => !item.parentId)
+      .sort((a, b) => b.createTime.getTime() - a.createTime.getTime());
+    const pageRoots = roots.slice((pageNum - 1) * pageSize, (pageNum - 1) * pageSize + pageSize);
+
+    // 回复可指向回复，沿 childrenOf 逐层收集当前页各线程的全部后代
+    const childrenOf = new Map<number, PostCommentEntity[]>();
+    for (const item of comments) {
+      if (item.parentId) {
+        const bucket = childrenOf.get(item.parentId) ?? [];
+        bucket.push(item);
+        childrenOf.set(item.parentId, bucket);
+      }
+    }
+    const pickedIds: number[] = [];
+    const walk = (id: number) => {
+      for (const child of childrenOf.get(id) ?? []) {
+        pickedIds.push(child.id);
+        walk(child.id);
+      }
+    };
+    for (const root of pageRoots) {
+      pickedIds.push(root.id);
+      walk(root.id);
+    }
+    if (!pickedIds.length) {
+      return ResultData.ok({ list: [], total: comments.length, rootTotal: roots.length });
+    }
+
+    // 行形状与组装口径沿用原实现：联评论人/被回复人昵称头像，raw 键保留别名大小写
     const entity = this.commentRepo.createQueryBuilder('comment');
     entity
       .leftJoin(PostArticleEntity, 'article', 'article.id = comment.articleId')
       .leftJoin(UserEntity, 'user', 'user.userId = comment.userId')
       .leftJoin(UserEntity, 'replyUser', 'replyUser.userId = comment.replyUserId')
       .addSelect(['user.nickName', 'user.avatar', 'replyUser.nickName'])
-      .where('comment.articleId = :articleId', { articleId: query.articleId })
-      .andWhere('article.delFlag = :delFlag', { delFlag: '0' })
-      .andWhere('article.publishStatus = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED });
-
-    paginate(entity, query);
-
-    entity.orderBy('comment.createTime', 'DESC');
+      .where('comment.id IN (:...ids)', { ids: pickedIds });
 
     const { raw } = await entity.getRawAndEntities();
-    const total = await entity.getCount();
 
     // raw 键格式为「别名_数据库列名」，别名保留原大小写（replyUser → replyUser_nick_name）
     const list = raw.map((row: Record<string, any>) => ({
@@ -121,7 +160,7 @@ export class PostCommentService {
       replyNickName: row.replyUser_nick_name || null,
     }));
 
-    return ResultData.ok({ list, total });
+    return ResultData.ok({ list, total: comments.length, rootTotal: roots.length });
   }
 
   /**
@@ -196,6 +235,53 @@ export class PostCommentService {
       id: row.comment_id,
       articleId: row.comment_article_id,
       articleTitle: row.article_title || null,
+      content: row.comment_content,
+      createTime: row.comment_create_time,
+      parentId: row.comment_parent_id,
+      replyUserId: row.comment_reply_user_id,
+      replyNickName: row.replyUser_nick_name || null,
+    }));
+
+    return ResultData.ok({ list, total });
+  }
+
+  /**
+   * 收到的评论列表（通知中心「评论-收到的评论」栏：他人评论我发布的文章或回复我的评论，最新在前）
+   * 行形状对齐 shared 的 ReceivedCommentItem；口径与 notify.service 未读计数严格一致
+   * （角标数必须能被这条列表清掉），仅含已发布未删文章
+   */
+  async findReceivedList(userId: number, query: ListMyCommentDto) {
+    const entity = this.commentRepo.createQueryBuilder('comment');
+    entity
+      .innerJoin(PostArticleEntity, 'article', 'article.id = comment.articleId')
+      .leftJoin(UserEntity, 'commenter', 'commenter.userId = comment.userId')
+      .leftJoin(UserEntity, 'replyUser', 'replyUser.userId = comment.replyUserId')
+      .addSelect(['article.title', 'article.cover', 'commenter.nickName', 'commenter.avatar', 'replyUser.nickName'])
+      // OR 整体必须再套一层外括号：TypeORM 不自动加，否则后续 andWhere（已发布/未删）
+      // 因 AND 优先级更高只约束右支，左支完全绕过过滤
+      .where(
+        '((article.userId = :userId AND comment.userId <> :userId) OR (comment.replyUserId = :userId AND comment.userId <> :userId))',
+        { userId }
+      )
+      .andWhere('article.delFlag = :delFlag', { delFlag: '0' })
+      .andWhere('article.publishStatus = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED });
+
+    paginate(entity, query);
+
+    entity.orderBy('comment.createTime', 'DESC');
+
+    const { raw } = await entity.getRawAndEntities();
+    const total = await entity.getCount();
+
+    // raw 键格式为「别名_数据库列名」，别名保留原大小写（commenter → commenter_nick_name）
+    const list = raw.map((row: Record<string, any>) => ({
+      id: row.comment_id,
+      userId: row.comment_user_id,
+      nickName: row.commenter_nick_name || '',
+      avatar: row.commenter_avatar || null,
+      articleId: row.comment_article_id,
+      articleTitle: row.article_title || null,
+      articleCover: row.article_cover || null,
       content: row.comment_content,
       createTime: row.comment_create_time,
       parentId: row.comment_parent_id,

@@ -24,8 +24,16 @@ export class NoticeService {
     applyLike(entity, 'entity.noticeTitle', query.noticeTitle);
     applyLike(entity, 'entity.createBy', query.createBy);
 
+    if (query.noticeId) {
+      entity.andWhere('entity.noticeId = :noticeId', { noticeId: query.noticeId });
+    }
+
     if (query.noticeType) {
       entity.andWhere('entity.noticeType = :noticeType', { noticeType: query.noticeType });
+    }
+
+    if (query.status) {
+      entity.andWhere('entity.status = :status', { status: query.status });
     }
 
     if (query.params?.beginTime && query.params?.endTime) {

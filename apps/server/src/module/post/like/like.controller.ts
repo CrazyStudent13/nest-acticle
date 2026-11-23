@@ -1,4 +1,4 @@
-import { Controller, Delete, Get, HttpCode, Param, Post, Query } from '@nestjs/common';
+import { Controller, Delete, Get, HttpCode, Param, ParseIntPipe, Post, Query } from '@nestjs/common';
 import { ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PostLikeService } from './like.service';
 import { ListGuestLikeDto, ListLikeDto, ListMyLikeDto } from './dto/index';
@@ -62,8 +62,8 @@ export class PostLikeController {
   @ApiOperation({ summary: '点赞-点赞' })
   @HttpCode(200)
   @Post('/:articleId')
-  like(@Param('articleId') articleId: string, @User() user: UserDto) {
-    return this.likeService.like(+articleId, user.userId);
+  like(@Param('articleId', ParseIntPipe) articleId: number, @User() user: UserDto) {
+    return this.likeService.like(articleId, user.userId);
   }
 
   /**
@@ -71,8 +71,8 @@ export class PostLikeController {
    */
   @ApiOperation({ summary: '点赞-取消' })
   @Delete('/:articleId')
-  unlike(@Param('articleId') articleId: string, @User() user: UserDto) {
-    return this.likeService.unlike(+articleId, user.userId);
+  unlike(@Param('articleId', ParseIntPipe) articleId: number, @User() user: UserDto) {
+    return this.likeService.unlike(articleId, user.userId);
   }
 
   /**
@@ -80,7 +80,7 @@ export class PostLikeController {
    */
   @ApiOperation({ summary: '点赞-状态' })
   @Get('/status/:articleId')
-  status(@Param('articleId') articleId: string, @User() user: UserDto) {
-    return this.likeService.status(+articleId, user.userId);
+  status(@Param('articleId', ParseIntPipe) articleId: number, @User() user: UserDto) {
+    return this.likeService.status(articleId, user.userId);
   }
 }

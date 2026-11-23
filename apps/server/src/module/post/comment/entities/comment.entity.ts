@@ -11,6 +11,7 @@ import { ApiProperty } from '@nestjs/swagger';
 @Index('idx_article_id', ['articleId'])
 @Index('idx_user_id', ['userId'])
 @Index('idx_parent_id', ['parentId'])
+@Index('idx_reply_user_id', ['replyUserId'])
 export class PostCommentEntity {
   @ApiProperty({ type: Number, description: '评论 id' })
   @PrimaryGeneratedColumn({ name: 'id', comment: '评论 id' })

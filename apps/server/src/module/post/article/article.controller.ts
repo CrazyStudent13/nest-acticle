@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Body, Put, Param, Query, Delete, HttpCode } from '@nestjs/common';
+import { Controller, Get, Post, Body, Put, Param, Query, Delete, HttpCode, ParseIntPipe } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBody } from '@nestjs/swagger';
 import { PostArticleService } from './article.service';
 import { CreatePostArticleDto, UpdatePostArticleDto, ListPostArticleDto, AuditPostArticleDto } from './dto/index';
@@ -44,6 +44,17 @@ export class PostArticleController {
   @Get('/guest/detail')
   findGuestOne(@Query('id') id: number) {
     return this.postArticleService.findGuestOne(id);
+  }
+
+  /**
+   * 记录一次阅读（游客可访问，详情页打开时上报，阅读数原子自增）
+   */
+  @ApiOperation({ summary: '文章-游客-记录阅读' })
+  @NotRequireAuth()
+  @HttpCode(200)
+  @Post('/guest/read/:id')
+  recordRead(@Param('id', ParseIntPipe) id: number) {
+    return this.postArticleService.recordRead(id);
   }
 
   /**
