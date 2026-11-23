@@ -9,55 +9,64 @@
     </section>
 
     <template v-else>
-      <section class="collect-header">
-      <div class="header-main">
-        <h1 class="title">
-          {{ detail?.name || '收藏集详情' }}
-          <span v-if="detail?.isDefault" class="default-badge">默认</span>
-          <svg v-if="detail?.visibility === '1'" class="lock-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </svg>
-        </h1>
-        <p v-if="detail?.desc" class="desc">{{ detail.desc }}</p>
-        <div class="meta">
-          <span>{{ detail?.articleCount ?? 0 }} 篇文章</span>
-          <span>{{ detail?.subscriberCount ?? 0 }} 订阅</span>
-          <span v-if="updateTime">{{ updateTime }} 更新</span>
+      <!-- 品牌渐变横幅（掘金收藏集头图同构，配色取论坛 token）：名称/简介/创建者 + 本人编辑/删除或订阅 -->
+      <section class="collect-hero">
+        <div class="hero-main">
+          <h1 class="title">
+            {{ detail?.name || '收藏集详情' }}
+            <span v-if="detail?.isDefault" class="default-badge">默认</span>
+            <svg v-if="detail?.visibility === '1'" class="lock-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+            </svg>
+          </h1>
+          <p v-if="detail?.desc" class="desc">{{ detail.desc }}</p>
+          <NuxtLink v-if="detail?.userInfo" class="owner" :to="{ path: '/user/space', query: { id: String(detail.userInfo.userId) } }">
+            <img v-if="ownerAvatar" class="owner-avatar" :src="ownerAvatar" :alt="detail.userInfo.nickName" />
+            <span v-else class="owner-avatar owner-avatar--fallback">{{ ownerFallback }}</span>
+            <span class="owner-name">{{ detail.userInfo.nickName }}</span>
+          </NuxtLink>
         </div>
-        <NuxtLink v-if="detail?.userInfo" class="owner" :to="{ path: '/user/space', query: { id: String(detail.userInfo.userId) } }">
-          <img v-if="ownerAvatar" class="owner-avatar" :src="ownerAvatar" :alt="detail.userInfo.nickName" />
-          <span v-else class="owner-avatar owner-avatar--fallback">{{ ownerFallback }}</span>
-          <span class="owner-name">{{ detail.userInfo.nickName }}</span>
-        </NuxtLink>
-      </div>
 
-      <div class="header-actions">
-        <!-- 本人：编辑/删除收藏集（默认收藏夹不可删除，不显示删除入口，后端同样拦截） -->
-        <template v-if="detail?.isMine">
-          <button class="action-btn" type="button" @click="openEdit">编辑收藏集</button>
-          <button v-if="!detail?.isDefault" class="action-btn danger" type="button" :disabled="deleting" @click="confirmRemoveCollection">
-            {{ deleting ? '删除中…' : '删除收藏集' }}
+        <div class="hero-actions">
+          <!-- 本人：编辑/删除收藏集（默认收藏夹不可删除，不显示删除入口，后端同样拦截） -->
+          <template v-if="detail?.isMine">
+            <button class="hero-btn" type="button" @click="openEdit">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z" />
+              </svg>
+              编辑
+            </button>
+            <button v-if="!detail?.isDefault" class="hero-btn" :class="{ danger: deleting }" type="button" :disabled="deleting" @click="confirmRemoveCollection">
+              <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <polyline points="3 6 5 6 21 6" />
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+              </svg>
+              {{ deleting ? '删除中…' : '删除' }}
+            </button>
+          </template>
+          <!-- 非本人且公开：订阅/已订阅 -->
+          <button
+            v-else-if="detail && detail.visibility !== '1'"
+            class="hero-btn subscribe-btn"
+            :class="{ subscribed: detail.isSubscribed }"
+            type="button"
+            :disabled="subscribeBusy"
+            @click="toggleSubscribe"
+          >
+            {{ subscribeBusy ? '处理中…' : detail.isSubscribed ? '已订阅' : '订阅' }}
           </button>
-        </template>
-        <!-- 非本人且公开：订阅/已订阅 -->
-        <button
-          v-else-if="detail && detail.visibility !== '1'"
-          class="action-btn subscribe-btn"
-          :class="{ subscribed: detail.isSubscribed }"
-          type="button"
-          :disabled="subscribeBusy"
-          @click="toggleSubscribe"
-        >
-          {{ subscribeBusy ? '处理中…' : detail.isSubscribed ? '已订阅' : '订阅' }}
-        </button>
-      </div>
-    </section>
+        </div>
+      </section>
 
-    <section class="feed-panel">
-      <div class="feed-header">
-        <h2 class="feed-title">收藏文章</h2>
-      </div>
+      <section class="feed-panel">
+        <div class="feed-header">
+          <!-- 统计行（掘金同款「N篇文章 · N订阅」口径） -->
+          <h2 class="feed-title">
+            {{ detail?.articleCount ?? 0 }}篇文章 · {{ detail?.subscriberCount ?? 0 }}订阅
+            <span v-if="updateTime" class="feed-meta">{{ updateTime }} 更新</span>
+          </h2>
+        </div>
 
       <template v-if="articles.length">
         <div v-for="item in articles" :key="item.id || item.title" class="article-row">
@@ -124,11 +133,43 @@ const refreshDetail = async () => {
   }
 }
 
+// 客户端补拉首屏列表：私密集本人访问时 SSR 无 token 拿不到文章列表（接口按可见性拒绝），
+// 详情刷新后若与集内计数不一致，用登录态重拉第一页覆盖 SSR 空结果
+const reloadFirstPage = async () => {
+  if (!collectionId.value) {
+    return
+  }
+  try {
+    const data = await fetchCollectionArticles(collectionId.value, { pageNum: 1, pageSize: PAGE_SIZE })
+    if (articleRes.value?.data) {
+      articleRes.value.data.list = data.list || []
+      articleRes.value.data.total = data.total || 0
+    }
+    appended.value = []
+    lastPage.value = 1
+    lastPageShort.value = false
+  } catch {
+    /* 静默：保留 SSR 数据 */
+  }
+}
+
 onMounted(async () => {
   // 登录态静默恢复后刷新归属/订阅标记（SSR 无 token，isMine/isSubscribed 恒为 false）
   await ensureUserRestored()
-  if (user.value) {
-    refreshDetail()
+  if (!user.value) {
+    return
+  }
+  try {
+    const fresh = await fetchCollectionDetail(collectionId.value)
+    if (fresh) {
+      detail.value = fresh
+      // SSR 列表为空但集内实际有文章（私密集本人访问场景）时补拉首屏
+      if ((fresh.articleCount ?? 0) > 0 && (articleRes.value?.data?.total || 0) === 0) {
+        await reloadFirstPage()
+      }
+    }
+  } catch {
+    /* 静默：保留 SSR 数据 */
   }
 })
 
@@ -339,15 +380,19 @@ const confirmRemoveArticle = async (item: Article) => {
   gap: 16px;
 }
 
-// 收藏集信息卡
-.collect-header {
-  padding: 24px;
+// 品牌渐变横幅（配色走 --gradient-brand，不取掘金蓝）：名称/简介/创建者居左，操作居右上
+.collect-hero {
+  padding: 28px 28px 26px;
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 16px;
+  background-image: var(--gradient-brand);
+  border-radius: var(--radius-md);
+  color: #fff;
+  overflow: hidden;
 
-  .header-main {
+  .hero-main {
     flex: 1;
     min-width: 0;
 
@@ -355,24 +400,25 @@ const confirmRemoveArticle = async (item: Article) => {
       display: flex;
       align-items: center;
       gap: 8px;
-      font-size: 22px;
+      font-size: 24px;
       font-weight: 600;
-      color: var(--color-text-1);
+      line-height: 32px;
+      color: #fff;
 
       .default-badge {
         flex-shrink: 0;
-        padding: 2px 10px;
-        border: 1px solid var(--color-primary);
+        padding: 1px 9px;
+        border: 1px solid rgba(255, 255, 255, 0.7);
         border-radius: var(--radius-full);
         font-size: 12px;
         font-weight: 400;
         line-height: 18px;
-        color: var(--color-primary);
+        color: #fff;
       }
 
       .lock-icon {
         flex-shrink: 0;
-        color: var(--color-text-3);
+        color: rgba(255, 255, 255, 0.85);
       }
     }
 
@@ -380,75 +426,72 @@ const confirmRemoveArticle = async (item: Article) => {
       margin-top: 10px;
       font-size: 14px;
       line-height: 22px;
-      color: var(--color-text-2);
+      color: rgba(255, 255, 255, 0.85);
       white-space: pre-wrap;
       overflow-wrap: anywhere;
     }
 
-    .meta {
-      margin-top: 12px;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 4px 12px;
-      font-size: 13px;
-      color: var(--color-text-3);
-    }
-
     .owner {
-      margin-top: 14px;
+      margin-top: 16px;
       display: inline-flex;
       align-items: center;
       gap: 8px;
       font-size: 13px;
-      color: var(--color-text-2);
+      color: rgba(255, 255, 255, 0.92);
 
       &:hover .owner-name {
-        color: var(--color-primary);
+        opacity: 0.8;
       }
 
       .owner-avatar {
-        width: 24px;
-        height: 24px;
+        width: 26px;
+        height: 26px;
         border-radius: var(--radius-full);
         object-fit: cover;
-        background-color: var(--color-bg);
-        line-height: 24px;
+        background-color: rgba(255, 255, 255, 0.25);
+        line-height: 26px;
         text-align: center;
 
         &--fallback {
           color: #fff;
-          background-image: var(--gradient-brand);
+          background-color: rgba(255, 255, 255, 0.22);
           font-size: 12px;
         }
       }
 
       .owner-name {
-        transition: color 0.2s ease;
+        transition: opacity 0.2s ease;
       }
     }
   }
 
-  .header-actions {
+  .hero-actions {
     flex-shrink: 0;
     display: flex;
     gap: 10px;
+    padding-top: 2px;
 
-    .action-btn {
+    // 白描边 ghost 按钮（编辑/删除），订阅为白底主题字
+    .hero-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
       padding: 7px 16px;
-      border: 1px solid var(--color-border);
+      border: 1px solid rgba(255, 255, 255, 0.6);
       border-radius: var(--radius-sm);
-      background-color: var(--color-surface);
+      background-color: transparent;
       font-size: 13px;
-      color: var(--color-text-2);
+      color: #fff;
       cursor: pointer;
       transition:
+        background-color 0.2s ease,
         border-color 0.2s ease,
         color 0.2s ease,
         opacity 0.2s ease;
 
       &:hover:not(:disabled) {
-        border-color: var(--color-primary);
-        color: var(--color-primary);
+        background-color: rgba(255, 255, 255, 0.14);
+        border-color: rgba(255, 255, 255, 0.9);
       }
 
       &:disabled {
@@ -456,34 +499,48 @@ const confirmRemoveArticle = async (item: Article) => {
         cursor: not-allowed;
       }
 
-      &.danger:hover:not(:disabled) {
-        border-color: #d1242f;
-        color: #d1242f;
+      // 删除进行中转危险提示
+      &.danger:not(:disabled) {
+        border-color: rgba(255, 158, 158, 0.9);
+        color: #ffd9d9;
       }
 
-      // 订阅主按钮：主题色实底，已订阅转浅底
+      // 订阅主按钮：白底主题字；已订阅转半透明白底白字
       &.subscribe-btn {
-        border: 0;
-        background-color: var(--color-primary);
-        color: #fff;
+        border-color: transparent;
+        background-color: #fff;
+        color: var(--color-primary);
+        font-weight: 500;
 
         &:hover:not(:disabled) {
-          background-color: var(--color-primary-hover);
-          color: #fff;
+          background-color: rgba(255, 255, 255, 0.88);
         }
 
         &.subscribed {
-          background-color: var(--color-primary-light);
-          color: var(--color-primary);
+          background-color: transparent;
+          border-color: rgba(255, 255, 255, 0.6);
+          color: #fff;
+          font-weight: 400;
 
           &:hover:not(:disabled) {
-            background-color: var(--color-primary-light);
-            color: var(--color-primary);
-            opacity: 0.85;
+            background-color: rgba(255, 255, 255, 0.14);
           }
         }
       }
     }
+  }
+}
+
+// 内容卡统计行（掘金「N篇文章 · N订阅」口径）
+.feed-title {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+
+  .feed-meta {
+    font-size: 12px;
+    font-weight: 400;
+    color: var(--color-text-3);
   }
 }
 
@@ -530,14 +587,16 @@ const confirmRemoveArticle = async (item: Article) => {
     padding: 4px 8px;
   }
 
-  .collect-header {
+  .collect-hero {
     flex-direction: column;
+    padding: 22px 20px;
 
-    .header-actions {
+    .hero-actions {
       width: 100%;
 
-      .action-btn {
+      .hero-btn {
         flex: 1;
+        justify-content: center;
       }
     }
   }
