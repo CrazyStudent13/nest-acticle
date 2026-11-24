@@ -4912,7 +4912,8 @@ create table
     id int not null auto_increment comment '点赞 id',
     article_id int not null comment '文章 id',
     user_id int not null comment '点赞用户ID',
-    create_time datetime default current_timestamp comment '点赞时间',
+    -- datetime(3)：互动通知未读水位按 create_time > read_time 比较，秒级粒度会使 markRead 同秒互动永久漏红标
+    create_time datetime(3) default current_timestamp(3) comment '点赞时间（毫秒粒度，互动通知水位比较列）',
     primary key (id),
     unique key uk_article_user (article_id, user_id),
     key idx_user_id (user_id)
@@ -4931,7 +4932,8 @@ create table
     content varchar(500) not null comment '评论内容',
     parent_id int default null comment '被回复的评论 id（根评论为 null）',
     reply_user_id int default null comment '被回复评论的作者用户 id',
-    create_time datetime default current_timestamp comment '评论时间',
+    -- datetime(3)：互动通知未读水位按 create_time > read_time 比较，秒级粒度会使 markRead 同秒互动永久漏红标
+    create_time datetime(3) default current_timestamp(3) comment '评论时间（毫秒粒度，互动通知水位比较列）',
     primary key (id),
     key idx_article_id (article_id),
     key idx_user_id (user_id),
@@ -4948,7 +4950,8 @@ create table
   post_notify_read (
     user_id int not null comment '用户 id',
     category varchar(16) not null comment '通知分类（comment 评论 / like 点赞 / collect 收藏）',
-    read_time datetime default current_timestamp comment '最后已读时间',
+    -- datetime(3)：水位必须与互动 create_time 同粒度，markRead 即时推至当前毫秒；秒级粒度下同秒互动会被严格 > 永久排除
+    read_time datetime(3) default current_timestamp(3) comment '最后已读时间（毫秒粒度，作互动未读水位）',
     primary key (user_id, category)
   ) engine = innodb comment = '通知已读水位库';
 
@@ -4986,7 +4989,8 @@ create table
     collection_id int not null comment '收藏集 id',
     article_id int not null comment '文章 id',
     user_id int not null comment '收藏人用户ID（即收藏集创建者）',
-    create_time datetime default current_timestamp comment '收藏时间',
+    -- datetime(3)：互动通知未读水位按 create_time > read_time 比较，秒级粒度会使 markRead 同秒互动永久漏红标
+    create_time datetime(3) default current_timestamp(3) comment '收藏时间（毫秒粒度，互动通知水位比较列）',
     primary key (id),
     unique key uk_collection_article (collection_id, article_id),
     key idx_user_id (user_id),

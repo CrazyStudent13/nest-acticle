@@ -22,6 +22,8 @@ export class PostLikeEntity {
   public userId: number;
 
   @ApiProperty({ type: Date, description: '点赞时间' })
-  @CreateDateColumn({ type: 'datetime', name: 'create_time', comment: '点赞时间' })
+  // precision 3 → datetime(3) 毫秒粒度：此列为互动通知未读水位比较列（create_time > read_time），
+  // 秒级粒度会使 markRead 同秒互动被严格 > 永久排除
+  @CreateDateColumn({ type: 'datetime', precision: 3, name: 'create_time', comment: '点赞时间' })
   public createTime: Date;
 }

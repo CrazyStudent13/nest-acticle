@@ -24,6 +24,9 @@ export const NotifyCategory = {
  * 互动通知服务
  * 已读采用「水位」模型：post_notify_read 记每分类最后已读时刻，未读数 =
  * 互动记录 create_time 晚于水位的条数；进通知中心一次性把全部互动分类推平
+ * 水位列与互动 create_time 均为 datetime(3) 毫秒粒度——秒级粒度下 markRead
+ * 同秒到达的互动（create_time = 水位）被严格 > 永久排除、漏红标；毫秒级后
+ * 残余窗口缩至同毫秒并发，属存储粒度极限
  */
 @Injectable()
 export class PostNotifyService {
@@ -121,6 +124,7 @@ export class PostNotifyService {
   /**
    * 标记已读：把互动分类的水位推至当前，角标随即清零
    * 带 category 只推该分类（通知中心逐栏进入逐栏清），缺省推平全部互动分类
+   * 水位为 datetime(3) 毫秒粒度，与互动 create_time 同粒度比较（类注释附粒度论证）
    */
   async markRead(userId: number, category?: string) {
     const now = new Date();

@@ -2,6 +2,21 @@
 
 更细粒度的过程记录（审查 → 修复 → 验收全程）见 [CODE-REVIEW-2026-11-20.md](./CODE-REVIEW-2026-11-20.md)。
 
+## 未发布（dev 分支，随下版本发布）
+
+### 修复
+
+- **通知已读水位漏标**：`post_notify_read.read_time` 与互动列 `post_comment.create_time` / `post_like.create_time` / `post_collection_article.create_time` 升为毫秒级 `datetime(3) default current_timestamp(3)`。未读数按互动 `create_time > 水位` 严格比较，秒级粒度下 markRead 同秒到达的互动等于水位、被永久排除（铃铛漏红标）；毫秒级后残余窗口缩至同毫秒并发（存储粒度极限）
+
+> 升级提示：本批次含数据库变更，存量环境需执行增量 DDL（列升 `datetime(3)` 时 MySQL 要求默认值同步带精度，存量数据自动补 `.000`，无需回填；详见 `apps/server/db/init.sql` 21~23、25 号表）：
+>
+> ```sql
+> alter table post_notify_read modify read_time datetime(3) default current_timestamp(3) comment '最后已读时间（毫秒粒度，作互动未读水位）';
+> alter table post_comment modify create_time datetime(3) default current_timestamp(3) comment '评论时间（毫秒粒度，互动通知水位比较列）';
+> alter table post_like modify create_time datetime(3) default current_timestamp(3) comment '点赞时间（毫秒粒度，互动通知水位比较列）';
+> alter table post_collection_article modify create_time datetime(3) default current_timestamp(3) comment '收藏时间（毫秒粒度，互动通知水位比较列）';
+> ```
+
 ## v1.2.1（2026-11-23）
 
 收藏集标签枚举接入数据字典，管理端新增「自建」类型标签。
