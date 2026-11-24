@@ -93,6 +93,14 @@ export class PostCommentService {
     // 回复，前端归组找不到父评论只能让回复暂居根位，翻页后整批重新归组，线程关系跨页错乱。
     // 改为以根评论为分页单位，每页返回 N 个线程 + 各线程全部后代，线程永不跨页断裂；
     // total=文章全部评论数（展示口径不变），rootTotal=根评论线程数（前端「查看更多」以此判断）
+    //
+    // 复杂度说明：本实现一次 find 载入整篇文章的全部评论（O(总评论数)）再内存归组切片——
+    // parentId 语义是「被回复的评论 id」，支持回复指向回复的任意深度嵌套（create 不限制层级，
+    // 前端 CommentSection 沿 parentId 链向上归组、collectCascade 递归级联，均按任意深度处理），
+    // 无 root_id 列时无法一步查出「本页各线程的全部后代」，故未做两步分页查询。
+    // 当前量级（单篇博客评论数，idx_article_id 单次索引查询 + pageSize 封顶 100）下可接受；
+    // 若后续热点文章评论量增长，可按 init.sql 单一基准给 post_comment 加 root_id 冗余列
+    // （含存量逐层回填与 CHANGELOG 增量 DDL 提示），替换为「根分页 + root_id IN 批量取后代」两步查询
     const article = await this.articleRepo.findOne({
       where: { id: query.articleId, delFlag: '0', publishStatus: PublishStatusEnum.PUBLISHED },
     });
