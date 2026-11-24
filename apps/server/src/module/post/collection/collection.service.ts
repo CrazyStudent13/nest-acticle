@@ -191,6 +191,9 @@ export class PostCollectionService {
       }
 
       // 参数化 INSERT IGNORE + 唯一索引 uk_collection_article：并发重复收藏静默忽略（affectedRows=0 表示已收藏过）
+      // collect_num 口径为「收藏关系条数」而非「去重人数」：同一文章被收进 N 个收藏集即计 N
+      // （不像 like_num 一人一文一条天然去重），uncollect / 清集 / 删集对称回减，账目自洽；
+      // 展示语义是「被收藏次数」，跨收藏集的重复收录按次累加属预期行为
       const inserted: any = await manager.query(
         'INSERT IGNORE INTO post_collection_article (collection_id, article_id, user_id) VALUES (?, ?, ?)',
         [collectionId, articleId, userId],
