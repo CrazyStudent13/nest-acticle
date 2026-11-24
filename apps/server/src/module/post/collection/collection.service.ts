@@ -633,7 +633,8 @@ export class PostCollectionService {
       this.logger.log(
         `管理员批量删除收藏集 ${purged}/${ids.length} 个，清理收藏关系 ${relationCount} 条${skippedDefault ? `，跳过默认收藏夹 ${skippedDefault} 个` : ''}`,
       );
-      return ResultData.ok();
+      // 返回实际结果：默认收藏夹跳过不是成功也不是失败，管理端据此区分提示，不再一律「删除成功」
+      return ResultData.ok({ purged, skippedDefault });
     });
   }
 }
