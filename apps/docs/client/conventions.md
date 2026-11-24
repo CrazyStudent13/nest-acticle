@@ -22,15 +22,16 @@
 
 ## 领域 composable
 
-接口调用按域收敛，不裸调 URL：useLike / useComment / useCollect / useNotify / useSubject / useArticleManage / useNotice / useUpload / useDict（字典 enabled 门控按需拉取）。新端点先进对应域文件，再被页面消费。
+接口调用按域收敛，不裸调 URL：useLike / useComment / useCollect / useFollow / useNotify / useSubject / useArticleManage / useNotice / useUpload / useDict（字典 enabled 门控按需拉取）。新端点先进对应域文件，再被页面消费。
 
 ## 通知红标
 
 - 未读数 `useNotify` 全局单例，AppHeader 铃铛与通知中心页读写同一份
 - 已读水位服务端原子 upsert（毫秒精度），逐栏进栏清零；**无轮询**——刷新时机仅头部挂载 + watch(isLoggedIn)
 
-## 点赞/收藏/评论
+## 点赞/收藏/评论/关注
 
 - 点赞计数：本地覆盖 ref（`xxNumLocal ?? server`）+ 失败回滚 + 切文重置
 - 收藏集：详情页切集先清空再带登录态重拉（Nuxt 新 key 会沿用旧数据）；追加列表走 useInfiniteList
 - 评论：CommentSection 自带 listSeq 丢弃过期请求、append 按 id 去重、沿 parentId 链归位
+- 关注：三态按钮（Follow/Button.vue）state 未传自行查 status、列表行直传；动作后回读 status 拿互关态，页面回写行数据。详见 [关注模块约定](./follow)
