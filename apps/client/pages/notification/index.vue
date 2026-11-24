@@ -41,7 +41,7 @@
                 </svg>
               </div>
             </NuxtLink>
-            <CommonPagination v-model:page="page" :total="total" :page-size="PAGE_SIZE" />
+              <CommonPagination :page="page" :total="total" :page-size="PAGE_SIZE" @update:page="loadNotices" />
           </template>
           <CommonEmptyState v-else-if="loading" text="加载中…" />
           <CommonEmptyState v-else-if="errorMsg">{{ errorMsg }}</CommonEmptyState>
@@ -93,7 +93,7 @@
                   <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
                 </NuxtLink>
               </article>
-              <CommonPagination v-model:page="receivedPage" :total="receivedTotal" :page-size="PAGE_SIZE" />
+              <CommonPagination :page="receivedPage" :total="receivedTotal" :page-size="PAGE_SIZE" @update:page="loadReceivedComments" />
             </template>
             <CommonEmptyState v-else-if="receivedLoading" text="加载中…" />
             <CommonEmptyState v-else-if="receivedError">{{ receivedError }}</CommonEmptyState>
@@ -140,7 +140,7 @@
                   </svg>
                 </button>
               </article>
-              <CommonPagination v-model:page="commentPage" :total="commentTotal" :page-size="PAGE_SIZE" />
+              <CommonPagination :page="commentPage" :total="commentTotal" :page-size="PAGE_SIZE" @update:page="loadMyComments" />
             </template>
             <CommonEmptyState v-else-if="commentLoading" text="加载中…" />
             <CommonEmptyState v-else-if="commentError">{{ commentError }}</CommonEmptyState>
@@ -183,7 +183,7 @@
                   <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
                 </NuxtLink>
               </article>
-              <CommonPagination v-model:page="likePage" :total="likeTotal" :page-size="PAGE_SIZE" />
+              <CommonPagination :page="likePage" :total="likeTotal" :page-size="PAGE_SIZE" @update:page="loadReceivedLikes" />
             </template>
             <CommonEmptyState v-else-if="likeLoading" text="加载中…" />
             <CommonEmptyState v-else-if="likeError">{{ likeError }}</CommonEmptyState>
@@ -225,7 +225,7 @@
                   <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
                 </NuxtLink>
               </article>
-              <CommonPagination v-model:page="collectPage" :total="collectTotal" :page-size="PAGE_SIZE" />
+              <CommonPagination :page="collectPage" :total="collectTotal" :page-size="PAGE_SIZE" @update:page="loadReceivedCollects" />
             </template>
             <CommonEmptyState v-else-if="collectLoading" text="加载中…" />
             <CommonEmptyState v-else-if="collectError">{{ collectError }}</CommonEmptyState>
@@ -315,52 +315,29 @@ const onTabEnter = (tab: NoticeTab) => {
 }
 
 const PAGE_SIZE = 10
-const page = ref(1)
-const total = ref(0)
-const notices = ref<NoticeItem[]>([])
-const loading = ref(false)
-const errorMsg = ref('')
 
-const loadNotices = async () => {
-  loading.value = true
-  errorMsg.value = ''
-  try {
-    const data = await fetchNotices({ pageNum: page.value, pageSize: PAGE_SIZE, status: '0' })
-    notices.value = data.list || []
-    total.value = data.total || 0
-  } catch (error: any) {
-    notices.value = []
-    total.value = 0
-    errorMsg.value = error?.message || '通知加载失败'
-  } finally {
-    loading.value = false
-  }
-}
+// ---------- 五个列表共用 usePagedList：页码/总数/加载态/错误态/请求序号都在里面，页面只管「何时加载哪一页」----------
+// 翻页走分页器的 update:page → load(页码)，切分类/子栏走 reload()（回第一页）；不再 watch 页码自动加载，
+// 所以「重置页码 + 显式加载」每次切换只发一发请求。解构出的名字与模板一一对应
+
+// 系统通知列表：服务端按 status='0' 过滤已关闭公告；403 等业务错误降级为空态提示
+const noticeList = usePagedList<NoticeItem>(
+  (params) => fetchNotices({ ...params, status: '0' }),
+  { pageSize: PAGE_SIZE, errorMsg: '通知加载失败' }
+)
+const { page, total, list: notices, loading, error: errorMsg } = noticeList
+const loadNotices = noticeList.load
 
 // ---------- 收到的评论（评论栏默认子页）：他人评论我的文章/回复我的评论，掘金式接收流 ----------
 const commentBox = ref<'received' | 'mine'>('received')
 
-const receivedComments = ref<ReceivedCommentItem[]>([])
-const receivedPage = ref(1)
-const receivedTotal = ref(0)
-const receivedLoading = ref(false)
-const receivedError = ref('')
-
-const loadReceivedComments = async () => {
-  receivedLoading.value = true
-  receivedError.value = ''
-  try {
-    const data = await fetchReceivedComments({ pageNum: receivedPage.value, pageSize: PAGE_SIZE })
-    receivedComments.value = data.list || []
-    receivedTotal.value = data.total || 0
-  } catch (error: any) {
-    receivedComments.value = []
-    receivedTotal.value = 0
-    receivedError.value = error?.message || '评论加载失败'
-  } finally {
-    receivedLoading.value = false
-  }
-}
+const receivedList = usePagedList<ReceivedCommentItem>((params) => fetchReceivedComments(params), {
+  pageSize: PAGE_SIZE,
+  errorMsg: '评论加载失败'
+})
+const { page: receivedPage, total: receivedTotal, list: receivedComments, loading: receivedLoading, error: receivedError } =
+  receivedList
+const loadReceivedComments = receivedList.load
 
 // 子栏切换：重置到第一页并按需加载（切走的子页在切回时再拉，保证数据新鲜）
 const switchCommentBox = (box: 'received' | 'mine') => {
@@ -369,38 +346,26 @@ const switchCommentBox = (box: 'received' | 'mine') => {
   }
   commentBox.value = box
   if (box === 'received') {
-    receivedPage.value = 1
-    loadReceivedComments()
+    receivedList.reload()
   } else {
-    commentPage.value = 1
-    loadMyComments()
+    loadMyComments(1)
   }
 }
 
 // ---------- 我的评论列表（评论 tab）：分页拉取当前登录人的评论与回复，删除后重拉保证计数准确 ----------
 const { deleteComment } = useComment()
 
-const myComments = ref<MyCommentItem[]>([])
-const commentPage = ref(1)
-const commentTotal = ref(0)
-const commentLoading = ref(false)
-const commentError = ref('')
+const myCommentList = usePagedList<MyCommentItem>((params) => fetchMyComments(params), {
+  pageSize: PAGE_SIZE,
+  errorMsg: '评论加载失败'
+})
+const { page: commentPage, total: commentTotal, list: myComments, loading: commentLoading, error: commentError } = myCommentList
 const deletingId = ref<number | null>(null)
 
-const loadMyComments = async () => {
-  commentLoading.value = true
-  commentError.value = ''
-  try {
-    const data = await fetchMyComments({ pageNum: commentPage.value, pageSize: PAGE_SIZE })
-    myComments.value = data.list || []
-    commentTotal.value = data.total || 0
-  } catch (error: any) {
-    myComments.value = []
-    commentTotal.value = 0
-    commentError.value = error?.message || '评论加载失败'
-  } finally {
-    commentLoading.value = false
-  }
+// 传页码即翻到该页；不传为重拉当前页，传 1 为回第一页（切子栏/切分类）
+// 加载后要等渲染完成再量文本溢出（决定是否出「展开」按钮）
+const loadMyComments = async (target?: number) => {
+  await myCommentList.load(target)
   await nextTick()
   measureCommentOverflow()
 }
@@ -453,53 +418,22 @@ const removeMyComment = async (row: MyCommentItem) => {
 // ---------- 收到的赞 / 收到的收藏（赞和收藏 tab 双子栏）：服务端按登录态过滤，最新在前 ----------
 const likeBox = ref<'like' | 'collect'>('like')
 
-const receivedLikes = ref<ReceivedLikeItem[]>([])
-const likePage = ref(1)
-const likeTotal = ref(0)
-const likeLoading = ref(false)
-const likeError = ref('')
-
 const { fetchReceivedLikes } = useLike()
-
-const loadReceivedLikes = async () => {
-  likeLoading.value = true
-  likeError.value = ''
-  try {
-    const data = await fetchReceivedLikes({ pageNum: likePage.value, pageSize: PAGE_SIZE })
-    receivedLikes.value = data.list || []
-    likeTotal.value = data.total || 0
-  } catch (error: any) {
-    receivedLikes.value = []
-    likeTotal.value = 0
-    likeError.value = error?.message || '点赞列表加载失败'
-  } finally {
-    likeLoading.value = false
-  }
-}
-
 const { fetchReceivedCollects } = useCollect()
 
-const receivedCollects = ref<ReceivedCollectItem[]>([])
-const collectPage = ref(1)
-const collectTotal = ref(0)
-const collectLoading = ref(false)
-const collectError = ref('')
+const likeList = usePagedList<ReceivedLikeItem>((params) => fetchReceivedLikes(params), {
+  pageSize: PAGE_SIZE,
+  errorMsg: '点赞列表加载失败'
+})
+const { page: likePage, total: likeTotal, list: receivedLikes, loading: likeLoading, error: likeError } = likeList
+const loadReceivedLikes = likeList.load
 
-const loadReceivedCollects = async () => {
-  collectLoading.value = true
-  collectError.value = ''
-  try {
-    const data = await fetchReceivedCollects({ pageNum: collectPage.value, pageSize: PAGE_SIZE })
-    receivedCollects.value = data.list || []
-    collectTotal.value = data.total || 0
-  } catch (error: any) {
-    receivedCollects.value = []
-    collectTotal.value = 0
-    collectError.value = error?.message || '收藏列表加载失败'
-  } finally {
-    collectLoading.value = false
-  }
-}
+const collectList = usePagedList<ReceivedCollectItem>((params) => fetchReceivedCollects(params), {
+  pageSize: PAGE_SIZE,
+  errorMsg: '收藏列表加载失败'
+})
+const { page: collectPage, total: collectTotal, list: receivedCollects, loading: collectLoading, error: collectError } = collectList
+const loadReceivedCollects = collectList.load
 
 // 子栏切换：重置到第一页并重拉（切走的子页在切回时再拉，保证数据新鲜）
 const switchLikeBox = (box: 'like' | 'collect') => {
@@ -508,48 +442,38 @@ const switchLikeBox = (box: 'like' | 'collect') => {
   }
   likeBox.value = box
   if (box === 'like') {
-    likePage.value = 1
-    loadReceivedLikes()
+    likeList.reload()
   } else {
-    collectPage.value = 1
-    loadReceivedCollects()
+    collectList.reload()
   }
 }
 
-// 首屏加载放到登录守卫之后（onMounted），避免未登录先发一轮必然 401 的请求
+// 加载当前分类栏（按子栏）：首屏（登录守卫之后）与切分类共用，每次只发当前栏的那一发
+const reloadActiveTab = () => {
+  if (activeTab.value === 'system') {
+    noticeList.reload()
+  } else if (activeTab.value === 'comment') {
+    // 两子栏都有独立分页，只重拉当前子栏；切走的子栏在切回时经 switchCommentBox 重拉
+    if (commentBox.value === 'received') {
+      receivedList.reload()
+    } else {
+      loadMyComments(1)
+    }
+  } else if (activeTab.value === 'like') {
+    // 双子栏独立分页，同上
+    if (likeBox.value === 'like') {
+      likeList.reload()
+    } else {
+      collectList.reload()
+    }
+  }
+}
+
+// 切分类栏：进入即清红标，并回到第一页重拉
 watch(activeTab, (tab) => {
   onTabEnter(tab)
-  if (tab === 'system') {
-    page.value = 1
-    loadNotices()
-  }
-  if (tab === 'comment') {
-    receivedPage.value = 1
-    commentPage.value = 1
-    // 按当前子栏加载（两子栏都有独立分页，切回时经 switchCommentBox 重拉）
-    if (commentBox.value === 'received') {
-      loadReceivedComments()
-    } else {
-      loadMyComments()
-    }
-  }
-  if (tab === 'like') {
-    likePage.value = 1
-    collectPage.value = 1
-    // 按当前子栏加载（双子栏独立分页，切回时经 switchLikeBox 重拉）
-    if (likeBox.value === 'like') {
-      loadReceivedLikes()
-    } else {
-      loadReceivedCollects()
-    }
-  }
+  reloadActiveTab()
 })
-
-watch(page, loadNotices)
-watch(receivedPage, loadReceivedComments)
-watch(commentPage, loadMyComments)
-watch(likePage, loadReceivedLikes)
-watch(collectPage, loadReceivedCollects)
 
 const formatTime = (value?: string | null) => {
   if (!value) {
@@ -563,21 +487,7 @@ const formatTime = (value?: string | null) => {
 onMounted(() => {
   // 直达分类栏（?tab=comment/like）时同样逐栏清红标
   onTabEnter(activeTab.value)
-  if (activeTab.value === 'system') {
-    loadNotices()
-  } else if (activeTab.value === 'comment') {
-    if (commentBox.value === 'received') {
-      loadReceivedComments()
-    } else {
-      loadMyComments()
-    }
-  } else if (activeTab.value === 'like') {
-    if (likeBox.value === 'like') {
-      loadReceivedLikes()
-    } else {
-      loadReceivedCollects()
-    }
-  }
+  reloadActiveTab()
 })
 </script>
 
