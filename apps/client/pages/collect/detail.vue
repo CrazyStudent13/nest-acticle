@@ -5,7 +5,8 @@
   <div class="collect">
     <!-- 收藏集不存在/私密集非本人访问：对齐文章详情页的空态口径；SPA 切集重拉期间显示加载中 -->
     <section v-if="!detail" class="feed-panel">
-      <CommonEmptyState v-if="detailLoading" text="加载中…" />
+      <!-- 空态组件的文案只走默认插槽（没有 text prop，写成属性不会显示） -->
+      <CommonEmptyState v-if="detailLoading">加载中…</CommonEmptyState>
       <CommonEmptyState v-else>收藏集不存在或仅创建者可见</CommonEmptyState>
     </section>
 
