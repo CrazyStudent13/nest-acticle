@@ -28,8 +28,8 @@ pnpm --filter admin dev:clean
 
 Element Plus API/组件与 `src/composables/*` 均已配置自动导入，无需手动 import。机制说明见文档站：
 
-- [Element Plus 自动导入](../../docs/development-tips/admin-element-plus-auto-import.md)
-- [useAuth 权限验证](../../docs/development-tips/admin-useauth.md)
+- [Element Plus 自动导入](../../docs/admin/element-plus-auto-import.md)
+- [useAuth 权限验证](../../docs/admin/useauth.md)
 
 ## 项目文档站
 
