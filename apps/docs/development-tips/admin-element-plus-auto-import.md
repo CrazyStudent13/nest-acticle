@@ -2,7 +2,9 @@
 
 ## 配置说明
 
-已在 `vite/plugins/auto-import.js` 中配置了 Element Plus 常用方法的自动导入，无需手动 import。
+已在 `vite/plugins/auto-import.ts` 中配置了 Element Plus 常用方法的自动导入，无需手动 import。
+
+> 本文档原存放于 `apps/admin/docs/`，2026-11-24 收编进文档站；同目录的 `auto-import.ts` 还会自动扫描 `src/composables/*`（useCrud、useAuth 等同样免 import）。
 
 ## 可用的自动导入方法
 

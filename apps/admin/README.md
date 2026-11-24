@@ -1,77 +1,36 @@
+# nest-acticle 管理后台（admin）
+
+Vue3 + Element Plus + Vite 单页管理端，是 monorepo 的三个应用之一（后端 `apps/server`、前台 `apps/client`、本文档 `apps/admin`）。基于 RuoYi-Vue3 模板深度改造：权限/菜单/字典体系保留，业务层已全部重写为 monorepo 契约驱动。
+
 ## 开发
 
 ```bash
-# 克隆项目
-git clone https://github.com/taozhi1010/nest-admin
+# 仓库根目录一次性安装（pnpm workspace，Node >= 20.19）
+pnpm install
 
-# 进入项目目录
-cd admin
-
-# 安装依赖
-npm install
-
-# 建议不要直接使用 cnpm 安装依赖，会有各种诡异的 bug。可以通过如下操作解决 npm 下载速度慢的问题
-npm install --registry=https://registry.npmmirror.com
-
-# 启动服务
-npm run dev
+# 起管理端 dev server（端口 8888；被占用时用 dev:clean 先释放）
+pnpm --filter admin dev
+# 或
+pnpm --filter admin dev:clean
 ```
 
-浏览器访问 http://localhost:8888
+生产构建 `pnpm --filter admin build:prod`（产物在 `dist/`，容器化部署见根目录 `docker-compose.yml`）。
 
-### 工具函数库
+本地栈口径：管理后台入口 http://localhost:8081 （compose nginx 反代），API 统一走 `/api` 前缀。
 
-项目集成了 `cat-tools` 工具库，提供丰富的实用工具函数：
+## 权限与鉴权
 
-- **自动导入**：在 Vue 组件中可直接使用 `catTools`，无需手动 import
-- **Composable**：通过 `useCatTools()` 获取更多工具函数
-- **功能丰富**：包含数组处理、数据验证、字符串处理、日期格式化等 30+ 个函数
+- 页面/按钮级：`v-hasPermi` / `v-hasRole` 自定义指令（18+ 处消费），权限串与 `apps/server/db/init.sql` 菜单种子逐字符一致
+- 程序化判断/动态路由过滤：`useAuth()` 组合式函数（`src/composables/useAuth.ts`），由 `vite/plugins/auto-import.ts` 自动导入
+- 请求层：`src/composables/useRequest.ts` 单例 axios（token 注入、防重提、信封错误归一）；列表页统一走 `useCrud` 范式
 
-**快速开始：**
+## 自动导入
 
-```vue
-<script setup>
-// 直接使用（自动导入）
-const result = catTools.isNullorUndefined(value)
+Element Plus API/组件与 `src/composables/*` 均已配置自动导入，无需手动 import。机制说明见文档站：
 
-// 或使用 Composable
-import { useCatTools } from '@/composables/useCatTools'
-const { dateFormat, deepCopy, uniqueArr } = useCatTools()
-</script>
-```
+- [Element Plus 自动导入](../../docs/development-tips/admin-element-plus-auto-import.md)
+- [useAuth 权限验证](../../docs/development-tips/admin-useauth.md)
 
-📚 查看详细文档：
-- [快速开始指南](docs/CAT_TOOLS_QUICKSTART.md)
-- [完整集成文档](docs/CAT_TOOLS_INTEGRATION.md)
+## 项目文档站
 
-### 配置文件管理
-
-项目使用 `config` 文件夹统一管理配置文件，按功能分为三类：
-
-- **dev/** - 开发环境配置（Prettier、ESLint、TypeScript）
-- **env/** - 环境配置（各环境变量文件）
-- **ops/** - 运维部署配置（Dockerfile、Nginx）
-
-**注意**: 根目录的配置文件已移除，统一在 `config/` 目录下管理。
-
-**修改配置文件后**，需要运行以下命令将配置文件复制到项目根目录：
-
-```powershell
-.\copy-config.ps1
-```
-
-或者手动复制单个文件：
-
-```powershell
-copy "config\dev\.prettierrc" ".prettierrc"
-```
-
-## 发布
-
-```bash
-# 构建测试环境
-npm run build:stage
-
-# 构建生产环境
-npm run build:prod
-```
+开发/部署全量文档在 `apps/docs`（VitePress）：`pnpm --filter docs dev` 后访问 http://localhost:6173 ，含在线部署、自动部署密钥配置、开发协作规范与发布记录。

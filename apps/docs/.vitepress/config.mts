@@ -40,6 +40,8 @@ export default defineConfig({
           text: '开发',
           items: [
             { text: '协作开发', link: '/development-tips/partner' },
+            { text: 'Admin · Element Plus 自动导入', link: '/development-tips/admin-element-plus-auto-import' },
+            { text: 'Admin · useAuth 权限验证', link: '/development-tips/admin-useauth' },
           ],
         },
       ],

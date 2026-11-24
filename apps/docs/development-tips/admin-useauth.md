@@ -4,6 +4,8 @@
 
 `useAuth` 是一个基于 TypeScript 的权限验证组合式函数，提供了完整的权限和角色验证功能。它替代了原有的 `auth.js` 插件，采用了更符合 Vue 3 组合式 API 的设计模式。
 
+**与 `v-hasPermi` 指令的分工**：页面/按钮级的模板判断惯用 `v-hasPermi`/`v-hasRole` 自定义指令（全仓 18+ 处）；`useAuth` 主要服务于程序化判断与动态路由权限过滤（`store/modules/permission.ts` 的 `filterDynamicRoutes` 用其 `hasPermiOr`/`hasRoleOr`）。两者底层同为登录用户权限串集合。
+
 ## 特性
 
 - ✅ TypeScript 支持，提供完整的类型定义
@@ -11,6 +13,8 @@
 - ✅ 详细的 JSDoc 注释
 - ✅ 兼容原有 API
 - ✅ 支持权限和角色验证
+
+> 本文档原存放于 `apps/admin/docs/`，2026-11-24 收编进文档站。
 
 ## 使用方法
 
