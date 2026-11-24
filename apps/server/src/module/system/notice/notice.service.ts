@@ -25,7 +25,10 @@ export class NoticeService {
     applyLike(entity, 'entity.createBy', query.createBy);
 
     if (query.noticeId) {
+      // 前台通知详情页按 id 直取（复用 list 权限，见 ListNoticeDto 注释）：服务端强制只回生效公告，
+      // 关闭态公告不能凭 id 越权直取；管理端列表不带 noticeId 走不到此分支，过滤逻辑不变
       entity.andWhere('entity.noticeId = :noticeId', { noticeId: query.noticeId });
+      entity.andWhere('entity.status = :status', { status: '0' });
     }
 
     if (query.noticeType) {
