@@ -557,3 +557,23 @@ grep 实际 **16 处**（报告第二节记 6 处不全——monitor loginlog/op
 - **E 批（Client P2 批）**：usePagedList 收编 9 套手写分页；collect/detail SPA 残留旧集；space loader 请求序号；notification tab 重复请求；noticeCats 收敛；Game/ListCard 删除；注册撞号改业务码判断（后端 auth 加专属 code + 前端接线，替换 ACCOUNT_EXISTS_HINTS 文案匹配）；localStorage 阅读去重键过期清扫；收到的赞入 useLike
 - **F 批（Admin+杂项）**：默认收藏夹删除假成功（removeByIds 返回 {purged, skippedDefault}，依赖 D 批文件，须排在 D 后）；抽屉吞错提示；首页 swagger 死链；clipboard 死依赖；MinioModule 删除；gitignore `!apps/client/.env` 反选
 - **本机项（需用户确认）**：未跟踪 dev.yml + local-config 拷贝仍存旧服务器 IP 与 MinIO 密钥明文——git 已净，待用户拍板后清理并轮换密钥
+
+---
+
+## 十八、第 2/3 波收官 + 三交互收工验收（2026-11-24，总览会话调度 D/E 子会话并行实施 + F 批亲修）
+
+**D 批（Server P2 六条，6 commits `c001248..53f78b0`）**：①关闭态公告强制 status='0'（单测覆盖）②已读水位与互动列升 datetime(3)——**否决了总览建议的「水位+1s」最小修：MySQL 对 datetime(0) 舍入而非截断，+1s 会把下一秒内到达的互动一并排除、漏标窗口反而扩大**，完整方案残窗缩至同毫秒并发（存储粒度极限），含 init.sql 单一基准 + CHANGELOG 增量 DDL 提示 + service 单测 ③自订阅拦截 + 单测（存量脏数据经 unsubscribe 物理删行可自愈，无需回填）④collect_num「关系条数」口径注释 ⑤评论线程分页**保守保留**——核实 parentId 支持任意深度嵌套、无 root_id 无法两步分页，补复杂度注释与升级路径（单篇博客量级 + idx + 封顶下可接受）⑥like 显式传参（消 builder 级隐式共享的顺序脆弱性）。
+
+**E 批（Client P2 九条，10 commits `74eebbb..daee312`）**：usePagedList/useInfiniteList 双 composable（请求序号只认最新一发；分页替换式与追加式各自内聚）→ 通知中心 5 套、空间页 5 loader 收编（顺带修 loadGuestProfile 切空间残留与过期副作用）；collect/detail 切集残留根因修复（Nuxt 新 key 沿用旧数据特性 + watch:false + 清空重拉，私密集本人重拉一并修好，追加列表收编 useInfiniteList）；noticeCats 收口 NOTICE_CATS；注册撞号专属业务码 602（shared ACCOUNT_EXISTS_CODE + apiFetch 抛带码 ApiError，文案匹配降兜底）；阅读去重键过期清扫；收到的赞入 useLike；Game 死组件删除；浏览器实测（mock 后端 + 构建产物预览）抓出并修复 CommonEmptyState 插槽用法；prettier 对齐。
+
+**F 批（总览会话亲修，6 commits `4490e29..5b36a6a`）**：removeByIds 返回 {purged, skippedDefault} + useCrud deleteSuccess 函数化扩展 + 管理端区分提示（消灭默认收藏夹「删除成功」假成功）；抽屉加载失败补报错；首页接口文档死链改 /swagger-ui/；clipboard 死依赖移除；MinioModule 死模块删除（minio npm 包由 file-storage 保留）；gitignore `!apps/client/.env` 反选移除。
+
+### 终验（当前 HEAD `5b36a6a`，共 24 commits 未 push）
+
+server build ✅、server test **26/26**（D 批新增 notify/collection 单测纳入）✅、client typecheck EXIT=0 ✅、lint 0 errors ✅、admin build:prod ✅、client build ✅、openapi 契约与 HEAD 重生成零 diff（removeByIds 响应无 schema 面）✅。
+
+### 三交互收工结论
+
+**点赞 ✅ / 收藏 ✅ / 评论 ✅ 均可收工**。唯一保留项：评论线程分页 O(总评论数)/请求（db3697d 已注释量级依据与 root_id 升级路径，属设计取舍非缺陷）。
+
+**遗留（非三交互）**：本地 24 commits 待 push 备份；tsconfig strict 长期债；admin api 层 .js TS 化（中期）；NUXT_B5026 css 警告；现役 dev.yml 旧 IP/密钥待用户拍板 + RustFS 密钥轮换；**compose 栈需 `docker:up` 重建才带上全部新修复**（运行中容器仍是旧镜像）。
