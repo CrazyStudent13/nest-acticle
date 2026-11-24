@@ -216,7 +216,7 @@
 
 <script setup lang="ts">
 import dayjs from 'dayjs'
-import type { Collection, LikedArticleItem, Subject } from '@nest-acticle/shared'
+import type { Article, Collection, LikedArticleItem, Subject } from '@nest-acticle/shared'
 
 // 登录守卫走 auth middleware：未登录/恢复失败回首页；带 ?id= 看他人空间时走 guest 旁路公开可看（authGuestQuery）
 definePageMeta({
@@ -253,6 +253,10 @@ const spaceStats = ref({ total: 0, reads: 0, likes: 0 })
 const loadGuestProfile = async (userId: number) => {
   try {
     const profile = await fetchGuestProfile(userId)
+    // 请求期间切到别人的空间：上一位的资料不落地
+    if (userId !== targetUserId.value) {
+      return
+    }
     if (profile) {
       spaceProfile.value = { nickName: profile.nickName, avatar: profile.avatar ?? undefined }
     }
@@ -264,18 +268,13 @@ const loadGuestProfile = async (userId: number) => {
 // ---------- 页面初始化：自己的空间要求登录，他人空间公开可看（两种情形都由 auth middleware 判定先行） ----------
 const initSpace = () => {
   // 切换空间时清掉搜索词/点赞列表/收藏集/上一位的资料，避免带到下一位
+  // （列表 reset 同时作废上一位空间在飞的请求，迟到的旧结果不会写回）
   keyword.value = ''
-  likedArticles.value = []
-  likedPage.value = 1
-  likedTotal.value = 0
+  likedList.reset()
   spaceProfile.value = {}
-  createdCollections.value = []
-  createdPage.value = 1
-  createdTotal.value = 0
+  createdList.reset()
   createdLoaded.value = false
-  subscribedCollections.value = []
-  subscribedPage.value = 1
-  subscribedTotal.value = 0
+  subscribedList.reset()
   subscribedLoaded.value = false
   loadMyArticles()
   if (activeTab.value === 'like') {
@@ -341,44 +340,51 @@ const tabs = [
   { key: 'like', label: '点赞' }
 ]
 const activeTab = ref('article')
-const articles = ref<any[]>([])
-const articlesLoading = ref(true)
 
 // ---------- 文章列表：标题搜索（后端 LIKE）+ 时间正/倒序（后端排序参数），输入 400ms 防抖 ----------
 const keyword = ref('')
 const timeOrder = ref<'desc' | 'asc'>('desc')
 let keywordTimer: ReturnType<typeof setTimeout> | null = null
 
+// ---------- 五个列表共用 usePagedList（页码/总数/加载态/请求序号都在里面）：文章与专栏一次性拉满 50 条不分页，
+// 点赞与收藏集双子栏真分页。fetchPage 在调用时才读 userId/搜索词/排序，搜索、排序、切换空间重新 load 即可；
+// 请求序号保证先发后到的过期响应（连改搜索词、快速切空间）不会覆盖当前结果 ----------
+// 空间尚未解析出 userId（登录态未恢复）时各 loader 直接返回不发请求，这里只是收窄类型
+const userIdForList = () => targetUserId.value as number
+
+// 加载态初值为 true：首屏等 onMounted（登录态就绪后）才首次加载，避免水合前闪一下空态
+const articleList = usePagedList<Article>(
+  (params) =>
+    fetchGuestArticles({
+      userId: userIdForList(),
+      ...params,
+      orderByColumn: 'createTime',
+      isAsc: timeOrder.value === 'desc' ? 'descending' : 'ascending',
+      ...(keyword.value.trim() ? { title: keyword.value.trim() } : {})
+    }),
+  { pageSize: 50, initialLoading: true }
+)
+const { list: articles, loading: articlesLoading } = articleList
+
 const loadMyArticles = async () => {
   const userId = targetUserId.value
   if (!userId) {
     return
   }
-  articlesLoading.value = true
-  try {
-    const data = await fetchGuestArticles({
-      userId,
-      pageNum: 1,
-      pageSize: 50,
-      orderByColumn: 'createTime',
-      isAsc: timeOrder.value === 'desc' ? 'descending' : 'ascending',
-      ...(keyword.value.trim() ? { title: keyword.value.trim() } : {})
-    })
-    const list = data.list || []
-    articles.value = list
-    // 他人空间资料走公开资料接口（零文章用户也能取到昵称头像）
-    if (!isSelf.value) {
-      loadGuestProfile(userId)
-    }
-    spaceStats.value = {
-      total: data.total || 0,
-      reads: list.reduce((sum, item) => sum + (item.readNum || 0), 0),
-      likes: list.reduce((sum, item) => sum + (item.likeNum || 0), 0)
-    }
-  } catch {
-    articles.value = []
-  } finally {
-    articlesLoading.value = false
+  // 过期（已被更晚的搜索/排序/空间切换取代）或失败：不落任何副作用
+  const data = await articleList.load()
+  if (!data) {
+    return
+  }
+  const list = data.list || []
+  // 他人空间资料走公开资料接口（零文章用户也能取到昵称头像）
+  if (!isSelf.value) {
+    loadGuestProfile(userId)
+  }
+  spaceStats.value = {
+    total: data.total || 0,
+    reads: list.reduce((sum, item) => sum + (item.readNum || 0), 0),
+    likes: list.reduce((sum, item) => sum + (item.likeNum || 0), 0)
   }
 }
 
@@ -400,56 +406,40 @@ const toggleTimeOrder = () => {
 }
 
 // ---------- 专栏 tab：guest subject list 原生支持 userId 过滤，首次进入 tab 才拉取 ----------
-const subjects = ref<Subject[]>([])
-const subjectsLoading = ref(false)
+const subjectList = usePagedList<Subject>((params) => fetchGuestSubjects({ userId: userIdForList(), ...params }), {
+  pageSize: 50
+})
+const { list: subjects, loading: subjectsLoading } = subjectList
 const subjectsLoaded = ref(false)
 
+// 无论成败都标记「已加载过」（切走再切回不重拉），与原实现一致
 const loadMySubjects = async () => {
-  const userId = targetUserId.value
-  if (!userId) {
+  if (!targetUserId.value) {
     return
   }
-  subjectsLoading.value = true
-  try {
-    const data = await fetchGuestSubjects({ userId, pageNum: 1, pageSize: 50 })
-    subjects.value = data.list || []
-  } catch {
-    subjects.value = []
-  } finally {
-    subjectsLoading.value = false
-    subjectsLoaded.value = true
-  }
+  await subjectList.load()
+  subjectsLoaded.value = true
 }
 
 // ---------- 点赞 tab：空间主人点赞过的已发布文章（公开接口，guest/list 按 userId 查询） ----------
 const LIKED_PAGE_SIZE = 10
-const likedArticles = ref<LikedArticleItem[]>([])
-const likedLoading = ref(false)
-const likedPage = ref(1)
-const likedTotal = ref(0)
-
-const loadLikedArticles = async (page = 1) => {
-  const userId = targetUserId.value
-  if (!userId) {
-    return
-  }
-  likedPage.value = page
-  likedLoading.value = true
-  try {
-    const data = await fetchUserLikedArticles(userId, {
-      pageNum: page,
-      pageSize: LIKED_PAGE_SIZE,
+const likedList = usePagedList<LikedArticleItem>(
+  (params) =>
+    fetchUserLikedArticles(userIdForList(), {
+      ...params,
       isAsc: timeOrder.value === 'desc' ? 'descending' : 'ascending',
       ...(keyword.value.trim() ? { title: keyword.value.trim() } : {})
-    })
-    likedArticles.value = data.list || []
-    likedTotal.value = data.total || 0
-  } catch {
-    likedArticles.value = []
-    likedTotal.value = 0
-  } finally {
-    likedLoading.value = false
+    }),
+  { pageSize: LIKED_PAGE_SIZE }
+)
+const { page: likedPage, total: likedTotal, list: likedArticles, loading: likedLoading } = likedList
+
+// 不传页码 = 回第一页重拉（搜索/排序变化、切 tab、切空间）；分页器翻页传目标页
+const loadLikedArticles = (page = 1) => {
+  if (!targetUserId.value) {
+    return
   }
+  return likedList.load(page)
 }
 
 const onLikedPageChange = (page: number) => {
@@ -459,56 +449,39 @@ const onLikedPageChange = (page: number) => {
 // ---------- 收藏集 tab：我创建的/我订阅的子栏，各自独立分页，首次进入才拉取 ----------
 const COLLECT_PAGE_SIZE = 10
 const collectBox = ref<'created' | 'subscribed'>('created')
-const collectLoading = ref(false)
 
-const createdCollections = ref<Collection[]>([])
-const createdPage = ref(1)
-const createdTotal = ref(0)
+const createdList = usePagedList<Collection>((params) => fetchGuestCollections(userIdForList(), params), {
+  pageSize: COLLECT_PAGE_SIZE
+})
+const { page: createdPage, total: createdTotal, list: createdCollections } = createdList
 const createdLoaded = ref(false)
 
-const subscribedCollections = ref<Collection[]>([])
-const subscribedPage = ref(1)
-const subscribedTotal = ref(0)
+const subscribedList = usePagedList<Collection>((params) => fetchGuestSubscribed(userIdForList(), params), {
+  pageSize: COLLECT_PAGE_SIZE
+})
+const { page: subscribedPage, total: subscribedTotal, list: subscribedCollections } = subscribedList
 const subscribedLoaded = ref(false)
 
-const loadCreatedCollections = async (page = 1) => {
-  const userId = targetUserId.value
-  if (!userId) {
+// 两子栏共用一个加载态：任一子栏在拉，当前子栏没数据时显示「加载中」
+const collectLoading = computed(() => createdList.loading.value || subscribedList.loading.value)
+
+// 不传页码 = 回第一页重拉（保存/删除收藏集后刷新计数）；无论成败都标记「已加载过」
+const loadCreatedCollections = (page = 1) => {
+  if (!targetUserId.value) {
     return
   }
-  createdPage.value = page
-  collectLoading.value = true
-  try {
-    const data = await fetchGuestCollections(userId, { pageNum: page, pageSize: COLLECT_PAGE_SIZE })
-    createdCollections.value = data.list || []
-    createdTotal.value = data.total || 0
-  } catch {
-    createdCollections.value = []
-    createdTotal.value = 0
-  } finally {
-    collectLoading.value = false
+  return createdList.load(page).finally(() => {
     createdLoaded.value = true
-  }
+  })
 }
 
-const loadSubscribedCollections = async (page = 1) => {
-  const userId = targetUserId.value
-  if (!userId) {
+const loadSubscribedCollections = (page = 1) => {
+  if (!targetUserId.value) {
     return
   }
-  subscribedPage.value = page
-  collectLoading.value = true
-  try {
-    const data = await fetchGuestSubscribed(userId, { pageNum: page, pageSize: COLLECT_PAGE_SIZE })
-    subscribedCollections.value = data.list || []
-    subscribedTotal.value = data.total || 0
-  } catch {
-    subscribedCollections.value = []
-    subscribedTotal.value = 0
-  } finally {
-    collectLoading.value = false
+  return subscribedList.load(page).finally(() => {
     subscribedLoaded.value = true
-  }
+  })
 }
 
 // 按当前子栏拉取（tab 切换/空间切换共用入口）
