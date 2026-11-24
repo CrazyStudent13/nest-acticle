@@ -33,4 +33,4 @@ Element Plus API/组件与 `src/composables/*` 均已配置自动导入，无需
 
 ## 项目文档站
 
-开发/部署全量文档在 `apps/docs`（VitePress）：`pnpm --filter docs dev` 后访问 http://localhost:6173 ，含在线部署、自动部署密钥配置、开发协作规范与发布记录。
+开发/部署全量文档在 `apps/docs`（VitePress）：本地开发 `pnpm --filter docs dev` 后访问 http://localhost:6173/manual/ （热更新）；容器栈内由 blog-nginx 托管为 http://localhost:8888/manual/ （静态构建，随 `docker compose up -d --build` 更新）。含在线部署、自动部署密钥配置、开发协作规范与发布记录。

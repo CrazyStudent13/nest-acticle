@@ -120,6 +120,16 @@ services:
     depends_on:
       - server
 
+  docs:
+    build:
+      context: .
+      dockerfile: apps/docs/Dockerfile
+    image: ${IMAGE_PREFIX:-ghcr.io/crazystudent13/nest-acticle}-docs:latest
+    container_name: blog-docs
+    restart: unless-stopped
+    mem_limit: 32m
+    # 不映射宿主端口：经 blog-nginx 的 /manual/ 反代访问（与 VitePress base 逐字对应）
+
 volumes:
   mysql_data:
   redis_data:
