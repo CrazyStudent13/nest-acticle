@@ -498,8 +498,7 @@ const handleSubmit = async () => {
       showToast('注册成功，请登录', 'success')
     } catch (error: any) {
       // 账号已存在单独给登录引导，其余错误原样提示：先按业务码，再退回文案特征兜底
-      const isAccountExists =
-        error?.code === ACCOUNT_EXISTS_CODE || ACCOUNT_EXISTS_HINTS.some((hint) => String(error?.message || '').includes(hint))
+      const isAccountExists = error?.code === ACCOUNT_EXISTS_CODE || ACCOUNT_EXISTS_HINTS.some((hint) => String(error?.message || '').includes(hint))
       if (isAccountExists) {
         showToast('该邮箱已注册，请直接登录', 'error')
       } else {

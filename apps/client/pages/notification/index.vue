@@ -41,7 +41,7 @@
                 </svg>
               </div>
             </NuxtLink>
-              <CommonPagination :page="page" :total="total" :page-size="PAGE_SIZE" @update:page="loadNotices" />
+            <CommonPagination :page="page" :total="total" :page-size="PAGE_SIZE" @update:page="loadNotices" />
           </template>
           <CommonEmptyState v-else-if="loading" text="加载中…" />
           <CommonEmptyState v-else-if="errorMsg">{{ errorMsg }}</CommonEmptyState>
@@ -321,10 +321,7 @@ const PAGE_SIZE = 10
 // 所以「重置页码 + 显式加载」每次切换只发一发请求。解构出的名字与模板一一对应
 
 // 系统通知列表：服务端按 status='0' 过滤已关闭公告；403 等业务错误降级为空态提示
-const noticeList = usePagedList<NoticeItem>(
-  (params) => fetchNotices({ ...params, status: '0' }),
-  { pageSize: PAGE_SIZE, errorMsg: '通知加载失败' }
-)
+const noticeList = usePagedList<NoticeItem>((params) => fetchNotices({ ...params, status: '0' }), { pageSize: PAGE_SIZE, errorMsg: '通知加载失败' })
 const { page, total, list: notices, loading, error: errorMsg } = noticeList
 const loadNotices = noticeList.load
 
@@ -335,8 +332,7 @@ const receivedList = usePagedList<ReceivedCommentItem>((params) => fetchReceived
   pageSize: PAGE_SIZE,
   errorMsg: '评论加载失败'
 })
-const { page: receivedPage, total: receivedTotal, list: receivedComments, loading: receivedLoading, error: receivedError } =
-  receivedList
+const { page: receivedPage, total: receivedTotal, list: receivedComments, loading: receivedLoading, error: receivedError } = receivedList
 const loadReceivedComments = receivedList.load
 
 // 子栏切换：重置到第一页并按需加载（切走的子页在切回时再拉，保证数据新鲜）

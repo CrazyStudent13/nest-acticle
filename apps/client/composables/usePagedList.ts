@@ -16,10 +16,7 @@ interface PagedListOptions {
   initialLoading?: boolean
 }
 
-export const usePagedList = <T>(
-  fetchPage: (params: { pageNum: number; pageSize: number }) => Promise<PageResult<T>>,
-  options: PagedListOptions = {}
-) => {
+export const usePagedList = <T>(fetchPage: (params: { pageNum: number; pageSize: number }) => Promise<PageResult<T>>, options: PagedListOptions = {}) => {
   const pageSize = options.pageSize ?? 10
   const page = ref(1)
   const total = ref(0)
