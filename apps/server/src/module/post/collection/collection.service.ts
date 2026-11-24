@@ -244,6 +244,8 @@ export class PostCollectionService {
 
   /**
    * 订阅收藏集（幂等：已订阅直接返回当前状态；私密收藏集不可订阅）
+   * 不能订阅自己创建的收藏集：订阅是「关注他人动态」语义，自订阅只会让
+   * subscriber_count 虚高、自己的空间页「我订阅的」混入自己的收藏集
    */
   async subscribe(collectionId: number, userId: number) {
     return this.articleRepo.manager.transaction(async (manager) => {
@@ -253,6 +255,9 @@ export class PostCollectionService {
       }
       if (collection.visibility === '1') {
         throw new BusinessException(500, '私密收藏集不可订阅');
+      }
+      if (collection.userId === userId) {
+        throw new BusinessException(400, '不能订阅自己的收藏集');
       }
 
       const inserted: any = await manager.query(
