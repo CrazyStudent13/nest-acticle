@@ -4,10 +4,10 @@
 // 接口只要求 JWT，调用方须保证登录态（AppHeader 已登录区块 / 通知页 auth middleware）
 import type { NotifyUnreadCount, PageResult, ReceivedCommentItem } from '@nest-acticle/shared'
 
-const EMPTY_UNREAD: NotifyUnreadCount = { comment: 0, like: 0, collect: 0, total: 0 }
+const EMPTY_UNREAD: NotifyUnreadCount = { comment: 0, like: 0, collect: 0, follow: 0, total: 0 }
 
-// 有未读计数的互动分类（粉丝/系统通知未建未接计数）
-export type NotifyCategoryKey = 'comment' | 'like' | 'collect'
+// 有未读计数的互动分类（与后端 NotifyCategory 对应；系统通知无水位不计）
+export type NotifyCategoryKey = 'comment' | 'like' | 'collect' | 'follow'
 
 export const useNotify = () => {
   // 全局未读数：useState 跨组件共享，AppHeader 与通知中心页读写同一份

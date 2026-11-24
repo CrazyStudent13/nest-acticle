@@ -218,6 +218,9 @@ const catUnread = (key: NoticeCat['key']) => {
   if (key === 'like') {
     return unread.value.like + unread.value.collect
   }
+  if (key === 'follower') {
+    return unread.value.follow
+  }
   return 0
 }
 

@@ -1,4 +1,4 @@
-<!-- 个人空间页：带 ?id= 看他人空间（公开资料接口取昵称/头像+文章统计+点赞栏，零文章用户同样能解析出资料），否则自己的空间（完整账号信息+编辑资料入口）；文章 tab 标题搜索+时间正/倒序（400ms 防抖），专栏 tab 复用 ColumnCard，点赞 tab 展示空间主人点赞过的文章（公开） -->
+<!-- 个人空间页：带 ?id= 看他人空间（公开资料接口取昵称/头像+文章统计+点赞栏，零文章用户同样能解析出资料），否则自己的空间（完整账号信息+编辑资料入口）；文章 tab 标题搜索+时间正/倒序（400ms 防抖），专栏 tab 复用 ColumnCard，点赞 tab 展示空间主人点赞过的文章（公开），关注/粉丝 tab 展示空间主人的关注与粉丝列表（公开，条目带访问者视角三态关注按钮） -->
 <template>
   <div class="space-page">
     <!-- 资料卡：自己的空间展示完整字段，他人空间只展示公开信息 -->
@@ -31,10 +31,14 @@
         <div v-if="isSelf" class="profile-actions">
           <button class="btn ghost" type="button" @click="goSettings">编辑资料</button>
         </div>
+        <!-- 他人空间（且已登录）：关注按钮三态；未登录不渲染，关注动作入口由文章页作者卡承接游客 -->
+        <div v-else-if="isLoggedIn" class="profile-actions">
+          <FollowButton :target-user-id="targetUserId!" @change="onProfileFollowChange" />
+        </div>
       </div>
     </div>
 
-    <!-- 内容卡：文章 / 专栏 / 点赞 tab 统一（点赞仅本人空间），通知入口统一收归头部铃铛 -->
+    <!-- 内容卡：文章 / 专栏 / 关注 / 粉丝 / 点赞 tab 统一（点赞仅本人空间），通知入口统一收归头部铃铛 -->
     <div class="feed-panel content-panel">
       <div class="tab-bar">
         <div class="tab-items">
@@ -49,9 +53,9 @@
             {{ t.label }}
           </button>
         </div>
-        <!-- 文章/点赞 tab 的搜索与时间排序；收藏集 tab 显示新建入口（排序内嵌搜索框前置位） -->
+        <!-- 文章/点赞 tab 的搜索与时间排序；关注/粉丝栏不提供搜索（同掘金）；收藏集 tab 显示新建入口（排序内嵌搜索框前置位） -->
         <div class="tab-tools">
-          <template v-if="activeTab !== 'collect'">
+          <template v-if="activeTab === 'article' || activeTab === 'like'">
             <div class="article-search">
               <button class="time-toggle" type="button" @click="toggleTimeOrder">
                 <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" :class="{ flip: timeOrder === 'asc' }" aria-hidden="true">
@@ -70,8 +74,8 @@
               />
             </div>
           </template>
-          <!-- 新建收藏集入口（仅本人空间，同掘金收藏集栏右上角） -->
-          <button v-else-if="isSelf" class="create-collect-btn" type="button" @click="openCollectEdit(null)">
+          <!-- 新建收藏集入口（仅收藏集 tab + 本人空间，同掘金收藏集栏右上角） -->
+          <button v-else-if="activeTab === 'collect' && isSelf" class="create-collect-btn" type="button" @click="openCollectEdit(null)">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true">
               <line x1="12" y1="5" x2="12" y2="19" />
               <line x1="5" y1="12" x2="19" y2="12" />
@@ -138,6 +142,52 @@
         </CommonEmptyState>
         <CommonEmptyState v-else>
           {{ isSelf ? '还没有点赞过文章，去信息流给好内容点个赞吧' : 'TA 还没有点赞过文章' }}
+        </CommonEmptyState>
+      </template>
+
+      <!-- 关注 tab：空间主人关注的人（公开，guest 接口本人/访客共用），条目按钮为访问者视角三态 -->
+      <template v-else-if="activeTab === 'follow'">
+        <div v-if="followUsers.length" class="follow-list">
+          <FollowUserRow
+            v-for="item in followUsers"
+            :key="item.userId"
+            :user-info="item"
+            @click="goSpace(item)"
+            @change="onFollowRowChange"
+          />
+          <CommonPagination
+            :page="followPage"
+            :total="followTotal"
+            :page-size="FOLLOW_PAGE_SIZE"
+            @update:page="onFollowPageChange"
+          />
+        </div>
+        <CommonEmptyState v-else-if="followList.loading.value" text="加载中…" />
+        <CommonEmptyState v-else>
+          {{ isSelf ? '还没有关注任何人，去文章页发现感兴趣的作者吧' : 'TA 还没有关注任何人' }}
+        </CommonEmptyState>
+      </template>
+
+      <!-- 粉丝 tab：关注空间主人的人（公开，同掘金），未回关的条目按钮即「回关」 -->
+      <template v-else-if="activeTab === 'fans'">
+        <div v-if="fansUsers.length" class="follow-list">
+          <FollowUserRow
+            v-for="item in fansUsers"
+            :key="item.userId"
+            :user-info="item"
+            @click="goSpace(item)"
+            @change="onFansRowChange"
+          />
+          <CommonPagination
+            :page="fansPage"
+            :total="fansTotal"
+            :page-size="FOLLOW_PAGE_SIZE"
+            @update:page="onFansPageChange"
+          />
+        </div>
+        <CommonEmptyState v-else-if="fansLoading" text="加载中…" />
+        <CommonEmptyState v-else>
+          {{ isSelf ? '还没有粉丝，持续输出优质内容就会有人关注你' : 'TA 还没有粉丝' }}
         </CommonEmptyState>
       </template>
 
@@ -216,7 +266,7 @@
 
 <script setup lang="ts">
 import dayjs from 'dayjs'
-import type { Article, Collection, LikedArticleItem, Subject } from '@nest-acticle/shared'
+import type { Article, Collection, FollowUserItem, LikedArticleItem, Subject, ViewerFollowState } from '@nest-acticle/shared'
 
 // 登录守卫走 auth middleware：未登录/恢复失败回首页；带 ?id= 看他人空间时走 guest 旁路公开可看（authGuestQuery）
 definePageMeta({
@@ -226,8 +276,9 @@ definePageMeta({
 
 const config = useRuntimeConfig()
 const route = useRoute()
-const { user, fetchGuestProfile } = useUser()
+const { user, isLoggedIn, fetchGuestProfile } = useUser()
 const { fetchUserLikedArticles } = useLike()
+const { fetchUserFollows } = useFollow()
 const { fetchGuestArticles } = useArticleManage()
 const { fetchGuestSubjects } = useSubject()
 const { fetchGuestCollections, fetchGuestSubscribed } = useCollect()
@@ -267,7 +318,7 @@ const loadGuestProfile = async (userId: number) => {
 
 // ---------- 页面初始化：自己的空间要求登录，他人空间公开可看（两种情形都由 auth middleware 判定先行） ----------
 const initSpace = () => {
-  // 切换空间时清掉搜索词/点赞列表/收藏集/上一位的资料，避免带到下一位
+  // 切换空间时清掉搜索词/点赞列表/收藏集/关注粉丝列表/上一位的资料，避免带到下一位
   // （列表 reset 同时作废上一位空间在飞的请求，迟到的旧结果不会写回）
   keyword.value = ''
   likedList.reset()
@@ -276,11 +327,19 @@ const initSpace = () => {
   createdLoaded.value = false
   subscribedList.reset()
   subscribedLoaded.value = false
+  followList.reset()
+  followLoaded.value = false
+  fansList.reset()
+  fansLoaded.value = false
   loadMyArticles()
   if (activeTab.value === 'like') {
     loadLikedArticles()
   } else if (activeTab.value === 'collect') {
     loadCollectBox()
+  } else if (activeTab.value === 'follow') {
+    loadFollowUsers()
+  } else if (activeTab.value === 'fans') {
+    loadFansUsers()
   }
 }
 
@@ -332,11 +391,13 @@ const goSettings = () => {
   return navigateTo('/user/settings')
 }
 
-// ---------- 内容 tab：文章/专栏/点赞/收藏集（点赞栏与收藏集栏公开可见，同掘金） ----------
+// ---------- 内容 tab：文章/专栏/收藏集/关注/粉丝/点赞（关注粉丝栏与收藏集栏公开可见，同掘金） ----------
 const tabs = [
   { key: 'article', label: '文章' },
   { key: 'subject', label: '专栏' },
   { key: 'collect', label: '收藏集' },
+  { key: 'follow', label: '关注' },
+  { key: 'fans', label: '粉丝' },
   { key: 'like', label: '点赞' }
 ]
 const activeTab = ref('article')
@@ -444,6 +505,79 @@ const loadLikedArticles = (page = 1) => {
 
 const onLikedPageChange = (page: number) => {
   loadLikedArticles(page)
+}
+
+// ---------- 关注/粉丝 tab：空间主人的关注/粉丝列表（公开接口，guest/list 按 userId+type 查询），
+// 关注时间倒序；条目 followState 为访问者视角三态（登录态由服务端解析，未登录一律 none） ----------
+const FOLLOW_PAGE_SIZE = 10
+
+const followList = usePagedList<FollowUserItem>((params) => fetchUserFollows(userIdForList(), 'following', params), {
+  pageSize: FOLLOW_PAGE_SIZE
+})
+const { page: followPage, total: followTotal, list: followUsers, loading: followLoading } = followList
+const followLoaded = ref(false)
+
+const loadFollowUsers = (page = 1) => {
+  if (!targetUserId.value) {
+    return
+  }
+  return followList.load(page).finally(() => {
+    followLoaded.value = true
+  })
+}
+
+const onFollowPageChange = (page: number) => {
+  loadFollowUsers(page)
+}
+
+const fansList = usePagedList<FollowUserItem>((params) => fetchUserFollows(userIdForList(), 'fans', params), {
+  pageSize: FOLLOW_PAGE_SIZE
+})
+const { page: fansPage, total: fansTotal, list: fansUsers, loading: fansLoading } = fansList
+const fansLoaded = ref(false)
+
+const loadFansUsers = (page = 1) => {
+  if (!targetUserId.value) {
+    return
+  }
+  return fansList.load(page).finally(() => {
+    fansLoaded.value = true
+  })
+}
+
+const onFansPageChange = (page: number) => {
+  loadFansUsers(page)
+}
+
+// 条目关注按钮动作后回写行数据（UserRow 不直改 props，页面按 userId 找到行回写状态与粉丝数）
+const applyRowChange = (list: FollowUserItem[], payload: { userId: number; state: ViewerFollowState; fanNum: number }) => {
+  const row = list.find((item) => item.userId === payload.userId)
+  if (row) {
+    row.fanNum = payload.fanNum
+    row.followState = payload.state
+  }
+}
+
+const onFollowRowChange = (payload: { userId: number; state: ViewerFollowState; fanNum: number }) => {
+  applyRowChange(followUsers.value, payload)
+}
+
+const onFansRowChange = (payload: { userId: number; state: ViewerFollowState; fanNum: number }) => {
+  applyRowChange(fansUsers.value, payload)
+}
+
+// 资料卡关注按钮动作后：已加载过的两列表当场重拉（当前 tab 立即反映；未加载过的标记待切 tab 时拉）
+const onProfileFollowChange = () => {
+  if (followLoaded.value) {
+    loadFollowUsers()
+  } else {
+    followLoaded.value = false
+  }
+  if (fansLoaded.value) {
+    loadFansUsers()
+  } else {
+    fansLoaded.value = false
+  }
 }
 
 // ---------- 收藏集 tab：我创建的/我订阅的子栏，各自独立分页，首次进入才拉取 ----------
@@ -566,7 +700,7 @@ const switchTab = (key: string) => {
     return
   }
   activeTab.value = key
-  // 文章/点赞两 tab 共用搜索与排序控件，切入时按当前控件状态重载；专栏/收藏集首次进入才拉取
+  // 文章/点赞两 tab 共用搜索与排序控件，切入时按当前控件状态重载；专栏/收藏集/关注/粉丝首次进入才拉取
   if (key === 'like') {
     loadLikedArticles()
   } else if (key === 'article') {
@@ -575,6 +709,10 @@ const switchTab = (key: string) => {
     loadMySubjects()
   } else if (key === 'collect' && !createdLoaded.value && !subscribedLoaded.value) {
     loadCollectBox()
+  } else if (key === 'follow' && !followLoaded.value) {
+    loadFollowUsers()
+  } else if (key === 'fans' && !fansLoaded.value) {
+    loadFansUsers()
   }
 }
 
@@ -582,6 +720,13 @@ const goArticle = (item: any) => {
   return navigateTo({
     path: '/article/detail',
     query: { id: item.id }
+  })
+}
+
+const goSpace = (item: { userId: number }) => {
+  return navigateTo({
+    path: '/user/space',
+    query: { id: String(item.userId) }
   })
 }
 
@@ -736,6 +881,11 @@ const goColumn = (item: any) => {
 
 // 收藏集行列表容器（CollectionRow 自带行分隔线）
 .collection-list {
+  overflow: hidden;
+}
+
+// 关注/粉丝行列表容器（FollowUserRow 自带行分隔线）
+.follow-list {
   overflow: hidden;
 }
 

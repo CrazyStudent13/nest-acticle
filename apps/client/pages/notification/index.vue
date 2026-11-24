@@ -1,4 +1,4 @@
-<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知，互动两分类带未读数红标）+ 右侧列表；系统通知接 /api/system/notice/list（列表行收成徽标/标题/时间，点击进入独立详情页阅读 Markdown 正文，分页）；评论栏双子栏——「收到的评论」接 /api/post/comment/received/list（他人评论我的文章/回复我的评论，掘金式四行结构：动作短句/内容/文章引用行/时间），「我发表的」接 /api/post/comment/my/list（类型徽标区分，支持删除）；赞和收藏栏双子栏——「收到的赞」接 /api/post/like/received/list、「收到的收藏」接 /api/post/collection/received/list（他人把我的文章收进 ta 的公开收藏集，同款结构）；新增粉丝后端未建占位空态；进入互动分类栏即逐栏清该栏红标（赞和收藏栏一次推平 like+collect 两水位）；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
+<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知，互动三分类带未读数红标）+ 右侧列表；系统通知接 /api/system/notice/list（列表行收成徽标/标题/时间，点击进入独立详情页阅读 Markdown 正文，分页）；评论栏双子栏——「收到的评论」接 /api/post/comment/received/list（他人评论我的文章/回复我的评论，掘金式四行结构：动作短句/内容/文章引用行/时间），「我发表的」接 /api/post/comment/my/list（类型徽标区分，支持删除）；赞和收藏栏双子栏——「收到的赞」接 /api/post/like/received/list、「收到的收藏」接 /api/post/collection/received/list（他人把我的文章收进 ta 的公开收藏集，同款结构）；新增粉丝接 /api/post/follow/received/list（谁关注了我，行尾回关按钮三态）；进入互动分类栏即逐栏清该栏红标（赞和收藏栏一次推平 like+collect 两水位）；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
 <template>
   <div class="notification-page">
     <div class="notice-panel">
@@ -233,8 +233,33 @@
           </template>
         </template>
 
-        <!-- 其余分类：互动功能未建，占位空态 -->
-        <CommonEmptyState v-else>{{ activeCat.label }}功能即将上线，敬请期待</CommonEmptyState>
+        <!-- 新增粉丝：谁关注了我（掘金式接收流），未回关的条目行尾即「回关」按钮 -->
+        <template v-else-if="activeTab === 'follower'">
+          <template v-if="receivedFollows.length">
+            <article v-for="row in receivedFollows" :key="row.id" class="notice-item notify-item">
+              <NuxtLink class="notify-avatar" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                <img v-if="row.avatar" :src="coverUrl(row.avatar)" :alt="row.nickName" loading="lazy" />
+                <span v-else class="avatar-fallback">{{ (row.nickName || '用').slice(0, 1) }}</span>
+              </NuxtLink>
+              <div class="notify-main">
+                <p class="notify-head">
+                  <NuxtLink class="notify-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                    {{ row.nickName || '用户' }}
+                  </NuxtLink>
+                  关注了你
+                </p>
+                <time class="notify-time">{{ formatRelativeTime(row.followTime) }}</time>
+              </div>
+              <!-- 回关按钮：mutual=互相关注 none=回关（following 态在本栏行构造上不出现） -->
+              <div class="row-follow" @click.stop>
+                <FollowButton :target-user-id="row.userId" :state="row.followState" size="small" @change="(payload) => onFollowRowChange(row, payload)" />
+              </div>
+            </article>
+            <CommonPagination :page="followPage" :total="followTotal" :page-size="PAGE_SIZE" @update:page="loadReceivedFollows" />
+          </template>
+          <CommonEmptyState v-else-if="followLoading" text="加载中…" />
+          <CommonEmptyState v-else>还没有粉丝，发布优质内容就会有人关注你</CommonEmptyState>
+        </template>
       </section>
     </div>
   </div>
@@ -243,7 +268,7 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
 import { formatRelativeTime } from '@nest-acticle/utils'
-import type { MyCommentItem, ReceivedCollectItem, ReceivedCommentItem, ReceivedLikeItem } from '@nest-acticle/shared'
+import type { MyCommentItem, ReceivedCollectItem, ReceivedCommentItem, ReceivedFollowItem, ReceivedLikeItem, ViewerFollowState } from '@nest-acticle/shared'
 import type { NoticeItem, NoticeTab } from '~/composables/useNotice'
 
 // 登录守卫走 auth middleware：未登录弹登录框并回首页，数据加载保持在组件内（守卫先行不发必 401 的请求）
@@ -291,7 +316,7 @@ const { user } = useUser()
 // 当前登录人 id：收到的评论行判定「回复了我的评论」用
 const currentUserId = computed(() => user.value?.userId ?? null)
 
-// 菜单未读数：与铃铛同源，仅互动两分类有计数（赞和收藏栏合并展示赞+收藏未读）
+// 菜单未读数：与铃铛同源（赞和收藏栏合并展示赞+收藏未读，新增粉丝栏单独计 follow）
 const catUnread = (key: NoticeTab) => {
   if (key === 'comment') {
     return unread.value.comment
@@ -299,10 +324,13 @@ const catUnread = (key: NoticeTab) => {
   if (key === 'like') {
     return unread.value.like + unread.value.collect
   }
+  if (key === 'follower') {
+    return unread.value.follow
+  }
   return 0
 }
 
-// 分类栏进入即清该栏红标（水位推至当前）：评论/赞和收藏逐栏清，系统通知/新增粉丝无计数
+// 分类栏进入即清该栏红标（水位推至当前）：评论/赞和收藏/新增粉丝逐栏清，系统通知无计数
 // 赞和收藏栏同时推平 like 与 collect 两个水位（红标为两者合计，进入即全清）
 const onTabEnter = (tab: NoticeTab) => {
   if (tab === 'comment') {
@@ -311,6 +339,9 @@ const onTabEnter = (tab: NoticeTab) => {
   if (tab === 'like') {
     markRead('like').catch(() => {})
     markRead('collect').catch(() => {})
+  }
+  if (tab === 'follower') {
+    markRead('follow').catch(() => {})
   }
 }
 
@@ -444,6 +475,21 @@ const switchLikeBox = (box: 'like' | 'collect') => {
   }
 }
 
+// ---------- 收到的关注（新增粉丝 tab）：谁关注了我，服务端按登录态过滤，最新在前 ----------
+const { fetchReceivedFollows } = useFollow()
+
+const followNoticeList = usePagedList<ReceivedFollowItem>((params) => fetchReceivedFollows(params), {
+  pageSize: PAGE_SIZE,
+  errorMsg: '关注列表加载失败'
+})
+const { page: followPage, total: followTotal, list: receivedFollows, loading: followLoading, error: followError } = followNoticeList
+const loadReceivedFollows = followNoticeList.load
+
+// 回关按钮动作后回写行状态（不直改 props 由页面兜着，本页直接改行对象引用即可）
+const onFollowRowChange = (row: ReceivedFollowItem, payload: { state: ViewerFollowState; fanNum: number }) => {
+  row.followState = payload.state
+}
+
 // 加载当前分类栏（按子栏）：首屏（登录守卫之后）与切分类共用，每次只发当前栏的那一发
 const reloadActiveTab = () => {
   if (activeTab.value === 'system') {
@@ -462,6 +508,8 @@ const reloadActiveTab = () => {
     } else {
       collectList.reload()
     }
+  } else if (activeTab.value === 'follower') {
+    followNoticeList.reload()
   }
 }
 
@@ -750,6 +798,12 @@ onMounted(() => {
     margin-top: 8px;
     font-size: 12px;
     color: var(--color-text-3);
+  }
+
+  // 新增粉丝行尾的回关按钮（不冒泡到行点击）
+  .row-follow {
+    flex-shrink: 0;
+    align-self: center;
   }
 
   // 右侧文章封面缩略图：64px 圆角小图，垂直居中，链接到文章详情

@@ -1,4 +1,4 @@
-<!-- 文章详情页右侧作者信息卡：头像 + 昵称 + 文章/阅读/获赞三栏统计（掘金式布局，暂无签名数据先省略） -->
+<!-- 文章详情页右侧作者信息卡：头像 + 昵称 + 文章/阅读/获赞三栏统计 + 关注按钮（掘金式布局，暂无签名数据先省略） -->
 <template>
   <div class="author-card">
     <div class="author-head">
@@ -29,6 +29,9 @@
         <span class="label">获赞</span>
       </div>
     </div>
+
+    <!-- 关注按钮：自己看自己的文章不渲染（登录态恢复前先按游客渲染，点击会引导登录） -->
+    <FollowButton v-if="!isSelf && !!props.author.userId" class="author-follow" :target-user-id="props.author.userId!" />
   </div>
 </template>
 
@@ -49,8 +52,12 @@ const props = withDefaults(
 )
 
 const config = useRuntimeConfig()
+const { user } = useUser()
 const authorName = computed(() => props.author.nickName || '佚名')
 const avatarUrl = computed(() => toCoverUrl(config.public.apiBase, props.author.avatar))
+
+// 是否作者本人：登录态恢复后比对 userId（SSR 阶段 user 为空，按钮先按游客渲染，水合后自行隐藏）
+const isSelf = computed(() => !!user.value?.userId && user.value.userId === props.author.userId)
 
 // 统计数据来自 guest 文章列表按 userId 过滤：total 即文章数，readNum/likeNum 求和即累计阅读/获赞
 // 站内规模小 pageSize 100 够用；父组件保证仅在有 userId 时渲染本卡片
@@ -150,5 +157,11 @@ const stats = computed(() => {
       color: var(--color-text-3);
     }
   }
+}
+
+// 关注按钮：统计行下方通栏（掘金作者卡同款位）
+.author-follow {
+  margin-top: 14px;
+  width: 100%;
 }
 </style>
