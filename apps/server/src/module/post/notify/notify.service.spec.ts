@@ -21,6 +21,7 @@ describe('PostNotifyService（已读水位）', () => {
   const commentChain = makeChain();
   const likeChain = makeChain();
   const collectChain = makeChain();
+  const followChain = makeChain();
 
   const readRepo = {
     find: jest.fn(),
@@ -32,6 +33,7 @@ describe('PostNotifyService（已读水位）', () => {
     collectRepo: { createQueryBuilder: jest.fn().mockReturnValue(collectChain) },
     collectionRepo: {},
     articleRepo: {},
+    followRepo: { createQueryBuilder: jest.fn().mockReturnValue(followChain) },
   };
   let service: PostNotifyService;
 
@@ -41,7 +43,8 @@ describe('PostNotifyService（已读水位）', () => {
     repos.commentRepo.createQueryBuilder.mockReturnValue(commentChain);
     repos.likeRepo.createQueryBuilder.mockReturnValue(likeChain);
     repos.collectRepo.createQueryBuilder.mockReturnValue(collectChain);
-    for (const chain of [commentChain, likeChain, collectChain]) {
+    repos.followRepo.createQueryBuilder.mockReturnValue(followChain);
+    for (const chain of [commentChain, likeChain, collectChain, followChain]) {
       for (const step of ['where', 'andWhere', 'innerJoin']) {
         chain[step].mockReturnValue(chain);
       }
@@ -49,18 +52,18 @@ describe('PostNotifyService（已读水位）', () => {
     }
     // transaction 直接以 mock manager 执行回调
     readRepo.manager.transaction.mockImplementation((cb: (m: unknown) => unknown) => cb({ query: jest.fn() }));
-    service = new PostNotifyService(readRepo as any, repos.commentRepo as any, repos.likeRepo as any, repos.collectRepo as any, repos.collectionRepo as any, repos.articleRepo as any);
+    service = new PostNotifyService(readRepo as any, repos.commentRepo as any, repos.likeRepo as any, repos.collectRepo as any, repos.collectionRepo as any, repos.articleRepo as any, repos.followRepo as any);
   });
 
   describe('markRead', () => {
-    it('缺省推平全部互动分类：comment/like/collect 各 upsert 一条水位', async () => {
+    it('缺省推平全部互动分类：comment/like/collect/follow 各 upsert 一条水位', async () => {
       const manager = { query: jest.fn() };
       readRepo.manager.transaction.mockImplementation((cb: (m: unknown) => unknown) => cb(manager));
 
       await service.markRead(7);
 
       const categories = manager.query.mock.calls.map((call) => call[1][1]);
-      expect(categories).toEqual(['comment', 'like', 'collect']);
+      expect(categories).toEqual(['comment', 'like', 'collect', 'follow']);
       // 水位值原样透传（同一 Date 实例写满 INSERT/UPDATE 槽位），不截断不换算
       for (const call of manager.query.mock.calls) {
         expect(call[1][0]).toBe(7);
@@ -81,10 +84,11 @@ describe('PostNotifyService（已读水位）', () => {
   });
 
   describe('unreadCount', () => {
-    it('无任何水位（首次进入）：三分类计数均不带水位过滤', async () => {
+    it('无任何水位（首次进入）：四分类计数均不带水位过滤', async () => {
       readRepo.find.mockResolvedValue([]);
       likeChain.getCount.mockResolvedValue(2);
       commentChain.getCount.mockResolvedValue(3);
+      followChain.getCount.mockResolvedValue(1);
 
       const res = await service.unreadCount(7);
 
@@ -93,7 +97,8 @@ describe('PostNotifyService（已读水位）', () => {
       expect(createTimeFilters(commentChain)).toHaveLength(0);
       expect(createTimeFilters(likeChain)).toHaveLength(0);
       expect(createTimeFilters(collectChain)).toHaveLength(0);
-      expect(res.data).toEqual({ comment: 3, like: 2, collect: 0, total: 5 });
+      expect(createTimeFilters(followChain)).toHaveLength(0);
+      expect(res.data).toEqual({ comment: 3, like: 2, collect: 0, follow: 1, total: 6 });
     });
 
     it('带 like 水位：仅 like 链挂水位过滤，毫秒精度的水位 Date 原样透传', async () => {
@@ -105,7 +110,8 @@ describe('PostNotifyService（已读水位）', () => {
       const createTimeFilters = (chain: Record<string, jest.Mock>) => chain.andWhere.mock.calls.filter((call) => String(call[0]).includes('createTime >'));
       expect(createTimeFilters(commentChain)).toHaveLength(0);
       expect(createTimeFilters(collectChain)).toHaveLength(0);
-      expect(res.data).toEqual({ comment: 0, like: 0, collect: 0, total: 0 });
+      expect(createTimeFilters(followChain)).toHaveLength(0);
+      expect(res.data).toEqual({ comment: 0, like: 0, collect: 0, follow: 0, total: 0 });
     });
   });
 });

@@ -5,12 +5,13 @@ import { PostLikeModule } from './like/like.module';
 import { PostCommentModule } from './comment/comment.module';
 import { PostNotifyModule } from './notify/notify.module';
 import { PostCollectionModule } from './collection/collection.module';
+import { PostFollowModule } from './follow/follow.module';
 
 /**
- * Post 模块（文章、专栏、点赞、评论、互动通知和收藏集）
+ * Post 模块（文章、专栏、点赞、评论、互动通知、收藏集和关注）
  */
 @Module({
-  imports: [PostArticleModule, PostSubjectModule, PostLikeModule, PostCommentModule, PostNotifyModule, PostCollectionModule],
-  exports: [PostArticleModule, PostSubjectModule, PostLikeModule, PostCommentModule, PostNotifyModule, PostCollectionModule],
+  imports: [PostArticleModule, PostSubjectModule, PostLikeModule, PostCommentModule, PostNotifyModule, PostCollectionModule, PostFollowModule],
+  exports: [PostArticleModule, PostSubjectModule, PostLikeModule, PostCommentModule, PostNotifyModule, PostCollectionModule, PostFollowModule],
 })
 export class PostModule {}

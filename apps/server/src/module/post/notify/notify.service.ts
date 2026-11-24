@@ -9,15 +9,17 @@ import { PostLikeEntity } from '../like/entities/like.entity';
 import { PostCollectionArticleEntity } from '../collection/entities/collection-article.entity';
 import { PostCollectionEntity } from '../collection/entities/collection.entity';
 import { PostArticleEntity } from '../article/entities/article.entity';
+import { PostFollowEntity } from '../follow/entities/follow.entity';
 
 /**
  * 互动通知分类（与 post_notify_read.category 对应；
- * 新增粉丝/私信等分类上线时在此扩列，init.sql 的 varchar(16) 足够容纳）
+ * 新增私信等分类上线时在此扩列，init.sql 的 varchar(16) 足够容纳）
  */
 export const NotifyCategory = {
   COMMENT: 'comment',
   LIKE: 'like',
   COLLECT: 'collect',
+  FOLLOW: 'follow',
 } as const;
 
 /**
@@ -43,6 +45,8 @@ export class PostNotifyService {
     private readonly collectionRepo: Repository<PostCollectionEntity>,
     @InjectRepository(PostArticleEntity)
     private readonly articleRepo: Repository<PostArticleEntity>,
+    @InjectRepository(PostFollowEntity)
+    private readonly followRepo: Repository<PostFollowEntity>,
   ) {}
 
   /**
@@ -91,7 +95,18 @@ export class PostNotifyService {
   }
 
   /**
-   * 未读计数（铃铛红标）：按分类返回，total 为互动分类合计（粉丝/系统通知未建不计）
+   * 收到的关注未读条件：他人关注我，与 follow.service.findReceivedList 口径一致
+   * 服务层已禁止自关注，DB 层仍兜底排除 follower = following 的脏行
+   */
+  private receivedFollowQb(userId: number) {
+    return this.followRepo
+      .createQueryBuilder('follow')
+      .where('follow.followingId = :userId', { userId })
+      .andWhere('follow.followerId <> :userId', { userId });
+  }
+
+  /**
+   * 未读计数（铃铛红标）：按分类返回，total 为互动分类合计（系统通知未建不计）
    */
   async unreadCount(userId: number) {
     const watermarks = await this.readRepo.find({ where: { userId } });
@@ -118,7 +133,14 @@ export class PostNotifyService {
     }
     const collect = await collectQb.getCount();
 
-    return ResultData.ok({ comment, like, collect, total: comment + like + collect });
+    const followQb = this.receivedFollowQb(userId);
+    const followRead = readMap.get(NotifyCategory.FOLLOW);
+    if (followRead) {
+      followQb.andWhere('follow.createTime > :followRead', { followRead });
+    }
+    const follow = await followQb.getCount();
+
+    return ResultData.ok({ comment, like, collect, follow, total: comment + like + collect + follow });
   }
 
   /**

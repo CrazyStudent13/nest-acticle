@@ -911,6 +911,58 @@ insert into
   sys_menu
 values
   (
+    '210',
+    '关注管理',
+    '6',
+    '4',
+    'follow',
+    'post/follow/index',
+    '',
+    '1',
+    '0',
+    'C',
+    '0',
+    '0',
+    'post:follow:list',
+    'peoples',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '关注管理菜单',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
+    '211',
+    '关注删除',
+    '210',
+    '1',
+    '',
+    '',
+    '',
+    '1',
+    '0',
+    'F',
+    '0',
+    '0',
+    'post:follow:remove',
+    'form',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '关注删除权限',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
     '500',
     '操作日志',
     '108',
@@ -5012,3 +5064,20 @@ create table
     unique key uk_collection_user (collection_id, user_id),
     key idx_user_id (user_id)
   ) engine = innodb comment = '收藏集订阅库';
+
+-- ----------------------------
+-- 27、关注库
+-- ----------------------------
+drop table if exists post_follow;
+
+create table
+  post_follow (
+    id int not null auto_increment comment '关注 id',
+    follower_id int not null comment '关注人（粉丝）用户ID',
+    following_id int not null comment '被关注用户ID',
+    -- datetime(3)：互动通知未读水位按 create_time > read_time 比较，秒级粒度会使 markRead 同秒互动永久漏红标
+    create_time datetime(3) default current_timestamp(3) comment '关注时间（毫秒粒度，互动通知水位比较列）',
+    primary key (id),
+    unique key uk_follower_following (follower_id, following_id),
+    key idx_following_id (following_id)
+  ) engine = innodb comment = '关注库';
