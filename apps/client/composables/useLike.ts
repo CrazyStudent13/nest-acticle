@@ -1,7 +1,7 @@
-// 文章点赞：状态查询/点赞/取消/用户点赞列表。
+// 文章点赞：状态查询/点赞/取消/用户点赞列表/收到的赞。
 // 点赞与取消均要求登录态；点赞栏列表为公开接口（个人空间对访客开放，同掘金「赞」栏），
-// 本人空间与他人空间共用 guest/list（userId 区分归属）
-import type { LikedArticleItem, LikeActionResult, PageResult } from '@nest-acticle/shared'
+// 本人空间与他人空间共用 guest/list（userId 区分归属）；收到的赞按登录态过滤，须保证守卫先行
+import type { LikedArticleItem, LikeActionResult, PageResult, ReceivedLikeItem } from '@nest-acticle/shared'
 
 export const useLike = () => {
   const fetchLikeStatus = async (articleId: number | string): Promise<boolean> => {
@@ -35,5 +35,13 @@ export const useLike = () => {
     return res.data ?? { list: [], total: 0 }
   }
 
-  return { fetchLikeStatus, likeArticle, unlikeArticle, fetchUserLikedArticles }
+  // 收到的赞（通知中心赞和收藏栏）：他人点赞我的文章，服务端按当前登录人过滤，最新在前
+  const fetchReceivedLikes = async (params: { pageNum?: number; pageSize?: number }): Promise<PageResult<ReceivedLikeItem>> => {
+    const res = await apiFetch<PageResult<ReceivedLikeItem>>('/api/post/like/received/list', {
+      query: { ...params }
+    })
+    return res.data ?? { list: [], total: 0 }
+  }
+
+  return { fetchLikeStatus, likeArticle, unlikeArticle, fetchUserLikedArticles, fetchReceivedLikes }
 }

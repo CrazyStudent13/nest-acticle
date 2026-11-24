@@ -482,15 +482,15 @@ const likeTotal = ref(0)
 const likeLoading = ref(false)
 const likeError = ref('')
 
+const { fetchReceivedLikes } = useLike()
+
 const loadReceivedLikes = async () => {
   likeLoading.value = true
   likeError.value = ''
   try {
-    const res = await apiFetch<{ list?: ReceivedLikeItem[]; total?: number }>('/api/post/like/received/list', {
-      query: { pageNum: likePage.value, pageSize: PAGE_SIZE }
-    })
-    receivedLikes.value = res.data?.list || []
-    likeTotal.value = res.data?.total || 0
+    const data = await fetchReceivedLikes({ pageNum: likePage.value, pageSize: PAGE_SIZE })
+    receivedLikes.value = data.list || []
+    likeTotal.value = data.total || 0
   } catch (error: any) {
     receivedLikes.value = []
     likeTotal.value = 0
