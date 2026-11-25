@@ -164,7 +164,8 @@ export class PostLikeService {
       .where('article.userId = :userId', { userId })
       .andWhere('article.delFlag = :delFlag', { delFlag: '0' })
       .andWhere('article.publishStatus = :publishStatus', { publishStatus: PublishStatusEnum.PUBLISHED })
-      .andWhere('like.userId <> :userId');
+      // 显式传第二参注册 userId：不依赖同 builder 内其他 where 挂载的同名参数（builder 级共享能跑但脆弱）
+      .andWhere('like.userId <> :userId', { userId });
 
     paginate(entity, query);
 

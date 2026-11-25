@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { randomInt } from 'crypto';
 import * as bcrypt from 'bcryptjs';
+import { ACCOUNT_EXISTS_CODE } from '@nest-acticle/shared';
 import { RedisService } from 'src/module/common/redis/redis.service';
 import { GetNowDate, GenerateUUID } from 'src/common/utils/index';
 import { CacheEnum, DelFlagEnum, StatusEnum } from 'src/common/enum/index';
@@ -213,6 +214,7 @@ export class AuthService {
     if (rateCount > REGISTER_IP_LIMIT) {
       throw new BusinessException(429, '注册过于频繁，请稍后再试');
     }
+    // 撞号三条路径统一出 ACCOUNT_EXISTS_CODE 专属业务码（HTTP 仍归 500）：前端按码转登录引导，不再匹配文案
     const checkUserNameUnique = await this.userRepo.findOne({
       where: {
         userName: user.username,
@@ -220,7 +222,7 @@ export class AuthService {
       select: ['userName'],
     });
     if (checkUserNameUnique) {
-      throw new BusinessException(500, '该账号已注册，请直接登录');
+      throw new BusinessException(ACCOUNT_EXISTS_CODE, '该账号已注册，请直接登录');
     }
     // 邮箱占用查重（sys_user.email 无唯一索引，应用层兜底；未填邮箱时跳过）
     if (user.email) {
@@ -231,7 +233,7 @@ export class AuthService {
         select: ['userId'],
       });
       if (checkEmailUnique) {
-        throw new BusinessException(500, '该邮箱已被其他账号使用');
+        throw new BusinessException(ACCOUNT_EXISTS_CODE, '该邮箱已被其他账号使用');
       }
     }
     user['userName'] = user.username;
@@ -251,7 +253,7 @@ export class AuthService {
     } catch (error) {
       // 并发注册撞车时前置查重拦不住，靠 user_name 唯一索引兜底（ER_DUP_ENTRY）
       if (error?.code === 'ER_DUP_ENTRY') {
-        throw new BusinessException(500, '该账号已注册，请直接登录');
+        throw new BusinessException(ACCOUNT_EXISTS_CODE, '该账号已注册，请直接登录');
       }
       throw error;
     }

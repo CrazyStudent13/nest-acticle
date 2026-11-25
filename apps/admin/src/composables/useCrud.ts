@@ -83,8 +83,8 @@ export interface CrudTexts {
   addSuccess?: string;
   /** 修改成功提示，默认 '修改成功' */
   updateSuccess?: string;
-  /** 删除成功提示，默认 '删除成功' */
-  deleteSuccess?: string;
+  /** 删除成功提示，默认 '删除成功'；传函数时接收删除接口响应，可按返回数据定制文案（如部分跳过场景） */
+  deleteSuccess?: string | ((res: any) => string);
   /** 确认框标题，默认 '提示' */
   confirmTitle?: string;
   /** 删除确认文案（deleteIds 为单行主键或选中主键数组，row 为单行删除时的行数据），默认 `是否确认删除${name}编号为"${deleteIds}"的数据项？` */
@@ -237,8 +237,9 @@ export function useCrud(options: CrudOptions) {
         cancelButtonText: '取消',
         type: 'warning'
       });
-      await api.del!(deleteIds);
-      ElMessage.success(texts?.deleteSuccess ?? '删除成功');
+      const res = await api.del!(deleteIds);
+      const successText = typeof texts?.deleteSuccess === 'function' ? texts.deleteSuccess(res) : (texts?.deleteSuccess ?? '删除成功');
+      ElMessage.success(successText);
       await getList();
       // 删掉当前页全部数据后页面已空：逐页回退重新加载，避免停留在空白页
       while (list.value.length === 0 && queryParams.pageNum > 1) {

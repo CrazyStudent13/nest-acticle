@@ -18,8 +18,9 @@ import { Promotion } from '@element-plus/icons-vue';
 const hour = new Date().getHours();
 const greeting = hour < 6 ? '凌晨好' : hour < 12 ? '上午好' : hour < 14 ? '中午好' : hour < 18 ? '下午好' : '晚上好';
 
-// 开发环境经 vite 代理（/dev-api → /api），生产环境走同源 /api 前缀
-const swaggerUrl = `${import.meta.env.VITE_APP_BASE_API}/swagger-ui`;
+// 接口文档走 nginx 静态托管（同源根路径，无 /api 前缀）——与「服务工具→接口文档」三入口页同款链接；
+// 服务端 setupApiDocs 挂载路径因 app.prefix 无前导斜杠对请求不可达，加前缀反而 404
+const swaggerUrl = '/swagger-ui/';
 
 const openSwagger = () => {
   window.open(swaggerUrl, '_blank');

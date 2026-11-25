@@ -10,6 +10,7 @@ import { RoleModule } from '../role/role.module';
 import { RedisModule } from 'src/module/common/redis/redis.module';
 import { UploadModule } from 'src/module/upload/upload.module';
 import { OperlogModule } from 'src/module/monitor/operlog/operlog.module';
+import { PostFollowModule } from 'src/module/post/follow/follow.module';
 
 @Module({
   imports: [
@@ -19,6 +20,8 @@ import { OperlogModule } from 'src/module/monitor/operlog/operlog.module';
     RedisModule,
     UploadModule,
     OperlogModule,
+    // 用户列表「粉丝量」列：复用关注服务的整页 GROUP BY 批查（post_follow 表访问逻辑收口在 post/follow 模块内）
+    PostFollowModule,
   ],
   controllers: [UserController],
   providers: [UserService, UserExcelService],

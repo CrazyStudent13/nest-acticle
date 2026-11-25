@@ -9,12 +9,13 @@
 
 /**
  * 未读计数（头部铃铛红标）
- * comment=收到的评论 like=收到的赞 collect=收到的收藏 total=互动分类合计；粉丝/系统通知未建不计
+ * comment=收到的评论 like=收到的赞 collect=收到的收藏 follow=收到的关注 total=互动分类合计；系统通知未建不计
  */
 export interface NotifyUnreadCount {
   comment: number;
   like: number;
   collect: number;
+  follow: number;
   total: number;
 }
 

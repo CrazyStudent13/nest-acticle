@@ -191,6 +191,9 @@ export class PostCollectionService {
       }
 
       // 参数化 INSERT IGNORE + 唯一索引 uk_collection_article：并发重复收藏静默忽略（affectedRows=0 表示已收藏过）
+      // collect_num 口径为「收藏关系条数」而非「去重人数」：同一文章被收进 N 个收藏集即计 N
+      // （不像 like_num 一人一文一条天然去重），uncollect / 清集 / 删集对称回减，账目自洽；
+      // 展示语义是「被收藏次数」，跨收藏集的重复收录按次累加属预期行为
       const inserted: any = await manager.query(
         'INSERT IGNORE INTO post_collection_article (collection_id, article_id, user_id) VALUES (?, ?, ?)',
         [collectionId, articleId, userId],
@@ -244,6 +247,8 @@ export class PostCollectionService {
 
   /**
    * 订阅收藏集（幂等：已订阅直接返回当前状态；私密收藏集不可订阅）
+   * 不能订阅自己创建的收藏集：订阅是「关注他人动态」语义，自订阅只会让
+   * subscriber_count 虚高、自己的空间页「我订阅的」混入自己的收藏集
    */
   async subscribe(collectionId: number, userId: number) {
     return this.articleRepo.manager.transaction(async (manager) => {
@@ -253,6 +258,9 @@ export class PostCollectionService {
       }
       if (collection.visibility === '1') {
         throw new BusinessException(500, '私密收藏集不可订阅');
+      }
+      if (collection.userId === userId) {
+        throw new BusinessException(400, '不能订阅自己的收藏集');
       }
 
       const inserted: any = await manager.query(
@@ -625,7 +633,8 @@ export class PostCollectionService {
       this.logger.log(
         `管理员批量删除收藏集 ${purged}/${ids.length} 个，清理收藏关系 ${relationCount} 条${skippedDefault ? `，跳过默认收藏夹 ${skippedDefault} 个` : ''}`,
       );
-      return ResultData.ok();
+      // 返回实际结果：默认收藏夹跳过不是成功也不是失败，管理端据此区分提示，不再一律「删除成功」
+      return ResultData.ok({ purged, skippedDefault });
     });
   }
 }

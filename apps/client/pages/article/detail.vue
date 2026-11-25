@@ -142,6 +142,22 @@ const collectCount = computed(() =>
 )
 
 // ---------- 阅读数：客户端上报一次，服务端原子自增；按文章+自然日去重，防刷新灌水 ----------
+const READ_KEY_PREFIX = 'article-read:'
+
+// 去重键按「文章 + 自然日」各存一条，隔日即失效：写入新键时顺带清掉非当日的旧键，
+// 防每读一篇多一条、localStorage 无界累积（前缀只此一处使用，不会误伤其他键）
+const sweepStaleReadKeys = (day: string) => {
+  // 先收集再删：边遍历边删会让后续键位前移，漏扫
+  const staleKeys: string[] = []
+  for (let i = 0; i < localStorage.length; i++) {
+    const key = localStorage.key(i)
+    if (key?.startsWith(READ_KEY_PREFIX) && !key.endsWith(`:${day}`)) {
+      staleKeys.push(key)
+    }
+  }
+  staleKeys.forEach((key) => localStorage.removeItem(key))
+}
+
 const recordRead = async () => {
   const id = article.value.id
   if (!id) {
@@ -149,7 +165,7 @@ const recordRead = async () => {
   }
   const now = new Date()
   const day = `${now.getFullYear()}-${now.getMonth() + 1}-${now.getDate()}`
-  const storageKey = `article-read:${id}:${day}`
+  const storageKey = `${READ_KEY_PREFIX}${id}:${day}`
   if (localStorage.getItem(storageKey)) {
     return
   }
@@ -160,6 +176,7 @@ const recordRead = async () => {
       readNumLocal.value = res.data.readNum
     }
     localStorage.setItem(storageKey, '1')
+    sweepStaleReadKeys(day)
   } catch {
     // 上报失败不阻塞阅读，下次进入再试
   }

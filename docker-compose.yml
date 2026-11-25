@@ -53,7 +53,7 @@ services:
       REDIS_HOST: redis
       REDIS_PORT: 6379
       REDIS_DB: 0
-      JWT_SECRETKEY: ${JWT_SECRETKEY:-please-change-me-to-a-random-secret}
+      JWT_SECRETKEY: ${JWT_SECRETKEY:?必须在 .env 配置 JWT_SECRETKEY}
       MAIL_ENABLED: ${MAIL_ENABLED:-false}
       MAIL_HOST: ${MAIL_HOST:-}
       MAIL_PORT: ${MAIL_PORT:-465}
@@ -119,6 +119,16 @@ services:
       - ./deploy/nginx/redoc:/usr/share/nginx/html/redoc:ro
     depends_on:
       - server
+
+  docs:
+    build:
+      context: .
+      dockerfile: apps/docs/Dockerfile
+    image: ${IMAGE_PREFIX:-ghcr.io/crazystudent13/nest-acticle}-docs:latest
+    container_name: blog-docs
+    restart: unless-stopped
+    mem_limit: 32m
+    # 不映射宿主端口：经 blog-nginx 的 /manual/ 反代访问（与 VitePress base 逐字对应）
 
 volumes:
   mysql_data:

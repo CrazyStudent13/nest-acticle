@@ -1,4 +1,4 @@
-<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知，互动两分类带未读数红标）+ 右侧列表；系统通知接 /api/system/notice/list（列表行收成徽标/标题/时间，点击进入独立详情页阅读 Markdown 正文，分页）；评论栏双子栏——「收到的评论」接 /api/post/comment/received/list（他人评论我的文章/回复我的评论，掘金式四行结构：动作短句/内容/文章引用行/时间），「我发表的」接 /api/post/comment/my/list（类型徽标区分，支持删除）；赞和收藏栏双子栏——「收到的赞」接 /api/post/like/received/list、「收到的收藏」接 /api/post/collection/received/list（他人把我的文章收进 ta 的公开收藏集，同款结构）；新增粉丝后端未建占位空态；进入互动分类栏即逐栏清该栏红标（赞和收藏栏一次推平 like+collect 两水位）；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
+<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知，互动三分类带未读数红标）+ 右侧列表；系统通知接 /api/system/notice/list（列表行收成徽标/标题/时间，点击进入独立详情页阅读 Markdown 正文，分页）；评论栏双子栏——「收到的评论」接 /api/post/comment/received/list（他人评论我的文章/回复我的评论，掘金式四行结构：动作短句/内容/文章引用行/时间），「我发表的」接 /api/post/comment/my/list（类型徽标区分，支持删除）；赞和收藏栏双子栏——「收到的赞」接 /api/post/like/received/list、「收到的收藏」接 /api/post/collection/received/list（他人把我的文章收进 ta 的公开收藏集，同款结构）；新增粉丝接 /api/post/follow/received/list（谁关注了我，行尾回关按钮三态）；进入互动分类栏即逐栏清该栏红标（赞和收藏栏一次推平 like+collect 两水位）；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
 <template>
   <div class="notification-page">
     <div class="notice-panel">
@@ -41,7 +41,7 @@
                 </svg>
               </div>
             </NuxtLink>
-            <CommonPagination v-model:page="page" :total="total" :page-size="PAGE_SIZE" />
+            <CommonPagination :page="page" :total="total" :page-size="PAGE_SIZE" @update:page="loadNotices" />
           </template>
           <CommonEmptyState v-else-if="loading" text="加载中…" />
           <CommonEmptyState v-else-if="errorMsg">{{ errorMsg }}</CommonEmptyState>
@@ -93,7 +93,7 @@
                   <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
                 </NuxtLink>
               </article>
-              <CommonPagination v-model:page="receivedPage" :total="receivedTotal" :page-size="PAGE_SIZE" />
+              <CommonPagination :page="receivedPage" :total="receivedTotal" :page-size="PAGE_SIZE" @update:page="loadReceivedComments" />
             </template>
             <CommonEmptyState v-else-if="receivedLoading" text="加载中…" />
             <CommonEmptyState v-else-if="receivedError">{{ receivedError }}</CommonEmptyState>
@@ -140,7 +140,7 @@
                   </svg>
                 </button>
               </article>
-              <CommonPagination v-model:page="commentPage" :total="commentTotal" :page-size="PAGE_SIZE" />
+              <CommonPagination :page="commentPage" :total="commentTotal" :page-size="PAGE_SIZE" @update:page="loadMyComments" />
             </template>
             <CommonEmptyState v-else-if="commentLoading" text="加载中…" />
             <CommonEmptyState v-else-if="commentError">{{ commentError }}</CommonEmptyState>
@@ -183,7 +183,7 @@
                   <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
                 </NuxtLink>
               </article>
-              <CommonPagination v-model:page="likePage" :total="likeTotal" :page-size="PAGE_SIZE" />
+              <CommonPagination :page="likePage" :total="likeTotal" :page-size="PAGE_SIZE" @update:page="loadReceivedLikes" />
             </template>
             <CommonEmptyState v-else-if="likeLoading" text="加载中…" />
             <CommonEmptyState v-else-if="likeError">{{ likeError }}</CommonEmptyState>
@@ -225,7 +225,7 @@
                   <img :src="coverUrl(row.articleCover)" :alt="row.articleTitle || ''" loading="lazy" />
                 </NuxtLink>
               </article>
-              <CommonPagination v-model:page="collectPage" :total="collectTotal" :page-size="PAGE_SIZE" />
+              <CommonPagination :page="collectPage" :total="collectTotal" :page-size="PAGE_SIZE" @update:page="loadReceivedCollects" />
             </template>
             <CommonEmptyState v-else-if="collectLoading" text="加载中…" />
             <CommonEmptyState v-else-if="collectError">{{ collectError }}</CommonEmptyState>
@@ -233,8 +233,33 @@
           </template>
         </template>
 
-        <!-- 其余分类：互动功能未建，占位空态 -->
-        <CommonEmptyState v-else>{{ activeCat.label }}功能即将上线，敬请期待</CommonEmptyState>
+        <!-- 新增粉丝：谁关注了我（掘金式接收流），未回关的条目行尾即「回关」按钮 -->
+        <template v-else-if="activeTab === 'follower'">
+          <template v-if="receivedFollows.length">
+            <article v-for="row in receivedFollows" :key="row.id" class="notice-item notify-item">
+              <NuxtLink class="notify-avatar" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                <img v-if="row.avatar" :src="coverUrl(row.avatar)" :alt="row.nickName" loading="lazy" />
+                <span v-else class="avatar-fallback">{{ (row.nickName || '用').slice(0, 1) }}</span>
+              </NuxtLink>
+              <div class="notify-main">
+                <p class="notify-head">
+                  <NuxtLink class="notify-user" :to="{ path: '/user/space', query: { id: String(row.userId) } }">
+                    {{ row.nickName || '用户' }}
+                  </NuxtLink>
+                  关注了你
+                </p>
+                <time class="notify-time">{{ formatRelativeTime(row.followTime) }}</time>
+              </div>
+              <!-- 回关按钮：mutual=互相关注 none=回关（following 态在本栏行构造上不出现） -->
+              <div class="row-follow" @click.stop>
+                <FollowButton :target-user-id="row.userId" :state="row.followState" size="small" @change="(payload) => onFollowRowChange(row, payload)" />
+              </div>
+            </article>
+            <CommonPagination :page="followPage" :total="followTotal" :page-size="PAGE_SIZE" @update:page="loadReceivedFollows" />
+          </template>
+          <CommonEmptyState v-else-if="followLoading" text="加载中…" />
+          <CommonEmptyState v-else>还没有粉丝，发布优质内容就会有人关注你</CommonEmptyState>
+        </template>
       </section>
     </div>
   </div>
@@ -243,39 +268,16 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
 import { formatRelativeTime } from '@nest-acticle/utils'
-import type { MyCommentItem, ReceivedCollectItem, ReceivedCommentItem, ReceivedLikeItem } from '@nest-acticle/shared'
-import type { NoticeItem } from '~/composables/useNotice'
+import type { MyCommentItem, ReceivedCollectItem, ReceivedCommentItem, ReceivedFollowItem, ReceivedLikeItem, ViewerFollowState } from '@nest-acticle/shared'
+import type { NoticeItem, NoticeTab } from '~/composables/useNotice'
 
 // 登录守卫走 auth middleware：未登录弹登录框并回首页，数据加载保持在组件内（守卫先行不发必 401 的请求）
 definePageMeta({
   middleware: 'auth'
 })
 
-// ---------- 分类清单：与头部铃铛下拉一致（私信工作量大暂缓），icon 为全站规范的内联描边 SVG ----------
-const noticeCats = [
-  {
-    key: 'comment',
-    label: '评论',
-    icon: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg>'
-  },
-  {
-    key: 'like',
-    label: '赞和收藏',
-    icon: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>'
-  },
-  {
-    key: 'follower',
-    label: '新增粉丝',
-    icon: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="20" y1="8" x2="20" y2="14"/><line x1="23" y1="11" x2="17" y2="11"/></svg>'
-  },
-  {
-    key: 'system',
-    label: '系统通知',
-    icon: '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>'
-  }
-] as const
-
-type NoticeTab = (typeof noticeCats)[number]['key']
+// ---------- 分类清单：与头部铃铛下拉同源（useNotice 的 NOTICE_CATS），这里带 icon 渲染左侧竖栏 ----------
+const noticeCats = NOTICE_CATS
 
 const route = useRoute()
 const config = useRuntimeConfig()
@@ -314,7 +316,7 @@ const { user } = useUser()
 // 当前登录人 id：收到的评论行判定「回复了我的评论」用
 const currentUserId = computed(() => user.value?.userId ?? null)
 
-// 菜单未读数：与铃铛同源，仅互动两分类有计数（赞和收藏栏合并展示赞+收藏未读）
+// 菜单未读数：与铃铛同源（赞和收藏栏合并展示赞+收藏未读，新增粉丝栏单独计 follow）
 const catUnread = (key: NoticeTab) => {
   if (key === 'comment') {
     return unread.value.comment
@@ -322,10 +324,13 @@ const catUnread = (key: NoticeTab) => {
   if (key === 'like') {
     return unread.value.like + unread.value.collect
   }
+  if (key === 'follower') {
+    return unread.value.follow
+  }
   return 0
 }
 
-// 分类栏进入即清该栏红标（水位推至当前）：评论/赞和收藏逐栏清，系统通知/新增粉丝无计数
+// 分类栏进入即清该栏红标（水位推至当前）：评论/赞和收藏/新增粉丝逐栏清，系统通知无计数
 // 赞和收藏栏同时推平 like 与 collect 两个水位（红标为两者合计，进入即全清）
 const onTabEnter = (tab: NoticeTab) => {
   if (tab === 'comment') {
@@ -335,55 +340,31 @@ const onTabEnter = (tab: NoticeTab) => {
     markRead('like').catch(() => {})
     markRead('collect').catch(() => {})
   }
+  if (tab === 'follower') {
+    markRead('follow').catch(() => {})
+  }
 }
 
 const PAGE_SIZE = 10
-const page = ref(1)
-const total = ref(0)
-const notices = ref<NoticeItem[]>([])
-const loading = ref(false)
-const errorMsg = ref('')
 
-const loadNotices = async () => {
-  loading.value = true
-  errorMsg.value = ''
-  try {
-    const data = await fetchNotices({ pageNum: page.value, pageSize: PAGE_SIZE, status: '0' })
-    notices.value = data.list || []
-    total.value = data.total || 0
-  } catch (error: any) {
-    notices.value = []
-    total.value = 0
-    errorMsg.value = error?.message || '通知加载失败'
-  } finally {
-    loading.value = false
-  }
-}
+// ---------- 五个列表共用 usePagedList：页码/总数/加载态/错误态/请求序号都在里面，页面只管「何时加载哪一页」----------
+// 翻页走分页器的 update:page → load(页码)，切分类/子栏走 reload()（回第一页）；不再 watch 页码自动加载，
+// 所以「重置页码 + 显式加载」每次切换只发一发请求。解构出的名字与模板一一对应
+
+// 系统通知列表：服务端按 status='0' 过滤已关闭公告；403 等业务错误降级为空态提示
+const noticeList = usePagedList<NoticeItem>((params) => fetchNotices({ ...params, status: '0' }), { pageSize: PAGE_SIZE, errorMsg: '通知加载失败' })
+const { page, total, list: notices, loading, error: errorMsg } = noticeList
+const loadNotices = noticeList.load
 
 // ---------- 收到的评论（评论栏默认子页）：他人评论我的文章/回复我的评论，掘金式接收流 ----------
 const commentBox = ref<'received' | 'mine'>('received')
 
-const receivedComments = ref<ReceivedCommentItem[]>([])
-const receivedPage = ref(1)
-const receivedTotal = ref(0)
-const receivedLoading = ref(false)
-const receivedError = ref('')
-
-const loadReceivedComments = async () => {
-  receivedLoading.value = true
-  receivedError.value = ''
-  try {
-    const data = await fetchReceivedComments({ pageNum: receivedPage.value, pageSize: PAGE_SIZE })
-    receivedComments.value = data.list || []
-    receivedTotal.value = data.total || 0
-  } catch (error: any) {
-    receivedComments.value = []
-    receivedTotal.value = 0
-    receivedError.value = error?.message || '评论加载失败'
-  } finally {
-    receivedLoading.value = false
-  }
-}
+const receivedList = usePagedList<ReceivedCommentItem>((params) => fetchReceivedComments(params), {
+  pageSize: PAGE_SIZE,
+  errorMsg: '评论加载失败'
+})
+const { page: receivedPage, total: receivedTotal, list: receivedComments, loading: receivedLoading, error: receivedError } = receivedList
+const loadReceivedComments = receivedList.load
 
 // 子栏切换：重置到第一页并按需加载（切走的子页在切回时再拉，保证数据新鲜）
 const switchCommentBox = (box: 'received' | 'mine') => {
@@ -392,38 +373,26 @@ const switchCommentBox = (box: 'received' | 'mine') => {
   }
   commentBox.value = box
   if (box === 'received') {
-    receivedPage.value = 1
-    loadReceivedComments()
+    receivedList.reload()
   } else {
-    commentPage.value = 1
-    loadMyComments()
+    loadMyComments(1)
   }
 }
 
 // ---------- 我的评论列表（评论 tab）：分页拉取当前登录人的评论与回复，删除后重拉保证计数准确 ----------
 const { deleteComment } = useComment()
 
-const myComments = ref<MyCommentItem[]>([])
-const commentPage = ref(1)
-const commentTotal = ref(0)
-const commentLoading = ref(false)
-const commentError = ref('')
+const myCommentList = usePagedList<MyCommentItem>((params) => fetchMyComments(params), {
+  pageSize: PAGE_SIZE,
+  errorMsg: '评论加载失败'
+})
+const { page: commentPage, total: commentTotal, list: myComments, loading: commentLoading, error: commentError } = myCommentList
 const deletingId = ref<number | null>(null)
 
-const loadMyComments = async () => {
-  commentLoading.value = true
-  commentError.value = ''
-  try {
-    const data = await fetchMyComments({ pageNum: commentPage.value, pageSize: PAGE_SIZE })
-    myComments.value = data.list || []
-    commentTotal.value = data.total || 0
-  } catch (error: any) {
-    myComments.value = []
-    commentTotal.value = 0
-    commentError.value = error?.message || '评论加载失败'
-  } finally {
-    commentLoading.value = false
-  }
+// 传页码即翻到该页；不传为重拉当前页，传 1 为回第一页（切子栏/切分类）
+// 加载后要等渲染完成再量文本溢出（决定是否出「展开」按钮）
+const loadMyComments = async (target?: number) => {
+  await myCommentList.load(target)
   await nextTick()
   measureCommentOverflow()
 }
@@ -476,53 +445,22 @@ const removeMyComment = async (row: MyCommentItem) => {
 // ---------- 收到的赞 / 收到的收藏（赞和收藏 tab 双子栏）：服务端按登录态过滤，最新在前 ----------
 const likeBox = ref<'like' | 'collect'>('like')
 
-const receivedLikes = ref<ReceivedLikeItem[]>([])
-const likePage = ref(1)
-const likeTotal = ref(0)
-const likeLoading = ref(false)
-const likeError = ref('')
-
-const loadReceivedLikes = async () => {
-  likeLoading.value = true
-  likeError.value = ''
-  try {
-    const res = await apiFetch<{ list?: ReceivedLikeItem[]; total?: number }>('/api/post/like/received/list', {
-      query: { pageNum: likePage.value, pageSize: PAGE_SIZE }
-    })
-    receivedLikes.value = res.data?.list || []
-    likeTotal.value = res.data?.total || 0
-  } catch (error: any) {
-    receivedLikes.value = []
-    likeTotal.value = 0
-    likeError.value = error?.message || '点赞列表加载失败'
-  } finally {
-    likeLoading.value = false
-  }
-}
-
+const { fetchReceivedLikes } = useLike()
 const { fetchReceivedCollects } = useCollect()
 
-const receivedCollects = ref<ReceivedCollectItem[]>([])
-const collectPage = ref(1)
-const collectTotal = ref(0)
-const collectLoading = ref(false)
-const collectError = ref('')
+const likeList = usePagedList<ReceivedLikeItem>((params) => fetchReceivedLikes(params), {
+  pageSize: PAGE_SIZE,
+  errorMsg: '点赞列表加载失败'
+})
+const { page: likePage, total: likeTotal, list: receivedLikes, loading: likeLoading, error: likeError } = likeList
+const loadReceivedLikes = likeList.load
 
-const loadReceivedCollects = async () => {
-  collectLoading.value = true
-  collectError.value = ''
-  try {
-    const data = await fetchReceivedCollects({ pageNum: collectPage.value, pageSize: PAGE_SIZE })
-    receivedCollects.value = data.list || []
-    collectTotal.value = data.total || 0
-  } catch (error: any) {
-    receivedCollects.value = []
-    collectTotal.value = 0
-    collectError.value = error?.message || '收藏列表加载失败'
-  } finally {
-    collectLoading.value = false
-  }
-}
+const collectList = usePagedList<ReceivedCollectItem>((params) => fetchReceivedCollects(params), {
+  pageSize: PAGE_SIZE,
+  errorMsg: '收藏列表加载失败'
+})
+const { page: collectPage, total: collectTotal, list: receivedCollects, loading: collectLoading, error: collectError } = collectList
+const loadReceivedCollects = collectList.load
 
 // 子栏切换：重置到第一页并重拉（切走的子页在切回时再拉，保证数据新鲜）
 const switchLikeBox = (box: 'like' | 'collect') => {
@@ -531,48 +469,55 @@ const switchLikeBox = (box: 'like' | 'collect') => {
   }
   likeBox.value = box
   if (box === 'like') {
-    likePage.value = 1
-    loadReceivedLikes()
+    likeList.reload()
   } else {
-    collectPage.value = 1
-    loadReceivedCollects()
+    collectList.reload()
   }
 }
 
-// 首屏加载放到登录守卫之后（onMounted），避免未登录先发一轮必然 401 的请求
+// ---------- 收到的关注（新增粉丝 tab）：谁关注了我，服务端按登录态过滤，最新在前 ----------
+const { fetchReceivedFollows } = useFollow()
+
+const followNoticeList = usePagedList<ReceivedFollowItem>((params) => fetchReceivedFollows(params), {
+  pageSize: PAGE_SIZE,
+  errorMsg: '关注列表加载失败'
+})
+const { page: followPage, total: followTotal, list: receivedFollows, loading: followLoading, error: followError } = followNoticeList
+const loadReceivedFollows = followNoticeList.load
+
+// 回关按钮动作后回写行状态（不直改 props 由页面兜着，本页直接改行对象引用即可）
+const onFollowRowChange = (row: ReceivedFollowItem, payload: { state: ViewerFollowState; fanNum: number }) => {
+  row.followState = payload.state
+}
+
+// 加载当前分类栏（按子栏）：首屏（登录守卫之后）与切分类共用，每次只发当前栏的那一发
+const reloadActiveTab = () => {
+  if (activeTab.value === 'system') {
+    noticeList.reload()
+  } else if (activeTab.value === 'comment') {
+    // 两子栏都有独立分页，只重拉当前子栏；切走的子栏在切回时经 switchCommentBox 重拉
+    if (commentBox.value === 'received') {
+      receivedList.reload()
+    } else {
+      loadMyComments(1)
+    }
+  } else if (activeTab.value === 'like') {
+    // 双子栏独立分页，同上
+    if (likeBox.value === 'like') {
+      likeList.reload()
+    } else {
+      collectList.reload()
+    }
+  } else if (activeTab.value === 'follower') {
+    followNoticeList.reload()
+  }
+}
+
+// 切分类栏：进入即清红标，并回到第一页重拉
 watch(activeTab, (tab) => {
   onTabEnter(tab)
-  if (tab === 'system') {
-    page.value = 1
-    loadNotices()
-  }
-  if (tab === 'comment') {
-    receivedPage.value = 1
-    commentPage.value = 1
-    // 按当前子栏加载（两子栏都有独立分页，切回时经 switchCommentBox 重拉）
-    if (commentBox.value === 'received') {
-      loadReceivedComments()
-    } else {
-      loadMyComments()
-    }
-  }
-  if (tab === 'like') {
-    likePage.value = 1
-    collectPage.value = 1
-    // 按当前子栏加载（双子栏独立分页，切回时经 switchLikeBox 重拉）
-    if (likeBox.value === 'like') {
-      loadReceivedLikes()
-    } else {
-      loadReceivedCollects()
-    }
-  }
+  reloadActiveTab()
 })
-
-watch(page, loadNotices)
-watch(receivedPage, loadReceivedComments)
-watch(commentPage, loadMyComments)
-watch(likePage, loadReceivedLikes)
-watch(collectPage, loadReceivedCollects)
 
 const formatTime = (value?: string | null) => {
   if (!value) {
@@ -586,21 +531,7 @@ const formatTime = (value?: string | null) => {
 onMounted(() => {
   // 直达分类栏（?tab=comment/like）时同样逐栏清红标
   onTabEnter(activeTab.value)
-  if (activeTab.value === 'system') {
-    loadNotices()
-  } else if (activeTab.value === 'comment') {
-    if (commentBox.value === 'received') {
-      loadReceivedComments()
-    } else {
-      loadMyComments()
-    }
-  } else if (activeTab.value === 'like') {
-    if (likeBox.value === 'like') {
-      loadReceivedLikes()
-    } else {
-      loadReceivedCollects()
-    }
-  }
+  reloadActiveTab()
 })
 </script>
 
@@ -867,6 +798,12 @@ onMounted(() => {
     margin-top: 8px;
     font-size: 12px;
     color: var(--color-text-3);
+  }
+
+  // 新增粉丝行尾的回关按钮（不冒泡到行点击）
+  .row-follow {
+    flex-shrink: 0;
+    align-self: center;
   }
 
   // 右侧文章封面缩略图：64px 圆角小图，垂直居中，链接到文章详情

@@ -9,21 +9,26 @@ import { PostLikeEntity } from '../like/entities/like.entity';
 import { PostCollectionArticleEntity } from '../collection/entities/collection-article.entity';
 import { PostCollectionEntity } from '../collection/entities/collection.entity';
 import { PostArticleEntity } from '../article/entities/article.entity';
+import { PostFollowEntity } from '../follow/entities/follow.entity';
 
 /**
  * 互动通知分类（与 post_notify_read.category 对应；
- * 新增粉丝/私信等分类上线时在此扩列，init.sql 的 varchar(16) 足够容纳）
+ * 新增私信等分类上线时在此扩列，init.sql 的 varchar(16) 足够容纳）
  */
 export const NotifyCategory = {
   COMMENT: 'comment',
   LIKE: 'like',
   COLLECT: 'collect',
+  FOLLOW: 'follow',
 } as const;
 
 /**
  * 互动通知服务
  * 已读采用「水位」模型：post_notify_read 记每分类最后已读时刻，未读数 =
  * 互动记录 create_time 晚于水位的条数；进通知中心一次性把全部互动分类推平
+ * 水位列与互动 create_time 均为 datetime(3) 毫秒粒度——秒级粒度下 markRead
+ * 同秒到达的互动（create_time = 水位）被严格 > 永久排除、漏红标；毫秒级后
+ * 残余窗口缩至同毫秒并发，属存储粒度极限
  */
 @Injectable()
 export class PostNotifyService {
@@ -40,6 +45,8 @@ export class PostNotifyService {
     private readonly collectionRepo: Repository<PostCollectionEntity>,
     @InjectRepository(PostArticleEntity)
     private readonly articleRepo: Repository<PostArticleEntity>,
+    @InjectRepository(PostFollowEntity)
+    private readonly followRepo: Repository<PostFollowEntity>,
   ) {}
 
   /**
@@ -88,7 +95,18 @@ export class PostNotifyService {
   }
 
   /**
-   * 未读计数（铃铛红标）：按分类返回，total 为互动分类合计（粉丝/系统通知未建不计）
+   * 收到的关注未读条件：他人关注我，与 follow.service.findReceivedList 口径一致
+   * 服务层已禁止自关注，DB 层仍兜底排除 follower = following 的脏行
+   */
+  private receivedFollowQb(userId: number) {
+    return this.followRepo
+      .createQueryBuilder('follow')
+      .where('follow.followingId = :userId', { userId })
+      .andWhere('follow.followerId <> :userId', { userId });
+  }
+
+  /**
+   * 未读计数（铃铛红标）：按分类返回，total 为互动分类合计（系统通知未建不计）
    */
   async unreadCount(userId: number) {
     const watermarks = await this.readRepo.find({ where: { userId } });
@@ -115,12 +133,20 @@ export class PostNotifyService {
     }
     const collect = await collectQb.getCount();
 
-    return ResultData.ok({ comment, like, collect, total: comment + like + collect });
+    const followQb = this.receivedFollowQb(userId);
+    const followRead = readMap.get(NotifyCategory.FOLLOW);
+    if (followRead) {
+      followQb.andWhere('follow.createTime > :followRead', { followRead });
+    }
+    const follow = await followQb.getCount();
+
+    return ResultData.ok({ comment, like, collect, follow, total: comment + like + collect + follow });
   }
 
   /**
    * 标记已读：把互动分类的水位推至当前，角标随即清零
    * 带 category 只推该分类（通知中心逐栏进入逐栏清），缺省推平全部互动分类
+   * 水位为 datetime(3) 毫秒粒度，与互动 create_time 同粒度比较（类注释附粒度论证）
    */
   async markRead(userId: number, category?: string) {
     const now = new Date();

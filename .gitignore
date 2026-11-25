@@ -18,7 +18,6 @@ ormlogs.log
 .env
 .env.*
 !.env.example
-!apps/client/.env
 !apps/admin/.env.development
 !apps/admin/.env.production
 

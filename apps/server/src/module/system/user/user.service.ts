@@ -16,6 +16,7 @@ import { CreateUserDto, UpdateUserDto, ListUserDto, ChangeStatusDto, ResetPwdDto
 import { UserEntity } from './entities/sys-user.entity';
 import { SysUserWithRoleEntity } from './entities/user-width-role.entity';
 import { RoleService } from '../role/role.service';
+import { PostFollowService } from 'src/module/post/follow/follow.service';
 
 import { SysRoleEntity } from '../role/entities/role.entity';
 import { SysMenuEntity } from '../menu/entities/menu.entity';
@@ -33,6 +34,7 @@ export class UserService {
     private readonly redisService: RedisService,
     private readonly dataSource: DataSource,
     private readonly uploadService: UploadService,
+    private readonly followService: PostFollowService,
   ) {}
   /**
    * 后台创建用户
@@ -105,8 +107,12 @@ export class UserService {
 
     const safeList = list.map(({ password: _password, ...user }) => user);
 
+    // 粉丝量列：整页一次 GROUP BY 批查（走 idx_following_id 索引），不逐行 COUNT
+    const fanNumMap = await this.followService.countFans(safeList.map((user) => user.userId));
+    const withFanNum = safeList.map((user) => ({ ...user, fanNum: fanNumMap.get(user.userId) ?? 0 }));
+
     return ResultData.ok({
-      list: safeList,
+      list: withFanNum,
       total,
     });
   }

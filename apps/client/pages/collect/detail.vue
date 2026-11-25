@@ -3,9 +3,11 @@
      私密集仅创建者可见（guest 接口按登录态识别，SSR 直出公开形状，本人标记由客户端登录态刷新） -->
 <template>
   <div class="collect">
-    <!-- 收藏集不存在/私密集非本人访问：对齐文章详情页的空态口径 -->
+    <!-- 收藏集不存在/私密集非本人访问：对齐文章详情页的空态口径；SPA 切集重拉期间显示加载中 -->
     <section v-if="!detail" class="feed-panel">
-      <CommonEmptyState>收藏集不存在或仅创建者可见</CommonEmptyState>
+      <!-- 空态组件的文案只走默认插槽（没有 text prop，写成属性不会显示） -->
+      <CommonEmptyState v-if="detailLoading">加载中…</CommonEmptyState>
+      <CommonEmptyState v-else>收藏集不存在或仅创建者可见</CommonEmptyState>
     </section>
 
     <template v-else>
@@ -109,47 +111,66 @@ const { fetchCollectionDetail, fetchCollectionArticles, deleteCollection, uncoll
 const { user, ensureUserRestored } = useUser()
 
 // ---------- 收藏集详情：SSR 直出公开形状；本人/订阅标记依赖登录态，挂载后客户端刷新 ----------
+// watch: false——SPA 内切集（同路由改 ?id=）不走 useFetch 的自动重取：它不带 token（私密集只有本人带 token
+// 才看得到），且 key 变化的瞬间新 key 会沿用上一集的数据当初始值、失败时又落回 default。
+// 切集统一由下方 watch(collectionId) 清空后带登录态重拉，这里的 data 只在 setup 时取一次当初值
 const { data: detailRes } = await useFetch<{ data?: (Collection & { isMine?: boolean; isSubscribed?: boolean }) | null }>(
   `${config.public.apiBase}/api/post/collection/guest/detail`,
   {
     query: { id: collectionId },
-    default: () => ({ data: null })
+    default: () => ({ data: null }),
+    watch: false
   }
 )
 
 const detail = ref<(Collection & { isMine?: boolean; isSubscribed?: boolean }) | null>(detailRes.value?.data || null)
 
-const refreshDetail = async () => {
-  if (!collectionId.value) {
-    return
-  }
-  try {
-    const fresh = await fetchCollectionDetail(collectionId.value)
-    if (fresh) {
-      detail.value = fresh
-    }
-  } catch {
-    /* 静默：保留 SSR 数据 */
-  }
-}
+// 重拉详情期间为 true：详情为空时空态显示「加载中…」而不是「收藏集不存在」。初值 false 与 SSR 直出一致
+const detailLoading = ref(false)
+// 最新一轮详情请求的序号：切集/再次刷新后，迟到的旧响应一律丢弃
+let detailSeq = 0
 
-// 客户端补拉首屏列表：私密集本人访问时 SSR 无 token 拿不到文章列表（接口按可见性拒绝），
-// 详情刷新后若与集内计数不一致，用登录态重拉第一页覆盖 SSR 空结果
-const reloadFirstPage = async () => {
-  if (!collectionId.value) {
+// 当前 detail 是否就是 URL 上这一集（切集瞬间会先置空，别的收藏集的数据不许冒充）
+const isCurrentDetail = () => Number(detail.value?.id) === Number(collectionId.value)
+
+// 带登录态刷新当前收藏集（apiFetch 自带 token：SSR 无 token，isMine/isSubscribed 恒为 false）。
+// 只认仍是当前集的响应；失败/空结果时不保留别的收藏集的数据（切集后保持空态，杜绝 URL 与内容不一致），
+// 当前集自己的详情（SSR 直出/上次刷新）照常保留
+const refreshDetail = async () => {
+  const id = collectionId.value
+  if (!id) {
     return
   }
+  const seq = ++detailSeq
+  const isStale = () => seq !== detailSeq || id !== collectionId.value
+  detailLoading.value = true
   try {
-    const data = await fetchCollectionArticles(collectionId.value, { pageNum: 1, pageSize: PAGE_SIZE })
-    if (articleRes.value?.data) {
-      articleRes.value.data.list = data.list || []
-      articleRes.value.data.total = data.total || 0
+    const fresh = await fetchCollectionDetail(id)
+    if (isStale()) {
+      return
     }
-    appended.value = []
-    lastPage.value = 1
-    lastPageShort.value = false
+    if (fresh && Number(fresh.id) === Number(id)) {
+      detail.value = fresh
+      // 列表为空但集内实际有文章（私密集本人访问、SPA 切集）时带登录态补拉首屏
+      if ((fresh.articleCount ?? 0) > 0 && total.value === 0) {
+        const first = await fetchCollectionArticles(id, { pageNum: 1, pageSize: PAGE_SIZE })
+        if (isStale()) {
+          return
+        }
+        setFirst(first.list || [], first.total || 0)
+      }
+    } else if (!isCurrentDetail()) {
+      detail.value = null
+    }
   } catch {
-    /* 静默：保留 SSR 数据 */
+    if (!isStale() && !isCurrentDetail()) {
+      detail.value = null
+    }
+  } finally {
+    // 过期请求不碰加载态：新一轮刷新正在飞，由它收尾
+    if (seq === detailSeq) {
+      detailLoading.value = false
+    }
   }
 }
 
@@ -159,24 +180,14 @@ onMounted(async () => {
   if (!user.value) {
     return
   }
-  try {
-    const fresh = await fetchCollectionDetail(collectionId.value)
-    if (fresh) {
-      detail.value = fresh
-      // SSR 列表为空但集内实际有文章（私密集本人访问场景）时补拉首屏
-      if ((fresh.articleCount ?? 0) > 0 && (articleRes.value?.data?.total || 0) === 0) {
-        await reloadFirstPage()
-      }
-    }
-  } catch {
-    /* 静默：保留 SSR 数据 */
-  }
+  refreshDetail()
 })
 
-// SPA 内切换收藏集时重载（detail 由 useFetch query 响应式自动重取）
+// SPA 内切换收藏集（同路由改 ?id=，如浏览器前进/后退）：URL 已指向新集，先把详情与列表清空
+// （旧集内容一帧都不许留，在飞的「加载更多」随之作废），再带登录态重拉
 watch(collectionId, () => {
-  detail.value = detailRes.value?.data || null
-  resetList()
+  detail.value = null
+  clearList()
   refreshDetail()
 })
 
@@ -197,7 +208,7 @@ const goArticle = (item: Article) => {
   })
 }
 
-// ---------- 收藏文章列表：首屏 SSR 直出，后续页客户端追加（同专栏详情的加载更多模式） ----------
+// ---------- 收藏文章列表：首屏 SSR 直出，后续页客户端追加（useInfiniteList：按文章 id 去重）----------
 const PAGE_SIZE = 10
 const { data: articleRes } = await useFetch<{ data?: { list?: Article[]; total?: number } | null }>(
   `${config.public.apiBase}/api/post/collection/guest/articles`,
@@ -207,59 +218,35 @@ const { data: articleRes } = await useFetch<{ data?: { list?: Article[]; total?:
       pageNum: 1,
       pageSize: PAGE_SIZE
     })),
-    default: () => ({ data: { list: [], total: 0 } })
+    default: () => ({ data: { list: [], total: 0 } }),
+    watch: false
   }
 )
 
-const appended = ref<Article[]>([])
-const lastPage = ref(1)
-const lastPageShort = ref(false)
-const listLoading = ref(false)
-const loadError = ref('')
-
-const articles = computed(() => {
-  const first = articleRes.value?.data?.list || []
-  return appended.value.length ? [...first, ...appended.value] : first
+// 首页取 SSR 直出结果；首页为空但集内有文章时（私密集本人访问）由 refreshDetail 带登录态补拉覆盖
+const {
+  items: articles,
+  total,
+  finished,
+  loadedMore,
+  loading: listLoading,
+  loadError,
+  loadMore: loadMoreRows,
+  setFirst,
+  reset: resetList,
+  clear: clearList,
+  remove: removeArticle
+} = useInfiniteList<Article>({
+  pageSize: PAGE_SIZE,
+  keyOf: (item) => item.id,
+  first: articleRes.value?.data?.list,
+  total: articleRes.value?.data?.total,
+  // apiFetch 自带 token：私密集只有本人带 token 才取得到后续页
+  fetchPage: (pageNum) => fetchCollectionArticles(collectionId.value, { pageNum, pageSize: PAGE_SIZE })
 })
 
-const total = computed(() => articleRes.value?.data?.total || 0)
-
-const finished = computed(() => {
-  if (total.value) {
-    return articles.value.length >= total.value
-  }
-  return lastPageShort.value
-})
-
-const loadedMore = computed(() => appended.value.length > 0)
-
-const loadMore = async () => {
-  if (listLoading.value || finished.value || !collectionId.value) {
-    return
-  }
-  listLoading.value = true
-  loadError.value = ''
-  try {
-    const data = await fetchCollectionArticles(collectionId.value, { pageNum: lastPage.value + 1, pageSize: PAGE_SIZE })
-    const list = data.list || []
-    appended.value.push(...list)
-    lastPage.value += 1
-    if (list.length < PAGE_SIZE) {
-      lastPageShort.value = true
-    }
-  } catch (error: any) {
-    loadError.value = error?.message || '加载失败'
-  } finally {
-    listLoading.value = false
-  }
-}
-
-const resetList = () => {
-  appended.value = []
-  lastPage.value = 1
-  lastPageShort.value = false
-  loadError.value = ''
-}
+// 无 collectionId（异常路由）时不发请求
+const loadMore = () => (collectionId.value ? loadMoreRows() : undefined)
 
 // ---------- 订阅/退订（非本人；未登录先弹登录框） ----------
 const { openLogin } = useAuthModal()
@@ -356,12 +343,8 @@ const confirmRemoveArticle = async (item: Article) => {
   }
   try {
     await uncollectArticle(detail.value.id, item.id)
-    // 从首页与追加页两处来源移除并同步计数（详情卡与列表 total），不整页刷新
-    if (articleRes.value?.data) {
-      articleRes.value.data.list = articleRes.value.data.list?.filter((row) => row.id !== item.id) ?? []
-      articleRes.value.data.total = Math.max(0, (articleRes.value.data.total || 0) - 1)
-    }
-    appended.value = appended.value.filter((row) => row.id !== item.id)
+    // 首页与追加页两处来源一并移除并同步计数（详情卡与列表 total），不整页刷新
+    removeArticle(item.id)
     if (detail.value) {
       detail.value.articleCount = Math.max(0, (detail.value.articleCount || 0) - 1)
     }

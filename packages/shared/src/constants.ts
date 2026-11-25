@@ -25,6 +25,13 @@ export const SERVER_ERROR_CODE = 500;
 export const WARNING_CODE = 601;
 
 /**
+ * 账号已存在（注册撞号：账号名或邮箱已被占用）
+ * 契约来源：apps/server AuthService.register 抛出；apps/client components/Auth/Modal.vue 据此转登录引导
+ * 非 HTTP 状态码：server 的 BusinessException 对它统一出 HTTP 500，前端以信封 body.code 为准
+ */
+export const ACCOUNT_EXISTS_CODE = 602;
+
+/**
  * 权限字面量（RuoYi 约定）
  * 契约来源：apps/server 侧权限校验与 apps/admin/src/utils/permission.ts 等
  */

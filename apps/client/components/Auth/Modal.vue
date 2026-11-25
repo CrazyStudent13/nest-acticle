@@ -189,6 +189,8 @@
 
 <script setup lang="ts">
 // 登录/注册弹窗：登录与注册共用一个弹窗，通过 mode 切换
+import { ACCOUNT_EXISTS_CODE } from '@nest-acticle/shared'
+
 const { isOpen, mode, close } = useAuthModal()
 const { login, register, fetchCaptcha, fetchRegisterConfig, sendRegisterEmailCode } = useUser()
 
@@ -213,7 +215,8 @@ const touched = reactive<Record<FormField, boolean>>({
 // 邮箱格式：local 部分仅限常见字符（字母数字与 ._%+-），域名须为「标签.」+ 至少 2 位字母顶级域名
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)+[A-Za-z]{2,}$/
 
-// 后端「账号已存在」类错误特征：用户名占用、邮箱占用、并发撞唯一索引，统一转成登录引导
+// 后端「账号已存在」按专属业务码识别（ACCOUNT_EXISTS_CODE，见提交分支）；
+// 下面的文案特征仅作兜底：服务端未带专属码的旧形态下仍能转成登录引导
 const ACCOUNT_EXISTS_HINTS = ['注册账号已存在', '该邮箱已被其他账号使用', '该账号已注册']
 
 const errors = computed<Record<FormField, string>>(() => ({
@@ -494,12 +497,12 @@ const handleSubmit = async () => {
       fireConfetti()
       showToast('注册成功，请登录', 'success')
     } catch (error: any) {
-      const message = error?.message || ''
-      // 账号已存在单独给登录引导，其余错误原样提示
-      if (ACCOUNT_EXISTS_HINTS.some((hint) => message.includes(hint))) {
+      // 账号已存在单独给登录引导，其余错误原样提示：先按业务码，再退回文案特征兜底
+      const isAccountExists = error?.code === ACCOUNT_EXISTS_CODE || ACCOUNT_EXISTS_HINTS.some((hint) => String(error?.message || '').includes(hint))
+      if (isAccountExists) {
         showToast('该邮箱已注册，请直接登录', 'error')
       } else {
-        showToast(message || '注册失败，请稍后重试', 'error')
+        showToast(error?.message || '注册失败，请稍后重试', 'error')
       }
       // 图片验证码一次性使用，失败后需重新获取
       if (!registerConfig.emailRegisterEnabled) {

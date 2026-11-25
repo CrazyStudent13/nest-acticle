@@ -515,3 +515,65 @@ grep 实际 **16 处**（报告第二节记 6 处不全——monitor loginlog/op
 **待人工视觉回归追加项**：预览遮罩（目录/作者卡/sticky 对齐/lightbox 层级）、mermaid 与数学公式观感、lightbox 点图不关交互、编辑器拖拽上传。
 
 *审查报告至此全部条目闭环且专项复审清零；dev 累计约 66 commits 全部已备份。*
+
+---
+
+## 十七、增量总览复审与第 1 波修复（2026-11-23 深夜→11-24 凌晨，总览会话调度 + 3 个子会话并行实施）
+
+**复审范围**：上一轮闭环（11-21）之后约 30 个未审查提交（收藏集全链路/阅读上报/通知红标/通知详情页/游客资料/字典接入/nginx+swagger/礼花）。4 路并行深审 + 总览会话逐条实锤复核，产出 2026-11-23 总览报告（P0×1、P1×5、P2×20+、优化建议×4，另纠正子代理 1 条 P0 误报：like.service.ts:167 隐式参数复用经 TypeORM 0.3.31 源码验证**能跑**，维持旧报告 P2 脆弱写法定级）。报告以对话形式交付，未入库。
+
+**用户拍板**：P0 修法选「生产关闭文档」（prod.yml 既有 swagger.enable: false 真正生效，nginx 入口层兜底封死，dev 全功能保留）。
+
+### 第 1 波落地（8 commits `fdf6f6f..673ffba`，未 push）
+
+| 批次 | 提交 | 复审结论 |
+|---|---|---|
+| C 契约+CI | fdf6f6f | ✅ 契约重生成：collection 15 处/guest/read 1 处；**查明 openApi.json 产出机制：被 apps/server/.gitignore 忽略从不入库、dev 态服务端启动落盘**；类型漂移（MarkReadDto collect 分类、路径参数 string→number）已同步说明 |
+| C 契约+CI | 780df33 | ✅ docker.yml 新增 quality job（步骤与 quality.yml 逐条一致）+ needs 挂接；workflow_run/workflow_call 取舍论证充分；quality.yml 仅同步头注释 |
+| A 安全防线 | e092c1d | ✅ swagger.enable 严格 `=== true` fail-safe 门控，CORS 中间件一并收进开关，启动横幅可核对 |
+| A 安全防线 | b81d612 | ✅ 两侧 nginx `/openapi.json` 直接 404（不再反代，兼防服务端误开泄露） |
+| A 安全防线 | 3a93b31 | ✅ robots.txt 补三条 Disallow |
+| A 安全防线 | 900330d | ✅ 注释改准，**实锤真正机制：app.prefix 无前导斜杠 → 挂载路径 'api/swagger-ui' 与必以 / 开头的请求路径永不匹配**（推翻原「Nest 对前缀下 app.use 的处理」的错误归因） |
+| B 防刷+JWT | d45e452 | ✅ SET NX EX 86400 占键先于自增（并发至多计一次）、重复静默 data:null、IP 维度取舍有论证（纯 IP 是单 IP 计数上界，叠 userId 反放宽）、新增 spec 覆盖 5 分支 |
+| B 防刷+JWT | 673ffba | ✅（B 卡提交审批，由总览会话代提）compose JWT `:?` 必填断言；.env.example 条目已存在无需补 |
+
+### 验收实录（总览会话独立复验，非子会话自报）
+
+- **门禁**：shared build ✅、server build ✅、server test **3 suite 13/13** ✅（含 B 新增 5 用例）、client typecheck EXIT=0 ✅、root lint 0 errors ✅、admin build:prod ✅
+- **运行时冒烟**（临时实例 18082/18083，复用本地栈 MySQL/Redis，未动 compose 运行容器）：
+  - dev 态：`/openapi.json` 200 且含 11 条 collection 路径 ✅；防刷双击实测——同 X-Real-IP 首报 readNum 2→3、次报 `{"code":200,"data":null}` 且计数不涨 ✅、Redis db2 去重键 TTL 86390≈86400 ✅
+  - prod 态（补注：prod.yml 凭据空，需以 MYSQL_* 环境变量注入本地栈凭据方可起；**不给 JWT_SECRETKEY 时配置校验拒绝启动，fail-safe 现场演示成功**）：对照接口 guest/list 200 ✅，`/openapi.json`、`/api/swagger-ui`、`/api/docs`、`/swagger-ui/` 四路全 404 ✅
+  - 残留清理：两临时实例已杀、Redis 去重键已删、read_num 已回退 2、工作树 clean ✅
+- **冒烟期间发现（预存、未修）**：compose 运行栈（blog-server 容器）仍是旧代码旧镜像，**生产化生效需 `docker:up` 重建**；nginx conf 改动同理需重建 blog-nginx/blog-admin 镜像
+
+### 并行会话坑（新）
+
+- 子会话会在非预授权操作上卡审批暂停（本轮 B 卡在 git commit、A/C 卡在临时实例启动类操作），无人值守时整波停滞——**派发波次前需用户在场完成首轮"总是允许"授权，或逐波在场值守**。
+- SendMessage 工具不能寻址产品会话（要用 SendToSession）；已苏醒/已消亡会话无法投递（A 会话记录已消亡，无需备注）。
+
+### 遗留（待第 2/3 波，需用户审批后派发）
+
+- **D 批（Server P2×5）**：关闭公告可直取（noticeId 生效时强制 status='0'）；已读水位秒级精度永久漏红标（水位列 datetime(3) 或 markRead 存 floor(now)+1s，后者把永久漏标收敛为 1 秒窗口）；可订阅自己的收藏集（一行归属拦截）；收藏计数按关系条数口径注释；评论线程分页两步查询（先查线程根分页再查后代，需先确认回复深度语义）
+- **E 批（Client P2 批）**：usePagedList 收编 9 套手写分页；collect/detail SPA 残留旧集；space loader 请求序号；notification tab 重复请求；noticeCats 收敛；Game/ListCard 删除；注册撞号改业务码判断（后端 auth 加专属 code + 前端接线，替换 ACCOUNT_EXISTS_HINTS 文案匹配）；localStorage 阅读去重键过期清扫；收到的赞入 useLike
+- **F 批（Admin+杂项）**：默认收藏夹删除假成功（removeByIds 返回 {purged, skippedDefault}，依赖 D 批文件，须排在 D 后）；抽屉吞错提示；首页 swagger 死链；clipboard 死依赖；MinioModule 删除；gitignore `!apps/client/.env` 反选
+- **本机项（需用户确认）**：未跟踪 dev.yml + local-config 拷贝仍存旧服务器 IP 与 MinIO 密钥明文——git 已净，待用户拍板后清理并轮换密钥
+
+---
+
+## 十八、第 2/3 波收官 + 三交互收工验收（2026-11-24，总览会话调度 D/E 子会话并行实施 + F 批亲修）
+
+**D 批（Server P2 六条，6 commits `c001248..53f78b0`）**：①关闭态公告强制 status='0'（单测覆盖）②已读水位与互动列升 datetime(3)——**否决了总览建议的「水位+1s」最小修：MySQL 对 datetime(0) 舍入而非截断，+1s 会把下一秒内到达的互动一并排除、漏标窗口反而扩大**，完整方案残窗缩至同毫秒并发（存储粒度极限），含 init.sql 单一基准 + CHANGELOG 增量 DDL 提示 + service 单测 ③自订阅拦截 + 单测（存量脏数据经 unsubscribe 物理删行可自愈，无需回填）④collect_num「关系条数」口径注释 ⑤评论线程分页**保守保留**——核实 parentId 支持任意深度嵌套、无 root_id 无法两步分页，补复杂度注释与升级路径（单篇博客量级 + idx + 封顶下可接受）⑥like 显式传参（消 builder 级隐式共享的顺序脆弱性）。
+
+**E 批（Client P2 九条，10 commits `74eebbb..daee312`）**：usePagedList/useInfiniteList 双 composable（请求序号只认最新一发；分页替换式与追加式各自内聚）→ 通知中心 5 套、空间页 5 loader 收编（顺带修 loadGuestProfile 切空间残留与过期副作用）；collect/detail 切集残留根因修复（Nuxt 新 key 沿用旧数据特性 + watch:false + 清空重拉，私密集本人重拉一并修好，追加列表收编 useInfiniteList）；noticeCats 收口 NOTICE_CATS；注册撞号专属业务码 602（shared ACCOUNT_EXISTS_CODE + apiFetch 抛带码 ApiError，文案匹配降兜底）；阅读去重键过期清扫；收到的赞入 useLike；Game 死组件删除；浏览器实测（mock 后端 + 构建产物预览）抓出并修复 CommonEmptyState 插槽用法；prettier 对齐。
+
+**F 批（总览会话亲修，6 commits `4490e29..5b36a6a`）**：removeByIds 返回 {purged, skippedDefault} + useCrud deleteSuccess 函数化扩展 + 管理端区分提示（消灭默认收藏夹「删除成功」假成功）；抽屉加载失败补报错；首页接口文档死链改 /swagger-ui/；clipboard 死依赖移除；MinioModule 死模块删除（minio npm 包由 file-storage 保留）；gitignore `!apps/client/.env` 反选移除。
+
+### 终验（当前 HEAD `5b36a6a`，共 24 commits 未 push）
+
+server build ✅、server test **26/26**（D 批新增 notify/collection 单测纳入）✅、client typecheck EXIT=0 ✅、lint 0 errors ✅、admin build:prod ✅、client build ✅、openapi 契约与 HEAD 重生成零 diff（removeByIds 响应无 schema 面）✅。
+
+### 三交互收工结论
+
+**点赞 ✅ / 收藏 ✅ / 评论 ✅ 均可收工**。唯一保留项：评论线程分页 O(总评论数)/请求（db3697d 已注释量级依据与 root_id 升级路径，属设计取舍非缺陷）。
+
+**遗留（非三交互）**：本地 24 commits 待 push 备份；tsconfig strict 长期债；admin api 层 .js TS 化（中期）；NUXT_B5026 css 警告；现役 dev.yml 旧 IP/密钥待用户拍板 + RustFS 密钥轮换；**compose 栈需 `docker:up` 重建才带上全部新修复**（运行中容器仍是旧镜像）。

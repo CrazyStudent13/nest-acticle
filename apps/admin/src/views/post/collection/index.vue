@@ -76,6 +76,8 @@
 import dayjs from 'dayjs';
 import { Delete, Document, Refresh, Search } from '@element-plus/icons-vue';
 
+import { ElMessage } from 'element-plus';
+
 import { delCollection, listCollection, listCollectionArticles } from '@/api/post/collection';
 import { addDateRange } from '@/composables/useCommon';
 import { useCrud } from '@/composables/useCrud';
@@ -95,7 +97,18 @@ const collection = useCrud({
   texts: {
     // 删除会软删收藏集并清理其收藏/订阅关系；单行删除 deleteIds 为主键值、批量为主键数组
     deleteConfirm: (ids) =>
-      `确认删除选中的 ${Array.isArray(ids) ? ids.length : 1} 个收藏集吗？其下收藏与订阅关系会一并清理，对应文章收藏数同步回减`
+      `确认删除选中的 ${Array.isArray(ids) ? ids.length : 1} 个收藏集吗？其下收藏与订阅关系会一并清理，对应文章收藏数同步回减`,
+    // 服务端对默认收藏夹不可删除会跳过（data 携带 {purged, skippedDefault}），按实际结果提示，不再一律「删除成功」
+    deleteSuccess: (res) => {
+      const purged = res?.data?.purged ?? 0;
+      const skippedDefault = res?.data?.skippedDefault ?? 0;
+      if (skippedDefault > 0) {
+        return purged > 0
+          ? `已删除 ${purged} 个收藏集；${skippedDefault} 个默认收藏夹不可删除已跳过`
+          : `未删除任何收藏集：${skippedDefault} 个默认收藏夹不可删除`;
+      }
+      return '删除成功';
+    }
   }
 });
 
@@ -132,6 +145,8 @@ const loadArticles = async () => {
     articles.value = res.data?.list || [];
     articlesTotal.value = res.data?.total || 0;
   } catch {
+    // 失败也要有反馈：静默清空会让用户误以为该收藏集没有文章
+    ElMessage.error('加载收藏文章失败');
     articles.value = [];
     articlesTotal.value = 0;
   } finally {
