@@ -19,8 +19,9 @@
       </el-row>
       <el-table v-loading="follow.loading" :data="follow.list" @selection-change="follow.handleSelectionChange">
         <el-table-column type="selection" width="55" />
-        <el-table-column label="关注人" prop="followerName" show-overflow-tooltip width="160" />
-        <el-table-column label="被关注人" prop="followingName" show-overflow-tooltip width="160" />
+        <!-- 昵称列用 min-width 吸收容器剩余宽度（全定宽列会出现右侧留白的「半截表」，同 like 页标题列口径） -->
+        <el-table-column label="关注人" prop="followerName" show-overflow-tooltip min-width="160" />
+        <el-table-column label="被关注人" prop="followingName" show-overflow-tooltip min-width="160" />
         <el-table-column label="关注时间" prop="createTime" width="180">
           <template #default="{ row }">{{ row.createTime ? dayjs(row.createTime).format('YYYY-MM-DD HH:mm:ss') : '' }}</template>
         </el-table-column>
