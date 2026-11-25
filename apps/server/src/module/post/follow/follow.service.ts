@@ -236,8 +236,9 @@ export class PostFollowService {
 
   /**
    * 批量统计粉丝数：一次 GROUP BY 替代逐人 COUNT（消 N+1），走 idx_following_id 索引
+   * 消费方：本服务 guest/received 列表行、system 用户管理列表（粉丝量列，一页一次聚合）
    */
-  private async countFans(userIds: number[]): Promise<Map<number, number>> {
+  async countFans(userIds: number[]): Promise<Map<number, number>> {
     const map = new Map<number, number>();
     if (!userIds.length) {
       return map;

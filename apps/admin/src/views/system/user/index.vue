@@ -50,15 +50,16 @@
             <el-table-column v-if="columns[1].visible" key="userName" align="center" label="用户账号" prop="userName" :show-overflow-tooltip="true" />
             <el-table-column v-if="columns[2].visible" key="nickName" align="center" label="用户昵称" prop="nickName" :show-overflow-tooltip="true" />
             <el-table-column v-if="columns[3].visible" key="signature" align="center" label="个性签名" prop="signature" :show-overflow-tooltip="true" />
-            <el-table-column v-if="columns[4].visible" key="phonenumber" align="center" label="手机号码" prop="phonenumber" width="120" />
-            <el-table-column v-if="columns[5].visible" key="status" align="center" label="状态">
+            <el-table-column v-if="columns[4].visible" key="fanNum" align="center" label="粉丝量" prop="fanNum" width="90" />
+            <el-table-column v-if="columns[5].visible" key="phonenumber" align="center" label="手机号码" prop="phonenumber" width="120" />
+            <el-table-column v-if="columns[6].visible" key="status" align="center" label="状态">
               <template #default="scope">
                 <el-tag :type="scope.row.status === '0' ? 'success' : 'danger'" style="cursor: pointer" @click="handleStatusClick(scope.row)">
                   {{ scope.row.status === '0' ? '启用' : '停用' }}
                 </el-tag>
               </template>
             </el-table-column>
-            <el-table-column v-if="columns[6].visible" align="center" label="创建时间" prop="createTime" width="160">
+            <el-table-column v-if="columns[7].visible" align="center" label="创建时间" prop="createTime" width="160">
               <template #default="scope">
                 <span>{{ scope.row.createTime ? dayjs(scope.row.createTime).format('YYYY-MM-DD HH:mm:ss') : '' }}</span>
               </template>
@@ -339,9 +340,10 @@ const columns = reactive([
   { key: 1, label: `用户账号`, visible: true },
   { key: 2, label: `用户昵称`, visible: true },
   { key: 3, label: `个性签名`, visible: true },
-  { key: 4, label: `手机号码`, visible: true },
-  { key: 5, label: `状态`, visible: true },
-  { key: 6, label: `创建时间`, visible: true }
+  { key: 4, label: `粉丝量`, visible: true },
+  { key: 5, label: `手机号码`, visible: true },
+  { key: 6, label: `状态`, visible: true },
+  { key: 7, label: `创建时间`, visible: true }
 ]);
 
 // 用户导入参数
