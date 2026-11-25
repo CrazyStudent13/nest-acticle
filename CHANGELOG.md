@@ -2,11 +2,47 @@
 
 更细粒度的过程记录（审查 → 修复 → 验收全程）见 [CODE-REVIEW-2026-11-20.md](./CODE-REVIEW-2026-11-20.md)。
 
-## 未发布（dev 分支，随下版本发布）
+## v1.3.0（2026-11-25）
+
+关注模块全链路（用户互关：前台交互 + 通知红标 + 管理端管理页 + 用户列表粉丝量列），文档站进容器栈，通知已读水位毫秒化修复。
+
+> 升级提示：本版本含数据库变更，存量环境需执行增量 SQL（详见 `apps/server/db/init.sql` 21~23、25、27 号表与 sys_menu 210/211 种子）：
+>
+> ```sql
+> -- 互动列升毫秒级 datetime(3)（水位修复，存量数据自动补 .000，无需回填）
+> alter table post_notify_read modify read_time datetime(3) default current_timestamp(3) comment '最后已读时间（毫秒粒度，作互动未读水位）';
+> alter table post_comment modify create_time datetime(3) default current_timestamp(3) comment '评论时间（毫秒粒度，互动通知水位比较列）';
+> alter table post_like modify create_time datetime(3) default current_timestamp(3) comment '点赞时间（毫秒粒度，互动通知水位比较列）';
+> alter table post_collection_article modify create_time datetime(3) default current_timestamp(3) comment '收藏时间（毫秒粒度，互动通知水位比较列）';
+>
+> -- 新增关注表
+> create table
+>   post_follow (
+>     id int not null auto_increment comment '关注 id',
+>     follower_id int not null comment '关注人（粉丝）用户ID',
+>     following_id int not null comment '被关注用户ID',
+>     create_time datetime(3) default current_timestamp(3) comment '关注时间（毫秒粒度，互动通知水位比较列）',
+>     primary key (id),
+>     unique key uk_follower_following (follower_id, following_id),
+>     key idx_following_id (following_id)
+>   ) engine = innodb comment = '关注库';
+>
+> -- 关注管理菜单与权限种子（容器内灌中文 SQL 需先 SET NAMES utf8mb4，否则客户端按 latin1 重读产生双重编码乱码）
+> insert into sys_menu values ('210', '关注管理', '6', '4', 'follow', 'post/follow/index', '', '1', '0', 'C', '0', '0', 'post:follow:list', 'peoples', 'admin', sysdate(), '', null, '关注管理菜单', '0');
+> insert into sys_menu values ('211', '关注删除', '210', '1', '', '', '', '1', '0', 'F', '0', '0', 'post:follow:remove', 'form', 'admin', sysdate(), '', null, '关注删除权限', '0');
+> ```
+
+### 新增
+
+- **关注模块（用户互关全链路）**：`post_follow` 明细表（uk_follower_following 唯一索引，取关物理删除），粉丝数读时 COUNT 不落冗余计数列（两方向索引 + 整页 GROUP BY 批查，管理删除免回减）。前台：空间页关注/粉丝栏（访客公开，同掘金）、文章页作者卡与空间资料卡三态关注按钮（关注/已关注/互相关注，动作后回读权威状态）、通知中心「新增粉丝」栏（谁关注了我 + 行尾回关，进栏清水位）、铃铛未读计入 follow 分类
+- **admin**：关注管理页（关注人/被关注人昵称模糊搜索 + 时间范围过滤 + 批量删除，`post:follow:list/remove` 权限串，菜单种子 210/211）；用户管理列表新增「粉丝量」列（复用关注服务整页批查）
+- **文档站进容器栈**：VitePress 多阶段镜像（build → nginx:alpine），blog-nginx 增 `/manual/` 反代，robots.txt 屏蔽搜索引擎（文档含基础设施信息）；全站侧栏六分组重构，新增 Client 端开发约定页与关注模块约定页
 
 ### 修复
 
 - **通知已读水位漏标**：`post_notify_read.read_time` 与互动列 `post_comment.create_time` / `post_like.create_time` / `post_collection_article.create_time` 升为毫秒级 `datetime(3) default current_timestamp(3)`。未读数按互动 `create_time > 水位` 严格比较，秒级粒度下 markRead 同秒到达的互动等于水位、被永久排除（铃铛漏红标）；毫秒级后残余窗口缩至同毫秒并发（存储粒度极限）
+
+## v1.2.1（2026-11-23）
 
 > 升级提示：本批次含数据库变更，存量环境需执行增量 DDL（列升 `datetime(3)` 时 MySQL 要求默认值同步带精度，存量数据自动补 `.000`，无需回填；详见 `apps/server/db/init.sql` 21~23、25 号表）：
 >
