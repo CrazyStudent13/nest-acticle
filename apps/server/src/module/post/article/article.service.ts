@@ -11,6 +11,7 @@ import { CreatePostArticleDto, UpdatePostArticleDto, ListPostArticleDto, AuditPo
 import { UserDto } from 'src/module/system/user/user.decorator';
 import { UserEntity } from 'src/module/system/user/entities/sys-user.entity';
 import { PostReportEntity } from '../report/entities/report.entity';
+import { PostFollowEntity } from '../follow/entities/follow.entity';
 import { AUTO_OFFLINE_REPORTERS } from '../report/report.service';
 import { SysNoticeEntity } from 'src/module/system/notice/entities/notice.entity';
 import { RedisService } from 'src/module/common/redis/redis.service';
@@ -149,8 +150,10 @@ export class PostArticleService {
    * @param guest true 游客版 / false 管理端版
    * @param selfView 游客版的本人视角：空间主人看自己的空间时，已发布 + 已下架都可见
    *                 （草稿仍只在创作者中心；访客维持仅已发布，不泄露下架文章存在性）
+   * @param followedBy 关注 feed 视角的当前用户：传入时 inner join post_follow，只取我关注的作者，
+   *                   且排序固定为发布时间倒序（不接受客户端指定排序字段）
    */
-  private buildListQuery(query: ListPostArticleDto, guest: boolean, selfView = false) {
+  private buildListQuery(query: ListPostArticleDto, guest: boolean, selfView = false, followedBy?: number) {
     const entity = this.postArticleRepository.createQueryBuilder('article');
 
     // 游客版仅返回公开列，不包含审核信息等内部数据（publishStatus 供本人视角渲染「已下架」标）
@@ -174,6 +177,17 @@ export class PostArticleService {
     }
 
     entity.where('article.delFlag = :delFlag', { delFlag: '0' });
+
+    // 关注 feed：只取我关注的作者发布的文章。post_follow 对 (follower_id, following_id) 唯一，
+    // inner join 不会产生重复行；未关注任何人时 join 结果为空，由前端引导去关注
+    if (followedBy) {
+      entity.innerJoin(
+        PostFollowEntity,
+        'follow',
+        'follow.followingId = article.userId AND follow.followerId = :feedFollowerId',
+        { feedFollowerId: followedBy },
+      );
+    }
 
     // 游客版默认仅返回已发布文章；本人视角放宽到已发布 + 已下架
     if (guest) {
@@ -216,7 +230,11 @@ export class PostArticleService {
     }
 
     // 排序（校验排序字段是否为文章实体的合法属性，防止 ORDER BY 注入）；游客版默认按发布时间倒序
-    if (query.orderByColumn && query.isAsc && this.isArticleField(query.orderByColumn)) {
+    // 关注 feed 固定 publishTime DESC + id DESC 兜底：发布时间的秒级同秒值在 skip/take 下会漏/重，
+    // id 作为稳定次序保证翻页不重不漏
+    if (followedBy) {
+      entity.orderBy('article.publishTime', 'DESC').addOrderBy('article.id', 'DESC');
+    } else if (query.orderByColumn && query.isAsc && this.isArticleField(query.orderByColumn)) {
       const key = query.isAsc === 'ascending' ? 'ASC' : 'DESC';
       entity.orderBy(`article.${query.orderByColumn}`, key);
     } else if (guest) {
@@ -258,6 +276,22 @@ export class PostArticleService {
     // 覆盖查询参数里的 userId：只能查自己的，请求体指定他人 userId 无效
     query.userId = user.userId;
     const entity = this.buildListQuery(query, false);
+    const [list, total] = await entity.getManyAndCount();
+
+    const processedList = await attachUserInfo(list, this.userRepository);
+
+    return ResultData.ok({
+      list: processedList,
+      total,
+    });
+  }
+
+  /**
+   * 关注 feed（登录用户）：我关注的作者发布的文章，按发布时间倒序（同秒以 id 兜底）
+   * 口径与游客列表一致：仅已发布、未删除，返回公开列；未关注任何作者时返回空列表
+   */
+  async findFollowAll(query: ListPostArticleDto, user: UserDto) {
+    const entity = this.buildListQuery(query, true, false, user.userId);
     const [list, total] = await entity.getManyAndCount();
 
     const processedList = await attachUserInfo(list, this.userRepository);

@@ -153,3 +153,73 @@ describe('PostArticleService.update（发布状态自管理）', () => {
     );
   });
 });
+
+/**
+ * 关注 feed：只有我关注的作者、仅已发布未删除的文章，固定发布时间倒序；
+ * 客户端传 orderByColumn 不生效（feed 不接受自定义排序）
+ */
+describe('PostArticleService.findFollowAll（关注 feed）', () => {
+  const chain = {
+    select: jest.fn(),
+    where: jest.fn(),
+    andWhere: jest.fn(),
+    innerJoin: jest.fn(),
+    orderBy: jest.fn(),
+    addOrderBy: jest.fn(),
+    skip: jest.fn(),
+    take: jest.fn(),
+    getManyAndCount: jest.fn(),
+  };
+  const articleRepo = { createQueryBuilder: jest.fn() };
+  const userRepo = { find: jest.fn() };
+  let service: PostArticleService;
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    articleRepo.createQueryBuilder.mockReturnValue(chain);
+    for (const step of ['select', 'where', 'andWhere', 'innerJoin', 'orderBy', 'addOrderBy', 'skip', 'take']) {
+      chain[step].mockReturnValue(chain);
+    }
+    service = new PostArticleService(articleRepo as any, userRepo as any, {} as any, {} as any);
+  });
+
+  it('join 关注关系 + 仅已发布，按发布时间倒序并回填作者信息', async () => {
+    chain.getManyAndCount.mockResolvedValue([[{ id: 1, userId: 7 }], 1]);
+    userRepo.find.mockResolvedValue([{ userId: 7, nickName: '作者', avatar: 'a.png' }]);
+
+    const res = await service.findFollowAll({ pageNum: 1, pageSize: 10 } as any, { userId: 9 } as any);
+
+    expect(chain.innerJoin).toHaveBeenCalledWith(
+      expect.any(Function),
+      'follow',
+      'follow.followingId = article.userId AND follow.followerId = :feedFollowerId',
+      { feedFollowerId: 9 },
+    );
+    expect(chain.andWhere).toHaveBeenCalledWith('article.publishStatus = :publishStatus', { publishStatus: '2' });
+    expect(chain.orderBy).toHaveBeenCalledWith('article.publishTime', 'DESC');
+    expect(chain.addOrderBy).toHaveBeenCalledWith('article.id', 'DESC');
+    expect(chain.take).toHaveBeenCalledWith(10);
+    expect(res.data.total).toBe(1);
+    expect(res.data.list[0].userInfo).toEqual({ userId: 7, nickName: '作者', avatar: 'a.png' });
+  });
+
+  it('未关注任何作者：空列表，不触发用户批查', async () => {
+    chain.getManyAndCount.mockResolvedValue([[], 0]);
+
+    const res = await service.findFollowAll({ pageNum: 1, pageSize: 10 } as any, { userId: 9 } as any);
+
+    expect(res.data).toEqual({ list: [], total: 0 });
+    expect(userRepo.find).not.toHaveBeenCalled();
+  });
+
+  it('客户端指定 orderByColumn 不生效：feed 固定发布时间排序', async () => {
+    chain.getManyAndCount.mockResolvedValue([[], 0]);
+
+    await service.findFollowAll({ pageNum: 1, pageSize: 10, orderByColumn: 'createTime', isAsc: 'descending' } as any, {
+      userId: 9,
+    } as any);
+
+    expect(chain.orderBy).toHaveBeenCalledWith('article.publishTime', 'DESC');
+    expect(chain.addOrderBy).toHaveBeenCalledWith('article.id', 'DESC');
+  });
+});

@@ -82,6 +82,16 @@ export class PostArticleController {
   }
 
   /**
+   * 关注 feed（登录用户）：我关注的作者发布的文章，按发布时间倒序
+   * 不挂权限串（同 /my/list 口径）：普通注册用户即可访问，只能看到已发布文章
+   */
+  @ApiOperation({ summary: '文章-关注 feed' })
+  @Get('/follow/list')
+  findFollowAll(@Query() query: ListPostArticleDto, @User() user: UserDto) {
+    return this.postArticleService.findFollowAll(query, user);
+  }
+
+  /**
    * 查询文章详情（管理员）
    */
   @ApiOperation({ summary: '文章-详情' })
