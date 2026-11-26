@@ -1,4 +1,4 @@
-<!-- 创作者中心布局：独立顶栏 + 左侧导航（参考掘金创作者中心），登录守卫在此兜底（未登录原地弹登录框） -->
+<!-- 创作者中心布局：独立顶栏 + 左侧导航（参考掘金创作者中心），顶栏右侧用户区（通知/昵称/退出）与主站共用 CommonHeaderUser；登录守卫在此兜底（未登录原地弹登录框） -->
 <template>
   <div class="creator-layout">
     <header class="creator-header">
@@ -16,11 +16,9 @@
           <span class="creator-title">创作者中心</span>
         </div>
 
+        <!-- 右侧用户区与主站头部共用：通知铃铛 + 头像昵称 + 退出 -->
         <div class="right">
-          <NuxtLink v-if="user" to="/user/space" class="user-link" title="进入个人中心">
-            <img v-if="avatarUrl" class="user-avatar" :src="avatarUrl" alt="头像" />
-            <span v-else class="user-avatar user-avatar-fallback">{{ avatarFallback }}</span>
-          </NuxtLink>
+          <CommonHeaderUser />
         </div>
       </div>
     </header>
@@ -75,8 +73,7 @@ const icons = {
 }
 
 const route = useRoute()
-const config = useRuntimeConfig()
-const { user, isLoggedIn } = useUser()
+const { isLoggedIn } = useUser()
 const { openLogin } = useAuthModal()
 
 // 登录守卫已由 auth middleware 先行（各 creator 页 definePageMeta 声明）：无 token 原地弹登录框不跳页，
@@ -85,10 +82,6 @@ const { openLogin } = useAuthModal()
 const goWrite = () => {
   return navigateTo('/editor/new')
 }
-
-// 头像地址：相对路径（/profile/...）补全服务器前缀
-const avatarUrl = computed(() => toCoverUrl(config.public.apiBase, user.value?.avatar))
-const avatarFallback = computed(() => (user.value?.nickName || user.value?.userName || '用户').slice(0, 1))
 </script>
 
 <style lang="less" scoped>
@@ -169,30 +162,6 @@ const avatarFallback = computed(() => (user.value?.nickName || user.value?.userN
   .right {
     display: flex;
     align-items: center;
-    gap: 14px;
-  }
-
-  .user-link {
-    display: flex;
-    align-items: center;
-    line-height: 0;
-  }
-
-  .user-avatar {
-    width: 30px;
-    height: 30px;
-    border-radius: var(--radius-full);
-    object-fit: cover;
-    background-color: var(--color-bg);
-
-    &.user-avatar-fallback {
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      background-image: var(--gradient-brand);
-      color: #fff;
-      font-size: 14px;
-    }
   }
 }
 
