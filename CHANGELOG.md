@@ -2,6 +2,60 @@
 
 更细粒度的过程记录（审查 → 修复 → 验收全程）见 [CODE-REVIEW-2026-11-20.md](./CODE-REVIEW-2026-11-20.md)。
 
+## v1.4.0（2026-11-27）
+
+用户举报模块全链路（文章/用户举报提交、去重与频控、管理端处理、自动下架、反馈通知）及 P1 加固（目标有效性校验、被举报内容快照、下架幂等、停用原因与登录拦截）。
+
+> 升级提示：本版本含数据库增量——新增 `post_report` 表（28 号表，含 `target_snapshot`）、`sys_user` 增 `stop_reason` / `stop_time` 两列、字典类型 18~20 与字典数据 54~63、`sys_menu` 212~214 举报管理菜单种子（种子 SQL 详见 `apps/server/db/init.sql`，全新导入无需手工处理）。存量环境执行后需清理 Redis `sys_dict:all` 缓存并 touch 字典行推进版本号，前端才会拉取新字典。
+>
+> ```sql
+> -- 停用原因/时间：停用用户无法登录、收不到站内信，登录拦截提示据此展示（重新启用时清空）
+> alter table sys_user
+>   add column stop_reason varchar(255) default null comment '停用原因（登录拦截展示）' after remark,
+>   add column stop_time datetime(3) default null comment '停用时间（登录拦截展示）' after stop_reason;
+>
+> -- 新增举报表（待处理唯一索引去重，含举报时快照）
+> create table
+>   post_report (
+>     id int not null auto_increment comment '举报 id',
+>     target_type varchar(8) not null comment '举报目标类型（post 文章 / user 用户）',
+>     target_id int not null comment '举报目标ID（post=文章 id，user=用户 id）',
+>     target_snapshot varchar(500) default null comment '举报时的目标快照（文章标题+简介 / 用户昵称）',
+>     reporter_id int not null comment '举报人用户ID',
+>     reason_type varchar(32) not null comment '举报理由（字典 post_report_reason 的 dictValue）',
+>     reason_content varchar(500) default null comment '补充说明（可空，抄袭出处等）',
+>     status char(1) default '0' comment '处理状态（0 待处理 1 成立 2 驳回）',
+>     handle_action varchar(16) default null comment '处置动作（unpublish 下架文章 / disableUser 停用用户，无动作 null）',
+>     handle_remark varchar(255) default null comment '处理备注',
+>     handler_id int default null comment '处理人用户ID',
+>     pending_flag int default null comment '待处理标记（待处理=1，处理完成置 NULL）',
+>     handle_time datetime(3) default null comment '处理时间（毫秒粒度）',
+>     create_time datetime(3) default current_timestamp(3) comment '举报时间（毫秒粒度，24h 频控统计列）',
+>     primary key (id),
+>     unique key uk_reporter_pending (reporter_id, target_type, target_id, pending_flag),
+>     key idx_target_status (target_type, target_id, status),
+>     key idx_reporter_create (reporter_id, create_time)
+>   ) engine = innodb comment = '举报库';
+> ```
+
+### 新增
+
+- **举报模块（文章/用户举报全链路）**：`post_report` 联合表（target_type 区分文章/用户），`uk_reporter_pending` 唯一索引 + `INSERT IGNORE` 兜底并发（同一目标同时至多一条待处理举报，处理完成后可再次举报）；24h 内 10 次频控、自查拦截、举报理由/目标类型走数据字典校验；同一文章待处理举报达阈值（`AUTO_OFFLINE_REPORTERS`）事务内自动下架并通知作者；处理结论（成立/驳回）与处置动作（下架文章/停用用户）按目标类型校验，处理完成定向反馈通知（`sys_notice` type=3，通知中心「系统通知」承接）
+- **admin**：举报管理页（菜单 212~214，目标类型/理由/状态/举报人/时间筛选 + 批量删除）；处理弹窗展示举报目标、理由与补充说明，停用用户时可填写停用原因（默认「举报核实成立，内容违规」）
+- **client**：文章页与空间页举报入口（登录守卫、自查/重复举报置灰），举报弹窗字典驱动；举报反馈接入通知中心
+- **docs**：新增举报模块约定页（接口契约、三态重复举报、通知分类与挂点）
+
+### 加固
+
+- **举报目标有效性**：仅已发布文章与未删除用户可被举报（文章下架/删除、用户注销后提交返回目标不存在）；举报时落 `target_snapshot`（文章标题+简介 / 用户昵称），目标后续编辑或删除后管理端仍可还原被举报内容
+- **下架幂等**：处置下架改为条件更新（仅 PUBLISHED 且未删除），未实际下架时不通知作者、不重复计数；成立结论与已下架状态并发安全
+- **停用原因与登录拦截**：`sys_user` 新增 `stop_reason` / `stop_time`（重新启用清空），停用即踢下线；密码校验通过后按专属业务码 `ACCOUNT_DISABLED_CODE=603` 返回（HTTP 403，信封 data 携带停用时间/原因），客户端登录弹窗内常驻展示处置说明与申诉指引（不做 toast）；管理端停用用户改为填写原因弹窗
+
+### 修复
+
+- `init.sql` 的 `sys_user` 种子改为显式列名（新增尾部列后位置插入列数不匹配，全新导入会失败）
+- 版本号全仓对齐（8 包 1.3.0→1.4.0）
+
 ## v1.3.0（2026-11-25）
 
 关注模块全链路（用户互关：前台交互 + 通知红标 + 管理端管理页 + 用户列表粉丝量列），文档站进容器栈，通知已读水位毫秒化修复。
