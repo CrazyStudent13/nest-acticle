@@ -5,6 +5,7 @@
       <el-input v-model="title" class="title-input" placeholder="输入文章标题..." @input="handleTitleInput" />
       <div class="header-actions">
         <span class="auto-save-tip">{{ isEdit ? '编辑模式' : '新建文章' }}</span>
+        <el-button :disabled="!title.trim() && !content.trim()" @click="openPreview">预览</el-button>
         <el-button @click="handleSaveDraft" :loading="loading">存草稿</el-button>
         <el-button type="primary" @click="handlePublish" :loading="loading">发布</el-button>
       </div>
@@ -76,12 +77,25 @@
         <el-icon :size="20"><Expand /></el-icon>
       </div>
     </div>
+
+    <!-- 发布前预览：与前台写作共用 ArticlePreview（版式/作者卡/目录/渲染/ESC/锁滚动一致） -->
+    <ArticlePreview
+      v-model:open="previewOpen"
+      :title="title"
+      :content="content"
+      :cover-url="previewCoverUrl"
+      :author-name="previewAuthorName"
+      :author-avatar="previewAuthorAvatar"
+      :author-stats="previewStats"
+      :publish-time="previewPublishTime"
+      :subject-title="previewSubjectTitle"
+    />
   </div>
 </template>
 
 <script setup name="ArticleEditor">
 import { Expand, Fold } from '@element-plus/icons-vue';
-import { MarkdownEditor } from '@nest-acticle/editor';
+import { ArticlePreview, MarkdownEditor } from '@nest-acticle/editor';
 import '@nest-acticle/editor/style.css';
 // 预览区 markdown-body 样式与前台文章页同源（组件包不重复打包渲染样式，由宿主引入）
 import '@nest-acticle/markdown/style.css';
@@ -89,9 +103,48 @@ import '@nest-acticle/markdown/style.css';
 import ImageUploadCover from '@/components/ImageUploadCover/index.vue';
 import { useArticleEditor } from '@/composables/post/useArticleEditor';
 import request from '@/composables/useRequest';
+import useUserStore from '@/store/modules/user';
+import { getImageUrl } from '@/utils/image';
 
 // 使用组合函数
 const { title, content, loading, isEdit, subjectList, sidebarCollapsed, articleData, post_article_source, handleTitleInput, toggleSidebar, handleSaveDraft, handlePublish } = useArticleEditor();
+
+// ---------- 发布前预览（版式/渲染/ESC/锁滚动在共享 ArticlePreview 内，本页只备展示数据） ----------
+const userStore = useUserStore();
+const previewOpen = ref(false);
+const previewSubjectTitle = computed(() => subjectList.value.find((item) => item.id === articleData.subjectId)?.title || '');
+const previewAuthorName = computed(() => articleData.userInfo?.nickName || articleData.author || userStore.name || '佚名');
+const previewAuthorAvatar = computed(() => getImageUrl(articleData.userInfo?.avatar || ''));
+const previewCoverUrl = computed(() => getImageUrl(articleData.cover || ''));
+const previewPublishTime = computed(() => (articleData.publishTime ? String(articleData.publishTime).slice(0, 16) : ''));
+const previewStats = ref(null);
+
+// 与前台作者卡同口径：guest 文章列表按 userId 过滤，total 即文章数，readNum/likeNum 求和
+const loadPreviewStats = async (userId) => {
+  try {
+    const res = await request({
+      url: '/post/article/guest/list',
+      method: 'get',
+      params: { userId, pageNum: 1, pageSize: 100 }
+    });
+    const list = res?.data?.list || [];
+    previewStats.value = {
+      total: res?.data?.total || 0,
+      reads: list.reduce((sum, item) => sum + (item.readNum || 0), 0),
+      likes: list.reduce((sum, item) => sum + (item.likeNum || 0), 0)
+    };
+  } catch {
+    previewStats.value = null;
+  }
+};
+
+const openPreview = () => {
+  previewOpen.value = true;
+  previewStats.value = null;
+  if (articleData.userId) {
+    void loadPreviewStats(Number(articleData.userId));
+  }
+};
 
 // 与共享编辑器对接的图片上传回调：走统一上传端点回填 URL（对齐 ImageUploadCover / 原 MdEditor 封装的链路）
 // 大小上限与服务端对齐（apps/server app.file.maxSize / UPLOAD_MAX_SIZE_MB，均为 10MB）

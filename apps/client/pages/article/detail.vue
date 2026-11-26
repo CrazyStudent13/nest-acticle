@@ -90,8 +90,11 @@
 </template>
 
 <script setup lang="ts">
+import { ArticleToc } from '@nest-acticle/editor'
+import { extractMarkdownHeadings } from '@nest-acticle/markdown'
 import { formatDateTime } from '@nest-acticle/utils'
 import type { Article, Subject } from '@nest-acticle/shared'
+import '@nest-acticle/editor/style.css'
 
 const config = useRuntimeConfig()
 const route = useRoute()

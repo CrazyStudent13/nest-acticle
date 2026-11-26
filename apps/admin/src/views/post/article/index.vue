@@ -123,9 +123,10 @@
         <el-table-column align="left" label="评论" prop="commentNum" width="80" />
         <el-table-column align="left" label="发布时间" prop="publishTime" width="170" />
         <el-table-column align="left" label="创建时间" prop="createTime" width="170" />
-        <el-table-column align="center" class-name="small-padding" fixed="right" label="操作" width="150">
+        <el-table-column align="center" class-name="small-padding" fixed="right" label="操作" width="220">
           <template #default="scope">
             <el-button v-hasPermi="['post:article:edit']" :icon="Edit" link type="primary" @click="article.handleUpdate(scope.row)">修改</el-button>
+            <el-button v-hasPermi="['post:article:edit']" :icon="View" link type="primary" @click="handlePreview(scope.row)">预览</el-button>
             <el-button v-hasPermi="['post:article:remove']" :icon="Delete" link type="danger" @click="article.handleDelete(scope.row)">删除</el-button>
           </template>
         </el-table-column>
@@ -135,16 +136,34 @@
       <pagination v-show="article.total > 0" v-model:limit="article.queryParams.pageSize" v-model:page="article.queryParams.pageNum" :total="article.total" @pagination="article.getList" />
     </el-card>
 
-    <article-form v-model="article.open" :title="article.title" :initial-data="article.form" :subject-list="subject.state.list" @success="handleArticleSuccess" />
+    <article-form v-model="article.open" :title="article.title" :initial-data="article.form" :subject-list="subject.state.list" @success="handleArticleSuccess" @preview="openPreview" />
+
+    <!-- 文章预览：与前台写作/文章详情共用 ArticlePreview（版式/作者卡/目录/渲染/ESC/锁滚动一致） -->
+    <ArticlePreview
+      v-model:open="previewOpen"
+      :title="previewArticle.title"
+      :content="previewArticle.content"
+      :cover-url="previewCoverUrl"
+      :author-name="previewAuthorName"
+      :author-avatar="previewAuthorAvatar"
+      :author-stats="previewStats"
+      :publish-time="previewPublishTime"
+      :subject-title="previewSubjectTitle"
+    />
   </div>
 </template>
 
 <script setup name="Article">
-import { Delete, Edit, Loading, Plus, Refresh, Search } from '@element-plus/icons-vue';
+import { Delete, Edit, Loading, Plus, Refresh, Search, View } from '@element-plus/icons-vue';
+import { ArticlePreview } from '@nest-acticle/editor';
+import '@nest-acticle/editor/style.css';
+import '@nest-acticle/markdown/style.css';
 
 import { listArticle, delArticle, getArticle } from '@/api/post/article';
 import { useSubject } from '@/composables/post/useSubject';
 import { useCrud } from '@/composables/useCrud';
+import request from '@/composables/useRequest';
+import { getImageUrl } from '@/utils/image';
 
 import ArticleForm from './components/ArticleForm';
 
@@ -188,6 +207,62 @@ const article = useCrud({
 
 subject.getList();
 article.getList();
+
+// ---------- 文章预览（列表行 / 修改抽屉共用）：版式/渲染/ESC/锁滚动在共享 ArticlePreview 内 ----------
+const previewOpen = ref(false);
+const previewArticle = ref({});
+const previewStats = ref(null);
+const previewCoverUrl = computed(() => getImageUrl(previewArticle.value.cover || ''));
+const previewAuthorName = computed(() => previewArticle.value.userInfo?.nickName || previewArticle.value.author || '佚名');
+const previewAuthorAvatar = computed(() => getImageUrl(previewArticle.value.userInfo?.avatar || ''));
+const previewPublishTime = computed(() => (previewArticle.value.publishTime ? String(previewArticle.value.publishTime).slice(0, 16) : ''));
+const previewSubjectTitle = computed(() => {
+  const subjectId = previewArticle.value.subjectId;
+  return subject.state.list.find((item) => String(item.id) === String(subjectId))?.title || '';
+});
+
+// 与前台作者卡同口径：guest 文章列表按 userId 过滤，total 即文章数，readNum/likeNum 求和
+const loadPreviewStats = async (userId) => {
+  try {
+    const res = await request({
+      url: '/post/article/guest/list',
+      method: 'get',
+      params: { userId, pageNum: 1, pageSize: 100 }
+    });
+    const list = res?.data?.list || [];
+    previewStats.value = {
+      total: res?.data?.total || 0,
+      reads: list.reduce((sum, item) => sum + (item.readNum || 0), 0),
+      likes: list.reduce((sum, item) => sum + (item.likeNum || 0), 0)
+    };
+  } catch {
+    previewStats.value = null;
+  }
+};
+
+const openPreview = (articleData) => {
+  previewArticle.value = articleData || {};
+  previewOpen.value = true;
+  previewStats.value = null;
+  if (articleData?.userId) {
+    void loadPreviewStats(Number(articleData.userId));
+  }
+};
+
+// 列表行预览取详情（列表行不含正文），抽屉预览直接带当前表单值 + 已加载正文
+const handlePreview = async (row) => {
+  const articleId = row.id || row.articleId;
+  if (!articleId) {
+    ElMessage.warning('文章ID不存在');
+    return;
+  }
+  try {
+    const res = await getArticle(articleId);
+    openPreview(res.data || {});
+  } catch {
+    ElMessage.error('文章内容加载失败');
+  }
+};
 
 // 搜索框失焦处理（去除空格）
 const handleQueryBlur = () => {

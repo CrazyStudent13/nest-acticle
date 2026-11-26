@@ -4,6 +4,7 @@
       <div style="display: flex; align-items: center; gap: 12px">
         <span>{{ title }}</span>
         <el-button v-if="formData.id || formData.articleId" type="primary" :icon="Edit" @click="handleOpenEditor">在编辑器中打开</el-button>
+        <el-button v-if="formData.id || formData.articleId" :icon="View" @click="handlePreview">预览</el-button>
       </div>
     </template>
     <!-- 收敛为元数据快速编辑：正文统一在编辑器页 editor.vue 维护（唯一内容编辑链路） -->
@@ -74,7 +75,7 @@
 </template>
 
 <script setup name="ArticleForm">
-import { Edit } from '@element-plus/icons-vue';
+import { Edit, View } from '@element-plus/icons-vue';
 import { useRouter } from 'vue-router';
 
 import { addArticle, updateArticle } from '@/api/post/article';
@@ -102,7 +103,7 @@ const props = defineProps({
   }
 });
 
-const emit = defineEmits(['update:modelValue', 'success']);
+const emit = defineEmits(['update:modelValue', 'success', 'preview']);
 
 const { post_article_source, post_article_publish_status, post_article_audit_status } = useDict('post_article_source', 'post_article_publish_status', 'post_article_audit_status');
 
@@ -274,6 +275,15 @@ defineExpose({
     mergeFormData(data);
   }
 });
+
+// 预览：当前表单值 + 打开抽屉时加载的正文（正文不在抽屉内维护，避免旧快照覆盖编辑器改动）
+const handlePreview = () => {
+  emit('preview', {
+    ...formData,
+    content: props.initialData?.content || '',
+    publishTime: props.initialData?.publishTime || ''
+  });
+};
 
 // 打开编辑器页面
 const handleOpenEditor = () => {
