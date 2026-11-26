@@ -27,6 +27,12 @@ export class PostReportEntity {
   @Column({ type: 'int', name: 'target_id', comment: '举报目标ID（post=文章 id，user=用户 id）' })
   public targetId: number;
 
+  // 举报时的目标快照：文章取「标题 · 简介」、用户取昵称，提交时落库。
+  // 目标后续编辑标题/改昵称/删除后，管理端仍能还原被举报时的内容（当前标题只作跳转与兜底）
+  @ApiProperty({ type: String, description: '举报时的目标快照（文章标题+简介 / 用户昵称）', required: false })
+  @Column({ type: 'varchar', name: 'target_snapshot', length: 500, nullable: true, comment: '举报时的目标快照（文章标题+简介 / 用户昵称）' })
+  public targetSnapshot: string;
+
   @ApiProperty({ type: Number, description: '举报人用户ID' })
   @Column({ type: 'int', name: 'reporter_id', comment: '举报人用户ID' })
   public reporterId: number;

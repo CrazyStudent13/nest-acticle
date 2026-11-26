@@ -397,21 +397,34 @@ const resetQuery = () => {
 
 // ==================== 页面特有操作 ====================
 
-// 点击状态标签处理
+// 点击状态标签处理：停用需填原因（展示在被停用用户的登录拦截提示中），启用直接确认
 const handleStatusClick = async (row) => {
   const newStatus = row.status === '0' ? '1' : '0';
   const text = newStatus === '0' ? '启用' : '停用';
 
   try {
-    await ElMessageBox.confirm(`确认要"${text}" "${row.userName}"用户吗？`, '提示', {
-      confirmButtonText: '确定',
-      cancelButtonText: '取消',
-      type: 'warning'
-    });
+    let stopReason = '';
+    if (newStatus === '1') {
+      const { value } = await ElMessageBox.prompt(`确认停用「${row.userName}」并填写原因（将展示在该用户的登录提示中）`, '停用用户', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning',
+        inputPlaceholder: '如：发布违规内容',
+        inputValue: '',
+        inputValidator: (val) => !val || val.length <= 255 || '原因不能超过 255 字'
+      });
+      stopReason = (value || '').trim();
+    } else {
+      await ElMessageBox.confirm(`确认要启用「${row.userName}」用户吗？`, '提示', {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      });
+    }
     // 设置列表 loading 状态
     user.loading = true;
     // 调用接口更新状态
-    await changeUserStatus(row.userId, newStatus);
+    await changeUserStatus(row.userId, newStatus, stopReason);
     // 更新本地数据
     row.status = newStatus;
     ElMessage.success(`${text}成功`);

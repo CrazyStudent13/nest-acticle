@@ -57,11 +57,12 @@ export function resetUserPwd(userId, password) {
   });
 }
 
-// 用户状态修改
-export function changeUserStatus(userId, status) {
+// 用户状态修改（停用原因会展示在被停用用户的登录拦截提示中）
+export function changeUserStatus(userId, status, stopReason) {
   const data = {
     userId,
-    status
+    status,
+    ...(stopReason ? { stopReason } : {})
   };
   return request({
     url: '/system/user/changeStatus',

@@ -95,4 +95,11 @@ export class HandleReportDto {
   @IsString()
   @Length(0, 255)
   handleRemark?: string;
+
+  // 停用原因（仅 disableUser 动作生效）：写入被停用用户的登录拦截提示，未传用默认文案
+  @ApiProperty({ required: false, description: '停用原因（disableUser 动作生效，展示在登录拦截提示中）' })
+  @IsOptional()
+  @IsString()
+  @Length(0, 255)
+  stopReason?: string;
 }

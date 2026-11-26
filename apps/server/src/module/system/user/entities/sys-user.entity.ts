@@ -43,4 +43,12 @@ export class UserEntity extends BaseEntity {
 
   @Column({ type: 'timestamp', name: 'login_date', default: null, comment: '最后登录时间' })
   public loginDate: Date;
+
+  // 停用原因/时间：账号被停用后无法登录，站内信收不到——登录拦截提示（ACCOUNT_DISABLED_CODE）
+  // 在密码校验通过后回传这两个字段，由登录弹窗展示原因与申诉指引；启用时清空
+  @Column({ type: 'varchar', name: 'stop_reason', length: 255, nullable: true, comment: '停用原因（登录拦截展示）' })
+  public stopReason: string | null;
+
+  @Column({ type: 'datetime', precision: 3, name: 'stop_time', nullable: true, comment: '停用时间（登录拦截展示）' })
+  public stopTime: Date | null;
 }

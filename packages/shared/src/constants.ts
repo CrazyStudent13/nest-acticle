@@ -32,6 +32,14 @@ export const WARNING_CODE = 601;
 export const ACCOUNT_EXISTS_CODE = 602;
 
 /**
+ * 账号已被停用（登录拦截：密码校验通过后检查状态，信封 data 携带 { stopTime, stopReason }）
+ * 契约来源：apps/server AuthService.doLogin 抛出；apps/client components/Auth/Modal.vue 据此
+ * 在登录弹窗内渲染处置说明（不做 toast——文案较长且需常驻）
+ * 非 HTTP 状态码：server 的 BusinessException 对 603 特殊映射为 HTTP 403，前端以信封 body.code 为准
+ */
+export const ACCOUNT_DISABLED_CODE = 603;
+
+/**
  * 权限字面量（RuoYi 约定）
  * 契约来源：apps/server 侧权限校验与 apps/admin/src/utils/permission.ts 等
  */

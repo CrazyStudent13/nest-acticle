@@ -26,6 +26,9 @@ create table
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default null comment '备注',
+    -- 停用原因/时间：停用用户无法登录、收不到站内信，登录拦截提示据此展示处置说明（启用时清空）
+    stop_reason varchar(255) default null comment '停用原因（登录拦截展示）',
+    stop_time datetime(3) default null comment '停用时间（登录拦截展示）',
     primary key (user_id),
     unique key uniq_user_name (user_name)
   ) engine = innodb auto_increment = 100 comment = '用户信息表';
@@ -33,8 +36,29 @@ create table
 -- ----------------------------
 -- 初始化-用户信息表数据
 -- ----------------------------
+-- 显式列名：补充 stop_reason/stop_time 等尾部列后，位置插入不再随建表列序漂移
 insert into
-  sys_user
+  sys_user (
+    user_id,
+    user_name,
+    nick_name,
+    user_type,
+    email,
+    phonenumber,
+    sex,
+    avatar,
+    signature,
+    password,
+    status,
+    del_flag,
+    login_ip,
+    login_date,
+    create_by,
+    create_time,
+    update_by,
+    update_time,
+    remark
+  )
 values
   (
     1,
@@ -59,7 +83,27 @@ values
   );
 
 insert into
-  sys_user
+  sys_user (
+    user_id,
+    user_name,
+    nick_name,
+    user_type,
+    email,
+    phonenumber,
+    sex,
+    avatar,
+    signature,
+    password,
+    status,
+    del_flag,
+    login_ip,
+    login_date,
+    create_by,
+    create_time,
+    update_by,
+    update_time,
+    remark
+  )
 values
   (
     2,
@@ -5496,6 +5540,8 @@ create table
     id int not null auto_increment comment '举报 id',
     target_type varchar(8) not null comment '举报目标类型（post 文章 / user 用户）',
     target_id int not null comment '举报目标ID（post=文章 id，user=用户 id）',
+    -- 举报时快照（文章标题+简介 / 用户昵称）：目标编辑/删除后管理端仍可还原被举报内容
+    target_snapshot varchar(500) default null comment '举报时的目标快照（文章标题+简介 / 用户昵称）',
     reporter_id int not null comment '举报人用户ID',
     reason_type varchar(32) not null comment '举报理由（字典 post_report_reason 的 dictValue）',
     reason_content varchar(500) default null comment '补充说明（可空，抄袭出处等）',

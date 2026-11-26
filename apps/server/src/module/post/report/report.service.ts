@@ -51,15 +51,19 @@ export class PostReportService {
   /**
    * 提交举报（登录用户）
    * 目标存在性校验 → 禁止举报自己/自己的文章 → 24h 频控 → INSERT IGNORE 落库
+   * 文章仅允许举报对外可见（已发布）的，已删除/草稿/已下架一律按不存在处理（不泄露未公开内容存在性）；
+   * 用户目标只接受未注销账号（同 guest/profile 的 delFlag 口径）
    * 理由/目标类型的合法性按字典缓存校验（后端流程对具体 value 保持中性，运营扩理由不发版）
    */
   async create(dto: CreateReportDto, userId: number) {
     await this.assertDictValues(dto.targetType, dto.reasonType);
 
+    // 举报时快照（文章标题+简介 / 用户昵称）：目标后续被编辑或删除后，管理端仍能还原被举报内容
+    let targetSnapshot = '';
     if (dto.targetType === ReportTargetTypeEnum.POST) {
       const article = await this.articleRepo.findOne({
         where: { id: dto.targetId, delFlag: '0' },
-        select: ['id', 'userId'],
+        select: ['id', 'userId', 'title', 'desc', 'publishStatus'],
       });
       if (!article) {
         throw new BusinessException(500, '举报的文章不存在或已删除');
@@ -67,14 +71,22 @@ export class PostReportService {
       if (article.userId === userId) {
         throw new BusinessException(500, '不能举报自己的文章');
       }
+      if (article.publishStatus !== PublishStatusEnum.PUBLISHED) {
+        throw new BusinessException(500, '举报的文章不存在或已下架');
+      }
+      targetSnapshot = `${article.title}${article.desc ? ` · ${article.desc}` : ''}`;
     } else {
       if (dto.targetId === userId) {
         throw new BusinessException(500, '不能举报自己');
       }
-      const target = await this.userRepo.findOne({ where: { userId: dto.targetId }, select: ['userId'] });
+      const target = await this.userRepo.findOne({
+        where: { userId: dto.targetId, delFlag: '0' },
+        select: ['userId', 'nickName'],
+      });
       if (!target) {
         throw new BusinessException(500, '举报的用户不存在');
       }
+      targetSnapshot = target.nickName;
     }
 
     const since = new Date(Date.now() - 24 * 60 * 60 * 1000);
@@ -89,8 +101,8 @@ export class PostReportService {
       // 参数化 INSERT IGNORE + 待处理唯一索引（pending_flag=1，处理完置 NULL 豁免）：
       // 并发重复提交由数据库兜底——同一目标同时至多一条待处理举报，处理完成后可再次举报
       const res = await manager.query(
-        'INSERT IGNORE INTO post_report (target_type, target_id, reporter_id, reason_type, reason_content, pending_flag) VALUES (?, ?, ?, ?, ?, 1)',
-        [dto.targetType, dto.targetId, userId, dto.reasonType, dto.reasonContent || null],
+        'INSERT IGNORE INTO post_report (target_type, target_id, reporter_id, reason_type, reason_content, target_snapshot, pending_flag) VALUES (?, ?, ?, ?, ?, ?, 1)',
+        [dto.targetType, dto.targetId, userId, dto.reasonType, dto.reasonContent || null, targetSnapshot],
       );
       if (res.affectedRows === 0) {
         throw new BusinessException(500, '该内容已有待处理的举报，请耐心等待处理结果');
@@ -160,6 +172,7 @@ export class PostReportService {
       id: row.report_id,
       targetType: row.report_target_type,
       targetId: row.report_target_id,
+      targetSnapshot: row.report_target_snapshot,
       reporterId: row.report_reporter_id,
       reporterName: row.reporter_nick_name,
       reasonType: row.report_reason_type,
@@ -206,10 +219,11 @@ export class PostReportService {
       let targetDesc = '';
       let offlineAuthorId: number | null = null;
       let offlineTitle = '';
+      let unpublishApplied = false;
       if (report.targetType === ReportTargetTypeEnum.POST) {
         const article = await manager.findOne(PostArticleEntity, {
           where: { id: report.targetId },
-          select: ['id', 'title', 'userId'],
+          select: ['id', 'title', 'userId', 'delFlag', 'publishStatus'],
         });
         targetDesc = article ? `文章《${article.title}》` : `文章 #${report.targetId}`;
         offlineTitle = article?.title || '';
@@ -226,7 +240,13 @@ export class PostReportService {
         if (report.targetType !== ReportTargetTypeEnum.POST) {
           throw new BusinessException(500, '下架动作仅适用于文章举报');
         }
-        await manager.update(PostArticleEntity, { id: report.targetId }, { publishStatus: PublishStatusEnum.OFFLINE });
+        // 条件更新（未删除 + 仍在架）：已下架/已删除的文章不重复动作，也不给作者发「已下架」通知
+        const offline = await manager.update(
+          PostArticleEntity,
+          { id: report.targetId, delFlag: '0', publishStatus: PublishStatusEnum.PUBLISHED },
+          { publishStatus: PublishStatusEnum.OFFLINE },
+        );
+        unpublishApplied = !!offline.affected;
       } else if (action === ReportHandleActionEnum.DISABLE_USER) {
         if (report.targetType !== ReportTargetTypeEnum.USER) {
           throw new BusinessException(500, '停用动作仅适用于用户举报');
@@ -238,7 +258,16 @@ export class PostReportService {
         if (target.userType === SYS_USER_TYPE.SYS) {
           throw new BusinessException(500, '系统角色不可停用');
         }
-        await manager.update(UserEntity, { userId: report.targetId }, { status: StatusEnum.STOP });
+        // 停用原因/时间随状态落库：被停用用户只能通过登录拦截获知处置说明（站内信收不到）
+        await manager.update(
+          UserEntity,
+          { userId: report.targetId },
+          {
+            status: StatusEnum.STOP,
+            stopReason: dto.stopReason?.trim() || '举报核实成立，内容违规',
+            stopTime: new Date(),
+          },
+        );
         disableTargetId = report.targetId;
       }
 
@@ -275,7 +304,7 @@ export class PostReportService {
         status: StatusEnum.NORMAL,
         createBy: 'system',
       });
-      if (action === ReportHandleActionEnum.UNPUBLISH && offlineAuthorId) {
+      if (action === ReportHandleActionEnum.UNPUBLISH && unpublishApplied && offlineAuthorId) {
         await manager.insert(SysNoticeEntity, {
           noticeTitle: `你的文章《${offlineTitle}》已下架`,
           noticeType: '3',

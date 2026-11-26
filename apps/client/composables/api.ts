@@ -5,15 +5,18 @@
 // 信封契约类型来自 @nest-acticle/shared（server ResultData 的镜像）
 import type { ApiResponse } from '@nest-acticle/shared'
 
-// 请求失败统一抛 ApiError：message 为可直接提示的 msg，code 为信封业务码，供调用方按码分支
-// （如注册撞号转登录引导）。调用方按 error.code 读取即可，不必 instanceof
+// 请求失败统一抛 ApiError：message 为可直接提示的 msg，code 为信封业务码，data 为信封附带数据
+// （如账号停用 603 携带 { stopTime, stopReason } 供登录弹窗渲染），调用方按 error.code 读取即可，不必 instanceof
 export class ApiError extends Error {
   readonly code: number
 
-  constructor(code: number, message: string) {
+  readonly data: any
+
+  constructor(code: number, message: string, data: any = null) {
     super(message)
     this.name = 'ApiError'
     this.code = code
+    this.data = data
   }
 }
 
@@ -58,14 +61,14 @@ export const apiFetch = async <T = any>(url: string, opts: Record<string, any> =
         handleUnauthorized(url)
       }
     }
-    throw new ApiError(httpErrorCode(error), error?.data?.msg || error?.message || '请求失败')
+    throw new ApiError(httpErrorCode(error), error?.data?.msg || error?.message || '请求失败', error?.data?.data ?? null)
   }
   // HTTP 200 但信封 code 非 200：业务码原样透出
   if (body.code !== 200) {
     if (body.code === 401 && !silent401) {
       handleUnauthorized(url)
     }
-    throw new ApiError(body.code, body.msg || '请求失败')
+    throw new ApiError(body.code, body.msg || '请求失败', body.data ?? null)
   }
   return body
 }

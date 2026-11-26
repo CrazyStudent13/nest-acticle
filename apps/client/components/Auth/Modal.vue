@@ -18,6 +18,13 @@
 
           <!-- novalidate：关闭浏览器原生校验气泡，统一用表单内的自定义提示 -->
           <form class="panel-body" novalidate @submit.prevent="handleSubmit">
+            <!-- 账号停用：内容较长且需常驻，用弹窗内固定提示替代 toast（停用用户无法登录，这里是唯一触达点） -->
+            <div v-if="blocked" class="account-blocked" role="alert">
+              <p class="blocked-title">账号已被停用</p>
+              <p v-if="blocked.time" class="blocked-line">停用时间：{{ blocked.time }}</p>
+              <p v-if="blocked.reason" class="blocked-line">停用原因：{{ blocked.reason }}</p>
+              <p class="blocked-line">如有疑问，请联系管理员申诉。</p>
+            </div>
             <div class="field-group">
               <input
                 v-model="form.email"
@@ -189,7 +196,8 @@
 
 <script setup lang="ts">
 // 登录/注册弹窗：登录与注册共用一个弹窗，通过 mode 切换
-import { ACCOUNT_EXISTS_CODE } from '@nest-acticle/shared'
+import dayjs from 'dayjs'
+import { ACCOUNT_DISABLED_CODE, ACCOUNT_EXISTS_CODE } from '@nest-acticle/shared'
 
 const { isOpen, mode, close } = useAuthModal()
 const { login, register, fetchCaptcha, fetchRegisterConfig, sendRegisterEmailCode } = useUser()
@@ -211,6 +219,10 @@ const touched = reactive<Record<FormField, boolean>>({
   confirm: false,
   emailCode: false
 })
+
+// 账号停用提示（停用时间/原因）：后端密码校验通过后按 ACCOUNT_DISABLED_CODE 返回，
+// 在弹窗内常驻展示，不用 toast（文案较长且需要申诉指引）
+const blocked = ref<{ time: string; reason: string } | null>(null)
 
 // 邮箱格式：local 部分仅限常见字符（字母数字与 ._%+-），域名须为「标签.」+ 至少 2 位字母顶级域名
 const EMAIL_RE = /^[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)+[A-Za-z]{2,}$/
@@ -429,6 +441,7 @@ const resetForm = () => {
   touched.password = false
   touched.confirm = false
   touched.emailCode = false
+  blocked.value = null
   resetCaptcha()
   stopCooldown()
   registerCaptcha.img = ''
@@ -529,6 +542,15 @@ const handleSubmit = async () => {
     })
     close()
   } catch (error: any) {
+    // 账号停用：弹窗内常驻展示处置说明与申诉指引（toast 一闪而过放不下），不重取验证码
+    if (error?.code === ACCOUNT_DISABLED_CODE) {
+      const data = error?.data || {}
+      blocked.value = {
+        time: data.stopTime ? dayjs(data.stopTime).format('YYYY-MM-DD HH:mm') : '',
+        reason: data.stopReason || ''
+      }
+      return
+    }
     showToast(error?.message || '登录失败，请稍后重试', 'error')
     // 登录失败会累计错误次数，重取验证码状态（达到阈值后自动展示）
     await refreshCaptcha()
@@ -622,6 +644,29 @@ onBeforeUnmount(() => {
   flex-direction: column;
   gap: 14px;
   padding: 8px 24px 24px;
+
+  // 账号停用提示：常驻在表单顶部，与字段错误同色系但更克制
+  .account-blocked {
+    padding: 10px 12px;
+    border: 1px solid rgba(209, 36, 47, 0.25);
+    border-radius: var(--radius-sm);
+    background-color: rgba(209, 36, 47, 0.06);
+
+    .blocked-title {
+      margin: 0 0 4px;
+      font-size: 13px;
+      font-weight: 600;
+      color: #d1242f;
+    }
+
+    .blocked-line {
+      margin: 0;
+      font-size: 12px;
+      line-height: 18px;
+      color: var(--color-text-2);
+      overflow-wrap: anywhere;
+    }
+  }
 
   .field-group {
     display: flex;

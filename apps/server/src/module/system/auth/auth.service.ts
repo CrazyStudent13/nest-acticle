@@ -4,7 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { JwtService } from '@nestjs/jwt';
 import { randomInt } from 'crypto';
 import * as bcrypt from 'bcryptjs';
-import { ACCOUNT_EXISTS_CODE } from '@nest-acticle/shared';
+import { ACCOUNT_DISABLED_CODE, ACCOUNT_EXISTS_CODE } from '@nest-acticle/shared';
 import { RedisService } from 'src/module/common/redis/redis.service';
 import { GetNowDate, GenerateUUID } from 'src/common/utils/index';
 import { CacheEnum, DelFlagEnum, StatusEnum } from 'src/common/enum/index';
@@ -131,7 +131,12 @@ export class AuthService {
       throw new BusinessException(500, `您已被禁用，如需正常使用请联系管理员`);
     }
     if (userData.status === StatusEnum.STOP) {
-      throw new BusinessException(500, `您已被停用，如需正常使用请联系管理员`);
+      // 专属业务码 + 停用原因/时间：停用用户无法登录、收不到站内信，
+      // 触达点在登录拦截——前端登录弹窗按码渲染处置说明与申诉指引（HTTP 映射 403）
+      throw new BusinessException(ACCOUNT_DISABLED_CODE, '账号已被停用', {
+        stopTime: userData.stopTime,
+        stopReason: userData.stopReason,
+      });
     }
 
     /**

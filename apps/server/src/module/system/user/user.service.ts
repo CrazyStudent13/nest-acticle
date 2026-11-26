@@ -455,14 +455,25 @@ export class UserService {
       throw new BusinessException(500, '系统角色不可停用');
     }
 
+    // 停用原因/时间随状态落库：用户被停用后无法登录、收不到站内信，
+    // 登录拦截提示（ACCOUNT_DISABLED_CODE）据此展示处置说明；重新启用时清空
+    const isStop = changeStatusDto.status === StatusEnum.STOP;
     const res = await this.userRepo.update(
       { userId: changeStatusDto.userId },
-      {
-        status: changeStatusDto.status,
-      },
+      isStop
+        ? {
+            status: changeStatusDto.status,
+            stopReason: changeStatusDto.stopReason?.trim() || '管理员停用',
+            stopTime: new Date(),
+          }
+        : {
+            status: changeStatusDto.status,
+            stopReason: null,
+            stopTime: null,
+          },
     );
     // 停用用户的在线会话立即失效（启用无需处理）
-    if (changeStatusDto.status === StatusEnum.STOP) {
+    if (isStop) {
       await this.kickUserSessions([changeStatusDto.userId]);
     }
     return ResultData.ok(res);

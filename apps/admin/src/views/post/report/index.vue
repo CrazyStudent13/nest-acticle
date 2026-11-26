@@ -33,12 +33,12 @@
       </el-row>
       <el-table v-loading="report.loading" :data="report.list" @selection-change="report.handleSelectionChange">
         <el-table-column type="selection" width="55" />
-        <!-- 目标列：类型标签 + 标题/昵称（文章已删/用户已删时服务端回 null，降级灰字）；昵称列 min-width 吸收剩余宽度（同 like 页口径） -->
+        <!-- 目标列：类型标签 + 举报时快照（文章标题+简介 / 用户昵称，编辑或删除后仍可还原被举报内容）；无快照的旧数据降级当前标题或灰字 -->
         <el-table-column min-width="220" show-overflow-tooltip>
           <template #header>举报目标</template>
           <template #default="{ row }">
             <dict-tag type="post_report_target" :value="row.targetType" />
-            <span class="target-name" :class="{ 'is-missing': !(row.targetTitle || row.targetName) }">{{ row.targetTitle || row.targetName || '内容已删除' }}</span>
+            <span class="target-name" :class="{ 'is-missing': !(row.targetSnapshot || row.targetTitle || row.targetName) }">{{ row.targetSnapshot || row.targetTitle || row.targetName || '内容已删除' }}</span>
           </template>
         </el-table-column>
         <el-table-column label="举报理由" min-width="120">
@@ -88,7 +88,7 @@
       <el-form label-width="90px">
         <el-form-item label="举报目标">
           <dict-tag type="post_report_target" :value="handleRow?.targetType" />
-          <span class="target-name">{{ handleRow?.targetTitle || handleRow?.targetName || '内容已删除' }}</span>
+          <span class="target-name">{{ handleRow?.targetSnapshot || handleRow?.targetTitle || handleRow?.targetName || '内容已删除' }}</span>
         </el-form-item>
         <el-form-item label="举报理由">
           <dict-tag type="post_report_reason" :value="handleRow?.reasonType" />
@@ -105,6 +105,9 @@
             <el-option v-if="handleRow?.targetType === 'post'" label="下架文章" value="unpublish" />
             <el-option v-if="handleRow?.targetType === 'user'" label="停用用户" value="disableUser" />
           </el-select>
+        </el-form-item>
+        <el-form-item v-if="handleForm.status === '1' && handleForm.handleAction === 'disableUser'" label="停用原因">
+          <el-input v-model="handleForm.stopReason" maxlength="255" placeholder="展示在被停用用户的登录提示中" />
         </el-form-item>
         <el-form-item label="处理备注">
           <el-input v-model="handleForm.handleRemark" :rows="3" maxlength="255" type="textarea" placeholder="处理说明（可选，会展示给处理审计）" />
@@ -159,28 +162,33 @@ const actionTagType = (action) => {
 };
 
 // ---------- 处理弹窗：结论默认成立、动作默认空（不执行处置）；提交后重拉列表 ----------
+const DEFAULT_STOP_REASON = '举报核实成立，内容违规';
 const handleOpen = ref(false);
 const handleSubmitting = ref(false);
 const handleRow = ref(null);
-const handleForm = reactive({ status: '1', handleAction: '', handleRemark: '' });
+const handleForm = reactive({ status: '1', handleAction: '', handleRemark: '', stopReason: DEFAULT_STOP_REASON });
 
 const openHandle = (row) => {
   handleRow.value = row;
   handleForm.status = '1';
   handleForm.handleAction = '';
   handleForm.handleRemark = '';
+  handleForm.stopReason = DEFAULT_STOP_REASON;
   handleOpen.value = true;
 };
 
 const submitHandle = async () => {
   if (!handleRow.value) return;
   // 结论为成立但目标动作未选择时视为「仅记录结论」，不拦截；备注超长由 maxlength + 服务端双重兜底
+  const isDisableUser = handleForm.status === '1' && handleForm.handleAction === 'disableUser';
   handleSubmitting.value = true;
   try {
     await handleReport(handleRow.value.id, {
       status: handleForm.status,
       handleAction: handleForm.status === '1' && handleForm.handleAction ? handleForm.handleAction : undefined,
-      handleRemark: handleForm.handleRemark || undefined
+      handleRemark: handleForm.handleRemark || undefined,
+      // 停用原因展示在被停用用户的登录拦截提示中（空则服务端用默认文案）
+      stopReason: isDisableUser ? handleForm.stopReason.trim() || DEFAULT_STOP_REASON : undefined
     });
     ElMessage.success('处理完成');
     handleOpen.value = false;
