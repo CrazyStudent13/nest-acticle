@@ -42,6 +42,16 @@ export enum ArticleSourceEnum {
 }
 
 /**
+ * 举报处理状态：0 待处理 1 成立 2 驳回
+ * 举报理由/目标类型不走此枚举（运营可变数据，走字典 post_report_reason / post_report_target）
+ */
+export enum ReportStatusEnum {
+  PENDING = '0',
+  UPHELD = '1',
+  DISMISSED = '2',
+}
+
+/**
  * 排序规则：与 server PagingDto.isAsc 的取值约定一致
  */
 export enum SortRuleEnum {

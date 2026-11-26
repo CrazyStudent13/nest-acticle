@@ -4,12 +4,15 @@
 import type { MyCommentItem, PageResult } from '@nest-acticle/shared'
 
 // 系统通知行数据（openapi 有对应 schema，shared 暂未沉淀线格式类型，先就地定义）
+// noticeType：1 通知 2 公告 3 举报反馈（定向私密通知，sys_notice.user_id 定向到人，列表按登录人过滤）
+// unread：行级未读标记（scope=mine 时服务端按逐条已读标记回传，管理端视角无此字段）
 export interface NoticeItem {
   noticeId: number
   noticeTitle: string
   noticeType: string
   noticeContent: string
   status: string
+  unread?: boolean
   createBy?: string
   createTime: string
 }
@@ -44,7 +47,8 @@ export type NoticeTab = (typeof NOTICE_CATS)[number]['key']
 
 export const useNotice = () => {
   // 系统通知/公告列表：分页拉取，status 传 '0' 只取正常公告（关闭的不计入 total）；
-  // 详情页按 noticeId 取单条（复用 list 权限）
+  // scope='mine' 让服务端只回「全员公告 + 发给我的定向通知（如举报反馈）」；
+  // 详情页按 noticeId 取单条（复用 list 权限，服务端对定向通知同样做本人校验）
   const fetchNotices = async (params: {
     pageNum?: number
     pageSize?: number
@@ -52,7 +56,7 @@ export const useNotice = () => {
     noticeId?: number
   }): Promise<PageResult<NoticeItem>> => {
     const res = await apiFetch<PageResult<NoticeItem>>('/api/system/notice/list', {
-      query: { ...params }
+      query: { scope: 'mine', ...params }
     })
     return res.data ?? { list: [], total: 0 }
   }

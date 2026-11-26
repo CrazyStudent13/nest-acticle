@@ -134,8 +134,9 @@ export class UserService {
   }
 
   /**
-   * 用户公开资料（guest 公开）：仅昵称与头像，与文章列表携带的 userInfo 同口径；
+   * 用户公开资料（guest 公开）：昵称、头像与账号状态，与文章列表携带的 userInfo 同口径；
    * 供他人空间资料卡使用——零文章用户的空间此前只能从文章行捎带资料，取不到时显示占位名。
+   * status 仅供前台展示「该用户已被停用」标识（举报处置的对外可见性），不暴露其他账号字段；
    * 用户不存在/已删除时返回 null，前端降级占位展示
    */
   async findGuestProfile(userId: number) {
@@ -144,9 +145,9 @@ export class UserService {
     }
     const data = await this.userRepo.findOne({
       where: { userId, delFlag: '0' },
-      select: ['userId', 'nickName', 'avatar'],
+      select: ['userId', 'nickName', 'avatar', 'status'],
     });
-    return ResultData.ok(data ? { userId: data.userId, nickName: data.nickName, avatar: data.avatar || null } : null);
+    return ResultData.ok(data ? { userId: data.userId, nickName: data.nickName, avatar: data.avatar || null, status: data.status } : null);
   }
 
   @Cacheable(CacheEnum.SYS_USER_KEY, '{userId}')
@@ -306,9 +307,10 @@ export class UserService {
   /**
    * 踢掉指定用户的全部在线会话
    * 删除/停用/重置密码后必须调用：身份验证只查 Redis 会话快照、不回查用户表，不踢则已登录会话在过期前持续有效
+   * 放开为 public：post/report 模块举报处理「停用用户」动作在事务提交后复用（同 countFans 放开口径）
    * @param userIds
    */
-  private async kickUserSessions(userIds: number[]) {
+  async kickUserSessions(userIds: number[]) {
     if (!userIds?.length) return;
     const keys = await this.redisService.keys(`${CacheEnum.LOGIN_TOKEN_KEY}*`);
     if (!keys.length) return;

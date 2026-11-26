@@ -29,23 +29,23 @@ export class PostArticleController {
   }
 
   /**
-   * 查询文章列表（游客可访问，仅返回已发布文章）
+   * 查询文章列表（游客可访问，默认仅返回已发布文章；带登录态看自己的空间时已下架文章一并返回）
    */
   @ApiOperation({ summary: '文章-游客-列表' })
   @NotRequireAuth()
   @Get('/guest/list')
-  findGuestAll(@Query() query: ListPostArticleDto) {
-    return this.postArticleService.findGuestAll(query);
+  findGuestAll(@Query() query: ListPostArticleDto, @User() user?: UserDto) {
+    return this.postArticleService.findGuestAll(query, user);
   }
 
   /**
-   * 查询文章详情（游客可访问，仅返回已发布文章）
+   * 查询文章详情（游客可访问，仅返回已发布文章；带登录态时已下架文章对作者本人/后台角色开放）
    */
   @ApiOperation({ summary: '文章-游客-详情' })
   @NotRequireAuth()
   @Get('/guest/detail')
-  findGuestOne(@Query('id') id: number) {
-    return this.postArticleService.findGuestOne(id);
+  findGuestOne(@Query('id') id: number, @User() user?: UserDto) {
+    return this.postArticleService.findGuestOne(id, user);
   }
 
   /**
@@ -68,6 +68,17 @@ export class PostArticleController {
   @Get('/list')
   findAll(@Query() query: ListPostArticleDto) {
     return this.postArticleService.findAll(query);
+  }
+
+  /**
+   * 我的文章列表（登录用户，服务端强制只查自己的；创作者中心文章管理数据源）
+   * 不挂权限串（同 comment/my/list 口径）：注册用户角色（member）没有 post:article:list，
+   * 而管理端 /list 可查任意人（含他人草稿/审核字段），不能下放给普通用户
+   */
+  @ApiOperation({ summary: '文章-我的列表' })
+  @Get('/my/list')
+  findMyAll(@Query() query: ListPostArticleDto, @User() user: UserDto) {
+    return this.postArticleService.findMyAll(query, user);
   }
 
   /**

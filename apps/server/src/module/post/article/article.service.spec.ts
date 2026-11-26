@@ -16,7 +16,8 @@ describe('PostArticleService.recordRead', () => {
     for (const step of ['update', 'set', 'where', 'andWhere']) {
       updateChain[step].mockReturnValue(updateChain);
     }
-    service = new PostArticleService(articleRepo as any, {} as any, { getClient: () => ({ set: redisSet }) } as any);
+    // 第三参 reportRepo：阅读上报用不到，占位空对象（update() 的举报下架校验才消费）
+    service = new PostArticleService(articleRepo as any, {} as any, {} as any, { getClient: () => ({ set: redisSet }) } as any);
   });
 
   it('首次上报：占键成功后原子自增并回读最新阅读数', async () => {
@@ -68,5 +69,87 @@ describe('PostArticleService.recordRead', () => {
     await expect(service.recordRead(0, '1.2.3.4')).rejects.toMatchObject({ code: 400 });
 
     expect(redisSet).not.toHaveBeenCalled();
+  });
+});
+
+/**
+ * 作者自管理上下架（举报处置的下游）：
+ * - 无 post:article:publish 权限的作者只能在「已发布↔已下架」之间切换，草稿直发会绕过发布/审核端点
+ * - 因举报成立被下架、或因大量举报自动下架的文章，作者不能自行恢复发布
+ */
+describe('PostArticleService.update（发布状态自管理）', () => {
+  const articleRepo = { findOne: jest.fn(), update: jest.fn() };
+  const reportRepo = { findOne: jest.fn(), query: jest.fn() };
+  let service: PostArticleService;
+
+  const author = { userId: 7, user: { userId: 7 }, roles: [], permissions: [] };
+  const admin = { userId: 99, user: { userId: 99 }, roles: ['admin'], permissions: ['post:article:publish'] };
+  const article = { id: 10, title: '文章', userId: 7, publishStatus: '2', auditStatus: '0' };
+
+  beforeEach(() => {
+    jest.resetAllMocks();
+    articleRepo.update.mockResolvedValue({ affected: 1 });
+    service = new PostArticleService(articleRepo as any, {} as any, reportRepo as any, {} as any);
+  });
+
+  it('作者草稿直接改已发布：拒绝，不落库', async () => {
+    articleRepo.findOne.mockResolvedValue({ ...article, publishStatus: '0' });
+
+    await expect(service.update({ id: 10, title: '文章', publishStatus: '2' } as any, author as any)).rejects.toMatchObject({
+      msg: '仅支持已发布↔已下架切换',
+    });
+    expect(articleRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('作者已发布→已下架：允许，不查举报记录', async () => {
+    articleRepo.findOne.mockResolvedValue(article);
+
+    await service.update({ id: 10, title: '文章', publishStatus: '3' } as any, author as any);
+
+    expect(reportRepo.findOne).not.toHaveBeenCalled();
+    expect(articleRepo.update).toHaveBeenCalledWith({ id: 10 }, expect.objectContaining({ publishStatus: '3' }));
+  });
+
+  it('因举报成立被下架：作者不能自行恢复发布', async () => {
+    articleRepo.findOne.mockResolvedValue({ ...article, publishStatus: '3' });
+    reportRepo.findOne.mockResolvedValue({ id: 1 });
+
+    await expect(service.update({ id: 10, title: '文章', publishStatus: '2' } as any, author as any)).rejects.toMatchObject({
+      code: 403,
+      msg: '该文章因举报已下架，如需恢复发布请联系管理员申诉',
+    });
+    expect(articleRepo.update).not.toHaveBeenCalled();
+  });
+
+  it('因大量举报自动下架（待处理达阈值）：作者不能自行恢复发布', async () => {
+    articleRepo.findOne.mockResolvedValue({ ...article, publishStatus: '3' });
+    reportRepo.findOne.mockResolvedValue(null);
+    reportRepo.query.mockResolvedValue([{ cnt: '100' }]);
+
+    await expect(service.update({ id: 10, title: '文章', publishStatus: '2' } as any, author as any)).rejects.toMatchObject({
+      code: 403,
+      msg: '该文章被大量用户举报待复核，如需恢复发布请联系管理员',
+    });
+  });
+
+  it('普通下架（无成立举报、待处理未达阈值）：作者可自行恢复发布', async () => {
+    articleRepo.findOne.mockResolvedValue({ ...article, publishStatus: '3' });
+    reportRepo.findOne.mockResolvedValue(null);
+    reportRepo.query.mockResolvedValue([{ cnt: '1' }]);
+
+    await service.update({ id: 10, title: '文章', publishStatus: '2' } as any, author as any);
+
+    expect(articleRepo.update).toHaveBeenCalledWith({ id: 10 }, expect.objectContaining({ publishStatus: '2' }));
+  });
+
+  it('具备 post:article:publish 的管理角色：可任意流转（含草稿直发）', async () => {
+    articleRepo.findOne.mockResolvedValue({ ...article, publishStatus: '0', publishTime: null });
+
+    await service.update({ id: 10, title: '文章', publishStatus: '2' } as any, admin as any);
+
+    expect(articleRepo.update).toHaveBeenCalledWith(
+      { id: 10 },
+      expect.objectContaining({ publishStatus: '2', publishTime: expect.any(Date) }),
+    );
   });
 });

@@ -963,6 +963,84 @@ insert into
   sys_menu
 values
   (
+    '212',
+    '举报管理',
+    '6',
+    '5',
+    'report',
+    'post/report/index',
+    '',
+    '1',
+    '0',
+    'C',
+    '0',
+    '0',
+    'post:report:list',
+    'message',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报管理菜单',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
+    '213',
+    '举报处理',
+    '212',
+    '1',
+    '',
+    '',
+    '',
+    '1',
+    '0',
+    'F',
+    '0',
+    '0',
+    'post:report:handle',
+    'form',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报处理权限',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
+    '214',
+    '举报删除',
+    '212',
+    '2',
+    '',
+    '',
+    '',
+    '1',
+    '0',
+    'F',
+    '0',
+    '0',
+    'post:report:remove',
+    'form',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报删除权限',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
     '500',
     '操作日志',
     '108',
@@ -3385,6 +3463,54 @@ values
     '0'
   );
 
+insert into
+  sys_dict_type
+values
+  (
+    18,
+    '举报目标类型',
+    'post_report_target',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报目标类型列表（服务端流程能力按 dictValue 写死，扩值须同步后端枚举）',
+    '0'
+  );
+
+insert into
+  sys_dict_type
+values
+  (
+    19,
+    '举报理由',
+    'post_report_reason',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报理由列表（运营可维护，扩值即生效无需发版）',
+    '0'
+  );
+
+insert into
+  sys_dict_type
+values
+  (
+    20,
+    '举报处理状态',
+    'post_report_status',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报处理状态列表',
+    '0'
+  );
+
 -- ----------------------------
 -- 12、字典数据表
 -- ----------------------------
@@ -3722,6 +3848,27 @@ values
     '',
     null,
     '公告',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    66,
+    3,
+    '举报反馈',
+    '3',
+    'sys_notice_type',
+    '',
+    'danger',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报反馈（sys_notice.user_id 定向私密通知，业务侧程序写入）',
     '0'
   );
 
@@ -4541,6 +4688,258 @@ values
     '0'
   );
 
+insert into
+  sys_dict_data
+values
+  (
+    54,
+    1,
+    '举报文章',
+    'post',
+    'post_report_target',
+    '',
+    'primary',
+    'Y',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报目标-文章',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    55,
+    2,
+    '举报用户',
+    'user',
+    'post_report_target',
+    '',
+    'warning',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报目标-用户',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    56,
+    1,
+    '抄袭搬运',
+    'plagiarism',
+    'post_report_reason',
+    '',
+    '',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报理由-抄袭搬运',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    57,
+    2,
+    '涉政违规',
+    'political',
+    'post_report_reason',
+    '',
+    'danger',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报理由-涉政违规',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    58,
+    3,
+    '血腥暴力',
+    'violence',
+    'post_report_reason',
+    '',
+    'danger',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报理由-血腥暴力',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    59,
+    4,
+    '色情低俗',
+    'porn',
+    'post_report_reason',
+    '',
+    'danger',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报理由-色情低俗',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    60,
+    5,
+    '广告引流',
+    'spam',
+    'post_report_reason',
+    '',
+    'warning',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报理由-广告引流',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    61,
+    6,
+    '人身攻击',
+    'harassment',
+    'post_report_reason',
+    '',
+    'warning',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报理由-人身攻击',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    62,
+    7,
+    '其他',
+    'other',
+    'post_report_reason',
+    '',
+    'info',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报理由-其他',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    63,
+    1,
+    '待处理',
+    '0',
+    'post_report_status',
+    '',
+    'warning',
+    'Y',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报状态-待处理',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    64,
+    2,
+    '成立',
+    '1',
+    'post_report_status',
+    '',
+    'danger',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报状态-成立',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    65,
+    3,
+    '驳回',
+    '2',
+    'post_report_status',
+    '',
+    'info',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报状态-驳回',
+    '0'
+  );
+
 -- ----------------------------
 -- 13、参数配置表
 -- ----------------------------
@@ -4805,7 +5204,7 @@ create table
   sys_notice (
     notice_id int (4) not null auto_increment comment '公告ID',
     notice_title varchar(80) not null comment '公告标题',
-    notice_type char(1) not null comment '公告类型（1通知 2公告）',
+    notice_type char(1) not null comment '公告类型（1通知 2公告 3举报反馈）',
     notice_content longtext default null comment '公告内容',
     status char(1) default '0' comment '公告状态（0正常 1关闭）',
     create_by varchar(64) default '' comment '创建者',
@@ -4814,6 +5213,9 @@ create table
     update_time datetime comment '更新时间',
     remark varchar(255) default null comment '备注',
     del_flag char(1) default '0' comment '删除标志（0代表存在 1代表删除）',
+    -- 定向接收人：null 全员公告；非 null 仅该用户可见的私密通知（举报反馈等，业务侧程序写入）；
+    -- 列置末尾以保持既有位置式种子兼容
+    user_id int default null comment '定向接收人用户ID（null 全员公告，非 null 仅该用户可见）',
     primary key (notice_id)
   ) engine = innodb auto_increment = 10 comment = '通知公告表';
 
@@ -4834,7 +5236,8 @@ values
     '',
     null,
     '管理员',
-    '0'
+    '0',
+    null
   );
 
 insert into
@@ -4851,7 +5254,8 @@ values
     '',
     null,
     '管理员',
-    '0'
+    '0',
+    null
   );
 
 -- ----------------------------
@@ -5081,3 +5485,32 @@ create table
     unique key uk_follower_following (follower_id, following_id),
     key idx_following_id (following_id)
   ) engine = innodb comment = '关注库';
+
+-- ----------------------------
+-- 28、举报库
+-- ----------------------------
+drop table if exists post_report;
+
+create table
+  post_report (
+    id int not null auto_increment comment '举报 id',
+    target_type varchar(8) not null comment '举报目标类型（post 文章 / user 用户）',
+    target_id int not null comment '举报目标ID（post=文章 id，user=用户 id）',
+    reporter_id int not null comment '举报人用户ID',
+    reason_type varchar(32) not null comment '举报理由（字典 post_report_reason 的 dictValue）',
+    reason_content varchar(500) default null comment '补充说明（可空，抄袭出处等）',
+    status char(1) default '0' comment '处理状态（0 待处理 1 成立 2 驳回）',
+    handle_action varchar(16) default null comment '处置动作（unpublish 下架文章 / disableUser 停用用户，无动作 null）',
+    handle_remark varchar(255) default null comment '处理备注',
+    handler_id int default null comment '处理人用户ID',
+    -- 待处理标记：待处理=1、处理完成置 NULL。MySQL 唯一索引对含 NULL 的行不查重，
+    -- 与 (reporter, target) 组成 uk_reporter_pending 即「同一目标同时至多一条待处理举报」——
+    -- 待处理中不可重复举报（服务端 INSERT IGNORE 兜底并发），处理完成后可再次举报、历史多行共存
+    pending_flag int default null comment '待处理标记（待处理=1，处理完成置 NULL）',
+    handle_time datetime(3) default null comment '处理时间（毫秒粒度）',
+    create_time datetime(3) default current_timestamp(3) comment '举报时间（毫秒粒度，24h 频控统计列）',
+    primary key (id),
+    unique key uk_reporter_pending (reporter_id, target_type, target_id, pending_flag),
+    key idx_target_status (target_type, target_id, status),
+    key idx_reporter_create (reporter_id, create_time)
+  ) engine = innodb comment = '举报库';

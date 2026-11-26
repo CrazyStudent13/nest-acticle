@@ -105,3 +105,16 @@ export function assertOwnership(
   }
   return entity.userId === user?.user?.userId;
 }
+
+/**
+ * 服务层权限判断（与 PermissionGuard.hasPermission 同口径）：'*:*:*' 通配（超级管理员）或精确匹配。
+ * 守卫只做端点准入；service 内的条件性放开（如文章状态编辑按权限串分支）用本函数复判——
+ * 直接 `permissions.includes('xxx')` 会把 '*:*:*' 的超级管理员误判成无权限（2026-11-25 管理端恢复上架被 403 实测）
+ * @param user 当前登录用户（UserDto 结构，permissions 为登录时快照）
+ * @param permission 权限串
+ */
+export function hasPermission(user: { permissions?: string[] }, permission: string): boolean {
+  const ALL_PERMISSION = '*:*:*';
+  const permissions = user?.permissions || [];
+  return permissions.includes(ALL_PERMISSION) || permissions.includes(permission);
+}

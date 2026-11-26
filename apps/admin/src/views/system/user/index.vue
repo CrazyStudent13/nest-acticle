@@ -8,12 +8,6 @@
             <el-form-item label="用户账号" prop="userName">
               <el-input v-model.trim="user.queryParams.userName" clearable placeholder="请输入用户账号" style="width: 240px" @keyup.enter="user.handleQuery" />
             </el-form-item>
-            <el-form-item label="手机号码" prop="phonenumber">
-              <el-input v-model.trim="user.queryParams.phonenumber" clearable placeholder="请输入手机号码" style="width: 240px" @keyup.enter="user.handleQuery" />
-            </el-form-item>
-            <el-form-item label="个性签名" prop="signature">
-              <el-input v-model.trim="user.queryParams.signature" clearable placeholder="请输入签名关键字" style="width: 240px" @keyup.enter="user.handleQuery" />
-            </el-form-item>
             <el-form-item label="状态" prop="status">
               <el-select v-model="user.queryParams.status" clearable placeholder="用户状态" style="width: 240px">
                 <el-option v-for="dict in sys_normal_disable" :key="dict.value" :label="dict.label" :value="dict.value" />
@@ -47,19 +41,26 @@
           <el-table v-loading="user.loading" :data="user.list" @selection-change="user.handleSelectionChange">
             <el-table-column align="center" type="selection" width="50" />
             <el-table-column v-if="columns[0].visible" key="userId" align="center" label="用户编号" prop="userId" />
-            <el-table-column v-if="columns[1].visible" key="userName" align="center" label="用户账号" prop="userName" :show-overflow-tooltip="true" />
-            <el-table-column v-if="columns[2].visible" key="nickName" align="center" label="用户昵称" prop="nickName" :show-overflow-tooltip="true" />
-            <el-table-column v-if="columns[3].visible" key="signature" align="center" label="个性签名" prop="signature" :show-overflow-tooltip="true" />
-            <el-table-column v-if="columns[4].visible" key="fanNum" align="center" label="粉丝量" prop="fanNum" width="90" />
-            <el-table-column v-if="columns[5].visible" key="phonenumber" align="center" label="手机号码" prop="phonenumber" width="120" />
-            <el-table-column v-if="columns[6].visible" key="status" align="center" label="状态">
+            <el-table-column v-if="columns[1].visible" key="userName" align="center" label="用户账号">
               <template #default="scope">
-                <el-tag :type="scope.row.status === '0' ? 'success' : 'danger'" style="cursor: pointer" @click="handleStatusClick(scope.row)">
-                  {{ scope.row.status === '0' ? '启用' : '停用' }}
-                </el-tag>
+                <!-- 签名不进列表列，悬浮账号查看（无签名时退回纯文本，不弹空提示） -->
+                <el-tooltip v-if="scope.row.signature" :content="scope.row.signature" placement="top">
+                  <span class="signature-tip">{{ scope.row.userName }}</span>
+                </el-tooltip>
+                <span v-else class="user-name">{{ scope.row.userName }}</span>
               </template>
             </el-table-column>
-            <el-table-column v-if="columns[7].visible" align="center" label="创建时间" prop="createTime" width="160">
+            <el-table-column v-if="columns[2].visible" key="nickName" align="center" label="用户昵称" prop="nickName" :show-overflow-tooltip="true" />
+            <el-table-column v-if="columns[3].visible" key="fanNum" align="center" label="粉丝量" prop="fanNum" width="90" />
+            <el-table-column v-if="columns[4].visible" key="status" align="center" label="状态">
+              <template #default="scope">
+                <!-- 状态文案/配色走字典 sys_normal_disable（正常/停用），点击仍切换启停 -->
+                <span style="cursor: pointer" @click="handleStatusClick(scope.row)">
+                  <dict-tag type="sys_normal_disable" :value="scope.row.status" />
+                </span>
+              </template>
+            </el-table-column>
+            <el-table-column v-if="columns[5].visible" align="center" label="创建时间" prop="createTime" width="160">
               <template #default="scope">
                 <span>{{ scope.row.createTime ? dayjs(scope.row.createTime).format('YYYY-MM-DD HH:mm:ss') : '' }}</span>
               </template>
@@ -311,7 +312,7 @@ const user = useCrud({
   },
   idKey: 'userId',
   name: '用户',
-  query: { userName: undefined, phonenumber: undefined, signature: undefined, status: undefined },
+  query: { userName: undefined, status: undefined },
   form: {
     userId: undefined,
     userName: undefined,
@@ -339,11 +340,9 @@ const columns = reactive([
   { key: 0, label: `用户编号`, visible: true },
   { key: 1, label: `用户账号`, visible: true },
   { key: 2, label: `用户昵称`, visible: true },
-  { key: 3, label: `个性签名`, visible: true },
-  { key: 4, label: `粉丝量`, visible: true },
-  { key: 5, label: `手机号码`, visible: true },
-  { key: 6, label: `状态`, visible: true },
-  { key: 7, label: `创建时间`, visible: true }
+  { key: 3, label: `粉丝量`, visible: true },
+  { key: 4, label: `状态`, visible: true },
+  { key: 5, label: `创建时间`, visible: true }
 ]);
 
 // 用户导入参数
@@ -721,6 +720,21 @@ user.getList();
 </script>
 
 <style lang="scss" scoped>
+.user-name,
+.signature-tip {
+  display: inline-block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  vertical-align: middle;
+}
+
+.signature-tip {
+  cursor: help;
+  border-bottom: 1px dashed var(--el-border-color);
+}
+
 .import-result {
   .result-summary {
     padding-bottom: 15px;

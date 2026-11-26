@@ -3,17 +3,22 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
 import { PublishStatusEnum } from '@nest-acticle/shared';
-import { PostNotifyReadEntity } from './entities/notify-read.entity';
+import { NOTICE_READ_PREFIX, PostNotifyReadEntity } from './entities/notify-read.entity';
 import { PostCommentEntity } from '../comment/entities/comment.entity';
 import { PostLikeEntity } from '../like/entities/like.entity';
 import { PostCollectionArticleEntity } from '../collection/entities/collection-article.entity';
 import { PostCollectionEntity } from '../collection/entities/collection.entity';
 import { PostArticleEntity } from '../article/entities/article.entity';
 import { PostFollowEntity } from '../follow/entities/follow.entity';
+import { SysNoticeEntity } from 'src/module/system/notice/entities/notice.entity';
 
 /**
  * 互动通知分类（与 post_notify_read.category 对应；
- * 新增私信等分类上线时在此扩列，init.sql 的 varchar(16) 足够容纳）
+ * 新增私信等分类上线时在此扩列，init.sql 的 varchar(16) 足够容纳。
+ * 系统通知（sys_notice，含举报反馈定向通知）**不走分类水位**：它是逐条已读模型——
+ * post_notify_read 以 category='n:<noticeId>' 记「该用户已读过的通知」，未读数 =
+ * 可见公告中无已读标记的条数（见 receivedSystemQb / readNotices），
+ * 进系统通知栏只把**本页**通知标已读，角标随之回落、行级未读样式得以保留
  */
 export const NotifyCategory = {
   COMMENT: 'comment',
@@ -47,6 +52,8 @@ export class PostNotifyService {
     private readonly articleRepo: Repository<PostArticleEntity>,
     @InjectRepository(PostFollowEntity)
     private readonly followRepo: Repository<PostFollowEntity>,
+    @InjectRepository(SysNoticeEntity)
+    private readonly noticeRepo: Repository<SysNoticeEntity>,
   ) {}
 
   /**
@@ -106,7 +113,25 @@ export class PostNotifyService {
   }
 
   /**
-   * 未读计数（铃铛红标）：按分类返回，total 为互动分类合计（系统通知未建不计）
+   * 系统通知未读条件：生效中的全员公告 + 发给我的定向通知（举报反馈等），
+   * 与 notice.service.findAll 的 scope=mine 口径严格一致（delFlag='0' + status='0' + 定向过滤），
+   * 并排除已读标记（post_notify_read category='n:<noticeId>'）——角标数必须能被列表/详情的标已读动作清掉
+   */
+  private receivedSystemQb(userId: number) {
+    return this.noticeRepo
+      .createQueryBuilder('notice')
+      .where('notice.delFlag = :delFlag', { delFlag: '0' })
+      .andWhere('notice.status = :status', { status: '0' })
+      .andWhere('(notice.userId IS NULL OR notice.userId = :userId)', { userId })
+      .andWhere(
+        'NOT EXISTS (SELECT 1 FROM post_notify_read r WHERE r.user_id = :readUserId AND r.category = CONCAT(:readPrefix, notice.notice_id))',
+        { readUserId: userId, readPrefix: NOTICE_READ_PREFIX },
+      );
+  }
+
+  /**
+   * 未读计数（铃铛红标）：按分类返回，total 为互动四分类 + 系统通知合计。
+   * 互动四分类走 create_time > 水位；system 走逐条已读（NOT EXISTS 标记，无水位比较）
    */
   async unreadCount(userId: number) {
     const watermarks = await this.readRepo.find({ where: { userId } });
@@ -140,12 +165,55 @@ export class PostNotifyService {
     }
     const follow = await followQb.getCount();
 
-    return ResultData.ok({ comment, like, collect, follow, total: comment + like + collect + follow });
+    const system = await this.receivedSystemQb(userId).getCount();
+
+    return ResultData.ok({ comment, like, collect, follow, system, total: comment + like + collect + follow + system });
   }
 
   /**
-   * 标记已读：把互动分类的水位推至当前，角标随即清零
-   * 带 category 只推该分类（通知中心逐栏进入逐栏清），缺省推平全部互动分类
+   * 系统通知逐条标已读（进详情页标单条时调用）
+   * 写 post_notify_read category='n:<noticeId>'（INSERT IGNORE，重复标幂等）；
+   * 只接收数字 id（调用方传列表页/详情页拿到的 noticeId），不校验可见性——
+   * 已读标记是用户私有状态，标记不可见通知无泄露无副作用
+   */
+  async readNotices(userId: number, noticeIds: number[]) {
+    const ids = [...new Set(noticeIds.filter((id) => Number.isInteger(id) && id > 0))].slice(0, 100);
+    if (!ids.length) {
+      return ResultData.ok();
+    }
+    const now = new Date();
+    await this.readRepo.manager.transaction(async (manager) => {
+      for (const noticeId of ids) {
+        await manager.query(
+          'INSERT IGNORE INTO post_notify_read (user_id, category, read_time) VALUES (?, ?, ?)',
+          [userId, `${NOTICE_READ_PREFIX}${noticeId}`, now],
+        );
+      }
+    });
+    return ResultData.ok();
+  }
+
+  /**
+   * 系统通知全部标已读（列表「全部已读」按钮）：一条 INSERT...SELECT 把当前可见公告
+   * （生效中 + 全员或定向给我，与 receivedSystemQb 可见性口径一致）全部写已读标记，
+   * ON DUPLICATE KEY 幂等；已读过的行仅刷新标记时间，无副作用
+   */
+  async readAllNotices(userId: number) {
+    const now = new Date();
+    await this.readRepo.manager.query(
+      `INSERT INTO post_notify_read (user_id, category, read_time)
+       SELECT ?, CONCAT('n:', notice_id), ? FROM sys_notice
+       WHERE del_flag = '0' AND status = '0' AND (user_id IS NULL OR user_id = ?)
+       ON DUPLICATE KEY UPDATE read_time = VALUES(read_time)`,
+      [userId, now, userId],
+    );
+    return ResultData.ok();
+  }
+
+  /**
+   * 标记已读（互动分类）：把分类的水位推至当前，角标随即清零
+   * 带 category 只推该分类（通知中心逐栏进入逐栏清），缺省推平全部互动分类；
+   * 系统通知不走此端点（逐条已读见 readNotices）
    * 水位为 datetime(3) 毫秒粒度，与互动 create_time 同粒度比较（类注释附粒度论证）
    */
   async markRead(userId: number, category?: string) {

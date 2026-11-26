@@ -113,6 +113,44 @@ img {
   color: var(--color-text-3);
 }
 
+// 全局动作按钮：弹窗/表单右下角的取消/确定统一类（.btn.ghost 描边弱化 / .btn.primary 主色实心）
+// 上收自各弹窗组件曾各自为政的 scoped 副本（2026-11-25 举报弹窗反馈：动作钮样式全局统一）；
+// 页面级尺寸微调（如 space/settings 的小号按钮）用 scoped 覆盖 padding 即可，勿再复制整套
+.btn {
+  padding: 7px 18px;
+  border-radius: var(--radius-sm);
+  font-size: 13px;
+  line-height: 1.5;
+  cursor: pointer;
+  transition: all 0.2s ease;
+
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+  }
+
+  &.ghost {
+    border: 1px solid var(--color-border);
+    background-color: transparent;
+    color: var(--color-text-2);
+
+    &:hover {
+      border-color: var(--color-text-3);
+      color: var(--color-text-1);
+    }
+  }
+
+  &.primary {
+    border: 0;
+    background-color: var(--color-primary);
+    color: #fff;
+
+    &:hover:not(:disabled) {
+      background-color: var(--color-primary-hover);
+    }
+  }
+}
+
 // 掘金式 tab 行：短圆条下划线骑在底部边框上（space.vue 同款定稿样式，供管理列表页复用）
 .tab-bar {
   display: flex;

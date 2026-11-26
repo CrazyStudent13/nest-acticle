@@ -45,6 +45,24 @@
           </el-form-item>
         </el-col>
       </el-row>
+      <!-- 状态流转（2026-11-25）：具备发布/审核权限的角色（管理员/编辑）可在抽屉内直接改状态，
+           服务端 update 按权限串校验（无权限传了也会被剥离）；发布状态改「已发布」时服务端补落发布时间 -->
+      <el-row :gutter="20">
+        <el-col v-hasPermi="['post:article:publish']" :span="12">
+          <el-form-item label="发布状态" prop="publishStatus">
+            <el-select v-model="formData.publishStatus" clearable placeholder="请选择发布状态" style="width: 100%">
+              <el-option v-for="dict in post_article_publish_status" :key="dict.value" :label="dict.label" :value="dict.value" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col v-hasPermi="['post:article:audit']" :span="12">
+          <el-form-item label="审核状态" prop="auditStatus">
+            <el-select v-model="formData.auditStatus" clearable placeholder="请选择审核状态" style="width: 100%">
+              <el-option v-for="dict in post_article_audit_status" :key="dict.value" :label="dict.label" :value="dict.value" />
+            </el-select>
+          </el-form-item>
+        </el-col>
+      </el-row>
     </el-form>
     <template #footer>
       <div class="dialog-footer">
@@ -86,7 +104,7 @@ const props = defineProps({
 
 const emit = defineEmits(['update:modelValue', 'success']);
 
-const { post_article_source } = useDict('post_article_source');
+const { post_article_source, post_article_publish_status, post_article_audit_status } = useDict('post_article_source', 'post_article_publish_status', 'post_article_audit_status');
 
 const formRef = ref(null);
 const open = ref(false);
@@ -99,14 +117,17 @@ const formData = reactive({
   cover: undefined,
   author: undefined,
   source: undefined,
+  publishStatus: undefined,
+  auditStatus: undefined,
   scheduledPublishTime: undefined,
   sort: 0,
   userInfo: undefined
 });
 
-// 服务端不可写字段（create 服务端写死、update DTO 已剥离）：发布/审核状态经 /publish 与 /audit
-// 端点流转，计数由点赞/评论事务维护，publishTime 由发布端点落库——详情回填时剔除，payload 不携带
-const READONLY_FIELDS = ['publishStatus', 'auditStatus', 'publishTime', 'likeNum', 'readNum', 'commentNum'];
+// 服务端不可写字段（create 服务端写死、update 按权限校验）：计数由点赞/评论事务维护，
+// publishTime 由服务端按发布状态落值——详情回填时剔除，payload 不携带；
+// publishStatus/auditStatus 已放开（2026-11-25）：有权限的角色经抽屉编辑，无权限传了服务端也会剥离
+const READONLY_FIELDS = ['publishTime', 'likeNum', 'readNum', 'commentNum'];
 // 正文不经抽屉回传：抽屉只做元数据快速编辑，正文统一在编辑器页 editor.vue 维护。
 // payload 不带 content 时服务端 repo.update 跳过 undefined 字段、原正文不受影响；
 // 同时避免列表详情快照把编辑器里的最新正文覆盖回旧值
@@ -164,6 +185,8 @@ const resetForm = () => {
     cover: undefined,
     author: undefined,
     source: undefined,
+    publishStatus: undefined,
+    auditStatus: undefined,
     scheduledPublishTime: undefined,
     sort: 0
   });

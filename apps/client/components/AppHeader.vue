@@ -191,7 +191,7 @@ const closePanelSoon = () => {
   }, 250)
 }
 
-// ---------- 通知入口：铃铛点击进通知中心，悬停出四分类面板（与创作者中心面板同套交互；私信工作量大暂缓） ----------
+// ---------- 通知入口：铃铛点击进通知中心，悬停出分类面板（与创作者中心面板同套交互；私信工作量大暂缓） ----------
 // 分类清单与通知中心左侧竖栏同源（useNotice 的 NOTICE_CATS），铃铛下拉只取 key/label
 const noticeCats = NOTICE_CATS
 
@@ -220,6 +220,9 @@ const catUnread = (key: NoticeCat['key']) => {
   }
   if (key === 'follower') {
     return unread.value.follow
+  }
+  if (key === 'system') {
+    return unread.value.system
   }
   return 0
 }

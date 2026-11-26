@@ -54,6 +54,7 @@ export default defineConfig({
             { text: '概览', link: '/client/overview' },
             { text: '开发约定', link: '/client/conventions' },
             { text: '关注模块约定', link: '/client/follow' },
+            { text: '举报模块约定', link: '/client/report' },
           ],
         },
       ],

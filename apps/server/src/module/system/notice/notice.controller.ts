@@ -32,8 +32,9 @@ export class NoticeController {
   })
   @RequirePermission('system:notice:list')
   @Get('/list')
-  findAll(@Query() query: ListNoticeDto) {
-    return this.noticeService.findAll(query);
+  findAll(@Query() query: ListNoticeDto, @Request() req) {
+    // viewerId 用于定向通知可见性过滤（scope=mine / noticeId 直取时只回全员公告 + 发给本人的）
+    return this.noticeService.findAll(query, req.user?.userId);
   }
 
   @ApiOperation({
