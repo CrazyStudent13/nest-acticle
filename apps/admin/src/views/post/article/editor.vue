@@ -105,7 +105,10 @@ import useUserStore from '@/store/modules/user';
 import { getImageUrl } from '@/utils/image';
 
 // 使用组合函数
-const { title, content, loading, isEdit, subjectList, sidebarCollapsed, articleData, post_article_source, handleTitleInput, toggleSidebar, handleSaveDraft, handlePublish } = useArticleEditor();
+const { title, content, loading, isEdit, subjectList, sidebarCollapsed, articleData, handleTitleInput, toggleSidebar, handleSaveDraft, handlePublish } = useArticleEditor();
+
+// 顶栏文章类型下拉：字典走 useDict（useArticleEditor 不提供该字典，之前模板取到 undefined 导致「无数据」）
+const { post_article_source } = useDict('post_article_source');
 
 // ---------- 发布前预览（版式/渲染/ESC/锁滚动在共享 ArticlePreview 内，本页只备展示数据） ----------
 const userStore = useUserStore();

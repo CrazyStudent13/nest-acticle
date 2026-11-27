@@ -167,6 +167,10 @@ export function useArticleEditor() {
   const prepareSaveData = (publishStatus: string): Partial<Article> => {
     const saveData = { ...articleData };
     saveData.publishStatus = publishStatus;
+    // title 与正文以编辑器当前值为准：程序赋值（如拖入 .md 自动回填标题）不触发 el-input 的 @input，
+    // articleData.title 会停留在旧值，直接提交会丢标题
+    saveData.title = title.value;
+    saveData.content = content.value;
 
     // 确保数字类型字段正确转换
     if (saveData.id) saveData.id = Number(saveData.id);
@@ -181,10 +185,11 @@ export function useArticleEditor() {
 
   /**
    * 执行保存操作（内部方法）
+   * 返回是否保存成功：发布入口据此决定是否关闭编辑器回到列表（失败留在原地保留内容）
    */
-  const executeSave = async (publishStatus: string, successMsg: string) => {
+  const executeSave = async (publishStatus: string, successMsg: string): Promise<boolean> => {
     if (!validateForm()) {
-      return;
+      return false;
     }
 
     loading.value = true;
@@ -206,9 +211,11 @@ export function useArticleEditor() {
       }
 
       ElMessage.success(successMsg);
+      return true;
     } catch (error) {
       console.error('保存失败:', error);
       ElMessage.error('保存失败');
+      return false;
     } finally {
       loading.value = false;
     }
@@ -220,15 +227,14 @@ export function useArticleEditor() {
   const handleSaveDraft = debounce({ delay: 300 }, () => executeSave('0', '草稿保存成功'));
 
   /**
-   * 发布文章（带防抖）
+   * 发布文章（带防抖）：保存成功后关闭编辑器回到文章列表；
+   * 列表页由后端菜单动态生成（目录 content + 子菜单 article => /content/article），不要硬编码
    */
-  const handlePublish = debounce({ delay: 300 }, () => {
-    executeSave('1', '文章发布成功');
-
-    // 发布成功后返回列表页
-    setTimeout(() => {
-      router.push('/post/article');
-    }, 1500);
+  const handlePublish = debounce({ delay: 300 }, async () => {
+    const saved = await executeSave('1', '文章发布成功');
+    if (saved) {
+      router.push('/content/article');
+    }
   });
 
   // ==================== 返回 ====================
