@@ -34,6 +34,8 @@
 
         <!-- 元信息行：作者 时间 阅读 专栏，编辑入口靠右（仅作者本人可见），掘金式单行 -->
         <div class="meta-line">
+          <!-- 文章类型标：原创/转载/翻译/整理，与列表卡片同源文案 -->
+          <span v-if="sourceLabel" class="meta-source">{{ sourceLabel }}</span>
           <span class="meta-author">{{ authorName }}</span>
           <span v-if="publishLabel" class="meta-item">{{ publishLabel }}</span>
           <span v-if="readLabel" class="meta-item">
@@ -94,6 +96,7 @@ import { ArticleToc } from '@nest-acticle/editor'
 import { extractMarkdownHeadings } from '@nest-acticle/markdown'
 import { formatDateTime } from '@nest-acticle/utils'
 import type { Article, Subject } from '@nest-acticle/shared'
+import { getArticleSourceLabel } from '~/utils/articleSource'
 import '@nest-acticle/editor/style.css'
 
 const config = useRuntimeConfig()
@@ -135,6 +138,8 @@ const { data: subjectRes } = await useFetch<{ data?: Subject | null }>(
 const subject = computed(() => subjectRes.value?.data || {})
 
 const authorName = computed(() => article.value.userInfo?.nickName || article.value.author || '佚名')
+// 文章类型标（guest 详情已下发 source，位置见元信息行）
+const sourceLabel = computed(() => getArticleSourceLabel(article.value.source))
 const coverUrl = computed(() => toCoverUrl(config.public.apiBase, article.value.cover))
 // publishTime 常为 null，回退 createTime
 const publishLabel = computed(() => article.value.publishTime || article.value.createTime)
@@ -483,6 +488,16 @@ useHead(() => {
   .meta-author {
     font-weight: 600;
     color: var(--color-text-1);
+  }
+
+  // 文章类型标：元信息行首的浅蓝小胶囊
+  .meta-source {
+    padding: 1px 8px;
+    border-radius: var(--radius-sm);
+    background-color: var(--color-primary-light);
+    font-size: 12px;
+    line-height: 18px;
+    color: var(--color-primary);
   }
 
   .meta-item {

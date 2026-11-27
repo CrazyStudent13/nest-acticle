@@ -3,7 +3,7 @@
   <article class="article-item" :title="title">
     <div class="body">
       <h3 class="title">
-        {{ title }}
+        <span v-if="sourceLabel" class="source-tag">{{ sourceLabel }}</span>{{ title }}
         <!-- 已下架标：仅本人视角的空间文章列表会出现（服务端对访客不下发下架行），信息流场景恒不渲染 -->
         <span v-if="offline" class="offline-tag">已下架</span>
       </h3>
@@ -24,6 +24,7 @@
 <script setup lang="ts">
 import { formatDateTime } from '@nest-acticle/utils'
 import type { Article } from '@nest-acticle/shared'
+import { getArticleSourceLabel } from '~/utils/articleSource'
 
 const props = withDefaults(
   defineProps<{
@@ -37,6 +38,8 @@ const props = withDefaults(
 const config = useRuntimeConfig()
 
 const title = computed(() => props.cardInfo?.title || '无标题')
+// 文章类型标（原创/转载/翻译/整理），与详情页同源文案
+const sourceLabel = computed(() => getArticleSourceLabel(props.cardInfo?.source))
 // 已下架行标（本人空间可见性口径，publishStatus='3' 才下发到前端）
 const offline = computed(() => props.cardInfo?.publishStatus === '3')
 const cover = computed(() => props.cardInfo?.cover || '')
@@ -89,6 +92,20 @@ const publishTime = computed(() => {
       display: -webkit-box;
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
+
+      // 文章类型标：标题前的浅蓝小胶囊，与详情页元信息标一致
+      .source-tag {
+        display: inline-block;
+        margin-right: 6px;
+        padding: 0 6px;
+        border-radius: var(--radius-sm);
+        background-color: var(--color-primary-light);
+        font-size: 11px;
+        font-weight: 400;
+        line-height: 18px;
+        color: var(--color-primary);
+        vertical-align: 2px;
+      }
 
       // 已下架行标：红字小标（仅本人空间列表出现）
       .offline-tag {
