@@ -47,10 +47,7 @@
           <span v-else class="meta-author">{{ authorName }}</span>
           <span v-if="publishLabel" class="meta-item">{{ publishLabel }}</span>
           <span v-if="readLabel" class="meta-item">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
+            <AppIcon name="eye" :size="14" />
             {{ readLabel }} 阅读
           </span>
           <NuxtLink

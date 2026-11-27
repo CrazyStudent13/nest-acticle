@@ -49,10 +49,7 @@
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
-            <svg v-else viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
+            <AppIcon v-else name="eye" :size="15" />
           </button>
           <button class="create-confirm" type="button" :disabled="creatingBusy || !newName.trim()" @click="confirmCreate">
             {{ creatingBusy ? '创建中…' : '创建' }}

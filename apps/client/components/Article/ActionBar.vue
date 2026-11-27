@@ -3,35 +3,25 @@
   <div class="action-bar">
     <!-- 点赞：已点赞高亮，点击由父组件切换 -->
     <button :class="{ liked }" class="action-btn" type="button" title="点赞" @click="emit('like')">
-      <svg :fill="liked ? 'currentColor' : 'none'" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M14 9V5a3 3 0 0 0-3-3l-4 9v11h11.28a2 2 0 0 0 2-1.7l1.38-9a2 2 0 0 0-2-2.3zM7 22H4a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2h3" />
-      </svg>
+      <AppIcon name="thumbs-up" :size="20" :filled="liked" />
       <span v-if="likeNum > 0" class="action-badge">{{ likeNum }}</span>
     </button>
 
     <!-- 评论：点击滚动到评论区（由父组件定位） -->
     <button class="action-btn" type="button" title="评论" @click="emit('comment')">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-      </svg>
+      <AppIcon name="comment" :size="20" />
       <span v-if="commentNum > 0" class="action-badge">{{ commentNum }}</span>
     </button>
 
     <!-- 收藏：已收藏（任一收藏集）星星填充高亮，点击由父组件打开收藏弹窗 -->
     <button :class="{ collected }" class="action-btn" type="button" title="收藏" @click="emit('collect')">
-      <svg :fill="collected ? 'currentColor' : 'none'" viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
-      </svg>
+      <AppIcon name="star" :size="20" :filled="collected" />
       <span v-if="collectNum > 0" class="action-badge">{{ collectNum }}</span>
     </button>
 
     <!-- 分享：复制文章链接 -->
     <button class="action-btn" type="button" title="分享" @click="shareLink">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M4 12v8a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2v-8" />
-        <polyline points="16 6 12 2 8 6" />
-        <line x1="12" y1="2" x2="12" y2="15" />
-      </svg>
+      <AppIcon name="share" :size="20" />
     </button>
 
     <!-- 举报：文章作者本人不显示（服务端亦拒绝自查举报），已举报（存在待处理举报）置灰，点击由父组件开举报弹窗 -->
@@ -44,19 +34,12 @@
       :title="reported ? '已举报，等待处理' : '举报'"
       @click="emit('report')"
     >
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
-        <line x1="12" y1="9" x2="12" y2="13" />
-        <line x1="12" y1="17" x2="12.01" y2="17" />
-      </svg>
+      <AppIcon name="report" :size="20" />
     </button>
 
     <!-- 回顶部：滚动超过一屏才出现 -->
     <button v-show="showTop" class="action-btn top-btn" type="button" title="回顶部" @click="backTop">
-      <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <line x1="12" y1="19" x2="12" y2="5" />
-        <polyline points="5 12 12 5 19 12" />
-      </svg>
+      <AppIcon name="arrow-up" :size="20" />
     </button>
 
     <span v-if="tip" class="action-tip">{{ tip }}</span>
