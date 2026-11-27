@@ -1,8 +1,9 @@
 <template>
   <!-- 命中字典项：按后端配置的 elTagType 渲染彩色标签 -->
-  <el-tag v-if="matched" :type="matched.elTagType || 'default'" effect="light" size="small">{{ matched.label }}</el-tag>
+  <!-- disable-transitions：字典异步加载后标签类型切换会残留旧标签，关掉过渡避免重复渲染 -->
+  <el-tag v-if="matched" :type="matched.elTagType || 'default'" disable-transitions effect="light" size="small">{{ matched.label }}</el-tag>
   <!-- 未命中但有值：以 info 标签展示原值，保持信息可见 -->
-  <el-tag v-else-if="hasValue" type="info" effect="light" size="small">{{ value }}</el-tag>
+  <el-tag v-else-if="hasValue" disable-transitions type="info" effect="light" size="small">{{ value }}</el-tag>
 </template>
 
 <script setup lang="ts">

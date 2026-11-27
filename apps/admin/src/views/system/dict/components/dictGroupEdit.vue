@@ -8,6 +8,12 @@
       <el-form-item label="字典类型" prop="dictType">
         <el-input v-model="form.model.dictType" placeholder="请输入字典类型" />
       </el-form-item>
+      <el-form-item label="所属模块" prop="dictModule">
+        <el-select v-model="form.model.dictModule" clearable allow-create default-first-option filterable placeholder="请选择所属模块" style="width: 100%">
+          <el-option v-for="item in DICT_MODULES" :key="item" :label="item" :value="item" />
+        </el-select>
+        <div class="form-item-tip">仅用于管理端左侧树分组展示，不影响任何接口读取；不填归入「未分类」</div>
+      </el-form-item>
       <el-form-item label="状态" prop="status">
         <el-radio-group v-model="form.model.status">
           <el-radio v-for="dict in sys_normal_disable" :key="dict.value" :label="dict.value">{{ dict.label }}</el-radio>
@@ -15,7 +21,7 @@
       </el-form-item>
       <el-form-item label="公开" prop="isPublic">
         <el-radio-group v-model="form.model.isPublic">
-          <el-radio v-for="dict in sys_yes_no" :key="dict.value" :label="dict.value">{{ dict.label }}</el-radio>
+          <el-radio v-for="dict in sys_dict_public" :key="dict.value" :label="dict.value">{{ dict.label }}</el-radio>
         </el-radio-group>
         <div class="form-item-tip">公开后未登录游客也能读取该字典（适用于文章来源、用户性别等展示类字典）</div>
       </el-form-item>
@@ -38,7 +44,9 @@ import { addType, updateType } from '@/api/system/dict/type';
 import { useDict } from '@/composables/useDict';
 import { resetForm } from '@/composables/useForm';
 
-const { sys_normal_disable, sys_yes_no } = useDict('sys_normal_disable', 'sys_yes_no') as any;
+import { DICT_MODULES } from '../modules';
+
+const { sys_normal_disable, sys_dict_public } = useDict('sys_normal_disable', 'sys_dict_public') as any;
 
 const dialogTableVisible = ref(false);
 const formRef = ref();
@@ -51,6 +59,7 @@ const form = reactive({
     dictId: undefined as number | undefined,
     dictName: '',
     dictType: '',
+    dictModule: '',
     status: '0',
     isPublic: 'N',
     remark: ''
@@ -93,14 +102,15 @@ const form = reactive({
   }
 });
 
-const handleDialogOpen = (type, row) => {
+const handleDialogOpen = (type, row, defaults = {}) => {
   form.title = type === 'add' ? '新增字典类型' : '修改字典类型';
   dialogTableVisible.value = true;
   if (type === 'edit') {
     form.model = { ...row };
   } else {
+    form.reset();
     nextTick(() => {
-      form.reset();
+      Object.assign(form.model, defaults);
     });
   }
 };
