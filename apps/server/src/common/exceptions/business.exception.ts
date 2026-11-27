@@ -1,5 +1,5 @@
 import { HttpException } from '@nestjs/common';
-import { FORBIDDEN_CODE, NOT_FOUND_CODE, SERVER_ERROR_CODE, UNAUTHORIZED_CODE } from '@nest-acticle/shared';
+import { ACCOUNT_DISABLED_CODE, FORBIDDEN_CODE, NOT_FOUND_CODE, SERVER_ERROR_CODE, UNAUTHORIZED_CODE } from '@nest-acticle/shared';
 import { BAD_REQUEST_CODE, TOO_MANY_REQUESTS_CODE } from 'src/common/constant/business.constant';
 
 /** 命中白名单的业务码直接用作 HTTP 状态码，其余业务码统一归 HTTP 500 */
@@ -11,6 +11,11 @@ const HTTP_MAPPED_CODES = new Set<number>([
   TOO_MANY_REQUESTS_CODE,
   SERVER_ERROR_CODE,
 ]);
+
+/** 专属业务码的 HTTP 映射（业务码与状态码不同时在这里指定，如账号停用 603 → HTTP 403） */
+const HTTP_OVERRIDES: Record<number, number> = {
+  [ACCOUNT_DISABLED_CODE]: FORBIDDEN_CODE,
+};
 
 /**
  * 业务异常：service 层以 throw 替代 ResultData.fail 的统一出口（错误协议迁移，见审查报告 Server P0-2）
@@ -28,7 +33,7 @@ export class BusinessException extends HttpException {
   readonly data: any;
 
   constructor(code: number, msg: string, data: any = null) {
-    super({ code, msg, data }, HTTP_MAPPED_CODES.has(code) ? code : SERVER_ERROR_CODE);
+    super({ code, msg, data }, HTTP_OVERRIDES[code] ?? (HTTP_MAPPED_CODES.has(code) ? code : SERVER_ERROR_CODE));
     this.code = code;
     this.msg = msg;
     this.data = data;

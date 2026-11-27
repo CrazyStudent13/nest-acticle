@@ -46,9 +46,9 @@ export class CreatePostArticleDto {
   source?: string;
 
   /**
-   * 发布状态/审核状态/发布时间/点赞数/阅读数/评论数不在可写 DTO 内：
-   * 状态只能经 /publish/:id 与 /audit 端点流转，计数由点赞/评论事务维护，
-   * 落库值由 service 写死，防止请求体伪造状态绕过审核（mass assignment）
+   * 发布状态/审核状态/发布时间/点赞数/阅读数/评论数不在创建可写 DTO 内：
+   * 创建时由 service 写死（免审直发布），计数由点赞/评论事务维护，
+   * 防止请求体伪造状态绕过审核（mass assignment）；更新路径的状态编辑见 UpdatePostArticleDto（按权限放开）
    */
 
   @ApiProperty({ required: false, description: '定时发布时间' })
@@ -68,6 +68,21 @@ export class UpdatePostArticleDto extends CreatePostArticleDto {
   @ApiProperty({ required: true, description: '文章ID' })
   @IsNumber()
   id: number;
+
+  // 状态字段重新入参（2026-11-25）：此前不在可写 DTO 内、被全局白名单剥离，
+  // 导致作者自上下架与管理端状态编辑静默空转（请求 200 但状态不变）。
+  // service 按权限串二次把关——无 post:article:publish 的作者仅能切换自己文章的已发布↔已下架，
+  // 举报下架的文章不能自行恢复发布；无 post:article:audit 者传审核状态无效。
+  // publishTime 依旧不收请求体（服务端按发布状态落值）
+  @ApiProperty({ required: false, description: '发布状态（0 草稿 1 待发布 2 已发布 3 已下架），按权限校验后生效', enum: PublishStatusEnum })
+  @IsOptional()
+  @IsEnum(PublishStatusEnum)
+  publishStatus?: string;
+
+  @ApiProperty({ required: false, description: '审核状态（0 未提交 1 审核中 2 通过 3 拒绝），仅 post:article:audit 权限生效', enum: AuditStatusEnum })
+  @IsOptional()
+  @IsEnum(AuditStatusEnum)
+  auditStatus?: string;
 }
 
 /**

@@ -8,6 +8,12 @@ export enum StatusEnum {
   DYNAMIC = '1',
 }
 
+// 是否公开：Y 公开（游客可读） N 不公开（需登录），取值对齐字典 sys_yes_no
+export enum YesNoEnum {
+  YES = 'Y',
+  NO = 'N',
+}
+
 export class CreateDictTypeDto {
   @ApiProperty({
     required: true,
@@ -38,6 +44,24 @@ export class CreateDictTypeDto {
   @IsString()
   @IsEnum(StatusEnum)
   status?: string;
+
+  @ApiProperty({
+    required: false,
+    description: '是否公开（Y 公开，游客可读；N 不公开）',
+  })
+  @IsOptional()
+  @IsString()
+  @IsEnum(YesNoEnum)
+  isPublic?: string;
+
+  @ApiProperty({
+    required: false,
+    description: '所属模块（仅管理端分组展示）',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(0, 50)
+  dictModule?: string;
 }
 
 export class UpdateDictTypeDto extends CreateDictTypeDto {

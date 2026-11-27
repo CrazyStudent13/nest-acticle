@@ -26,6 +26,9 @@ create table
     update_by varchar(64) default '' comment '更新者',
     update_time datetime comment '更新时间',
     remark varchar(500) default null comment '备注',
+    -- 停用原因/时间：停用用户无法登录、收不到站内信，登录拦截提示据此展示处置说明（启用时清空）
+    stop_reason varchar(255) default null comment '停用原因（登录拦截展示）',
+    stop_time datetime(3) default null comment '停用时间（登录拦截展示）',
     primary key (user_id),
     unique key uniq_user_name (user_name)
   ) engine = innodb auto_increment = 100 comment = '用户信息表';
@@ -33,8 +36,29 @@ create table
 -- ----------------------------
 -- 初始化-用户信息表数据
 -- ----------------------------
+-- 显式列名：补充 stop_reason/stop_time 等尾部列后，位置插入不再随建表列序漂移
 insert into
-  sys_user
+  sys_user (
+    user_id,
+    user_name,
+    nick_name,
+    user_type,
+    email,
+    phonenumber,
+    sex,
+    avatar,
+    signature,
+    password,
+    status,
+    del_flag,
+    login_ip,
+    login_date,
+    create_by,
+    create_time,
+    update_by,
+    update_time,
+    remark
+  )
 values
   (
     1,
@@ -59,7 +83,27 @@ values
   );
 
 insert into
-  sys_user
+  sys_user (
+    user_id,
+    user_name,
+    nick_name,
+    user_type,
+    email,
+    phonenumber,
+    sex,
+    avatar,
+    signature,
+    password,
+    status,
+    del_flag,
+    login_ip,
+    login_date,
+    create_by,
+    create_time,
+    update_by,
+    update_time,
+    remark
+  )
 values
   (
     2,
@@ -956,6 +1000,84 @@ values
     '',
     null,
     '关注删除权限',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
+    '212',
+    '举报管理',
+    '6',
+    '5',
+    'report',
+    'post/report/index',
+    '',
+    '1',
+    '0',
+    'C',
+    '0',
+    '0',
+    'post:report:list',
+    'message',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报管理菜单',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
+    '213',
+    '举报处理',
+    '212',
+    '1',
+    '',
+    '',
+    '',
+    '1',
+    '0',
+    'F',
+    '0',
+    '0',
+    'post:report:handle',
+    'form',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报处理权限',
+    '0'
+  );
+
+insert into
+  sys_menu
+values
+  (
+    '214',
+    '举报删除',
+    '212',
+    '2',
+    '',
+    '',
+    '',
+    '1',
+    '0',
+    'F',
+    '0',
+    '0',
+    'post:report:remove',
+    'form',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报删除权限',
     '0'
   );
 
@@ -3135,6 +3257,8 @@ create table
     dict_name varchar(100) default '' comment '字典名称',
     dict_type varchar(100) default '' comment '字典类型',
     status char(1) default '0' comment '状态（0正常 1停用）',
+    is_public char(1) default 'N' comment '是否公开（Y 公开游客可读 N 不公开）',
+    dict_module varchar(50) default '' comment '所属模块（仅管理端分类展示）',
     create_by varchar(64) default '' comment '创建者',
     create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
@@ -3147,6 +3271,7 @@ create table
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     1,
@@ -3163,6 +3288,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     2,
@@ -3179,6 +3305,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     3,
@@ -3195,6 +3322,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     4,
@@ -3211,6 +3339,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     5,
@@ -3227,6 +3356,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     6,
@@ -3243,6 +3373,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     7,
@@ -3259,6 +3390,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     8,
@@ -3275,6 +3407,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     9,
@@ -3291,6 +3424,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     10,
@@ -3307,6 +3441,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     11,
@@ -3323,6 +3458,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     12,
@@ -3339,6 +3475,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     13,
@@ -3355,6 +3492,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     14,
@@ -3371,6 +3509,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     15,
@@ -3384,6 +3523,81 @@ values
     '文章来源列表',
     '0'
   );
+
+insert into
+  sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
+values
+  (
+    18,
+    '举报目标类型',
+    'post_report_target',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报目标类型列表（服务端流程能力按 dictValue 写死，扩值须同步后端枚举）',
+    '0'
+  );
+
+insert into
+  sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
+values
+  (
+    19,
+    '举报理由',
+    'post_report_reason',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报理由列表（运营可维护，扩值即生效无需发版）',
+    '0'
+  );
+
+insert into
+  sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
+values
+  (
+    20,
+    '举报处理状态',
+    'post_report_status',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报处理状态列表',
+    '0'
+  );
+
+insert into
+  sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
+values
+  (
+    21,
+    '字典公开状态',
+    'sys_dict_public',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '字典公开状态列表（文案/颜色可在管理端字典维护）',
+    '0'
+  );
+
+-- 公开字典：游客（未登录）可读，其余字典仍要求登录
+update sys_dict_type
+set
+  is_public = 'Y'
+where
+  dict_type in ('post_article_source', 'sys_user_sex', 'sys_normal_disable');
 
 -- ----------------------------
 -- 12、字典数据表
@@ -3722,6 +3936,27 @@ values
     '',
     null,
     '公告',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    66,
+    3,
+    '举报反馈',
+    '3',
+    'sys_notice_type',
+    '',
+    'danger',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报反馈（sys_notice.user_id 定向私密通知，业务侧程序写入）',
     '0'
   );
 
@@ -4426,6 +4661,7 @@ values
 -- 收藏集可见性字典（post_collection.visibility：0 公开 1 私密，文案/颜色可在管理端字典维护）
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     16,
@@ -4485,6 +4721,7 @@ values
 -- 收藏集类型字典（is_default 推导：'1' 默认 / '0' 自建，文案/颜色可在管理端字典维护）
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     17,
@@ -4540,6 +4777,339 @@ values
     '收藏集-类型-自建',
     '0'
   );
+
+insert into
+  sys_dict_data
+values
+  (
+    54,
+    1,
+    '举报文章',
+    'post',
+    'post_report_target',
+    '',
+    'primary',
+    'Y',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报目标-文章',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    55,
+    2,
+    '举报用户',
+    'user',
+    'post_report_target',
+    '',
+    'warning',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报目标-用户',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    56,
+    1,
+    '抄袭搬运',
+    'plagiarism',
+    'post_report_reason',
+    '',
+    '',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报理由-抄袭搬运',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    57,
+    2,
+    '涉政违规',
+    'political',
+    'post_report_reason',
+    '',
+    'danger',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报理由-涉政违规',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    58,
+    3,
+    '血腥暴力',
+    'violence',
+    'post_report_reason',
+    '',
+    'danger',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报理由-血腥暴力',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    59,
+    4,
+    '色情低俗',
+    'porn',
+    'post_report_reason',
+    '',
+    'danger',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报理由-色情低俗',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    60,
+    5,
+    '广告引流',
+    'spam',
+    'post_report_reason',
+    '',
+    'warning',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报理由-广告引流',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    61,
+    6,
+    '人身攻击',
+    'harassment',
+    'post_report_reason',
+    '',
+    'warning',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报理由-人身攻击',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    62,
+    7,
+    '其他',
+    'other',
+    'post_report_reason',
+    '',
+    'info',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报理由-其他',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    63,
+    1,
+    '待处理',
+    '0',
+    'post_report_status',
+    '',
+    'warning',
+    'Y',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报状态-待处理',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    64,
+    2,
+    '成立',
+    '1',
+    'post_report_status',
+    '',
+    'danger',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报状态-成立',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    65,
+    3,
+    '驳回',
+    '2',
+    'post_report_status',
+    '',
+    'info',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '举报状态-驳回',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    67,
+    1,
+    '公开',
+    'Y',
+    'sys_dict_public',
+    '',
+    'success',
+    'Y',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '字典公开状态-公开',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    68,
+    2,
+    '不公开',
+    'N',
+    'sys_dict_public',
+    '',
+    'info',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '字典公开状态-不公开',
+    '0'
+  );
+
+-- 字典模块：仅用于管理端左侧树分组展示，不参与任何接口读取；未命中的字典归入「未分类」
+update sys_dict_type
+set
+  dict_module = '系统管理'
+where
+  dict_type in (
+    'sys_user_sex',
+    'sys_show_hide',
+    'sys_normal_disable',
+    'sys_job_status',
+    'sys_job_group',
+    'sys_yes_no',
+    'sys_notice_type',
+    'sys_notice_status',
+    'sys_oper_type',
+    'sys_common_status',
+    'sys_dict_public'
+  );
+
+update sys_dict_type
+set
+  dict_module = '内容管理'
+where
+  dict_type in (
+    'post_article_publish_status',
+    'post_article_audit_status',
+    'post_article_source',
+    'post_subject_publish_status',
+    'post_subject_audit_status',
+    'sys_collection_visibility',
+    'sys_collection_type'
+  );
+
+update sys_dict_type
+set
+  dict_module = '社区互动'
+where
+  dict_type in ('post_report_target', 'post_report_reason', 'post_report_status');
 
 -- ----------------------------
 -- 13、参数配置表
@@ -4805,7 +5375,7 @@ create table
   sys_notice (
     notice_id int (4) not null auto_increment comment '公告ID',
     notice_title varchar(80) not null comment '公告标题',
-    notice_type char(1) not null comment '公告类型（1通知 2公告）',
+    notice_type char(1) not null comment '公告类型（1通知 2公告 3举报反馈）',
     notice_content longtext default null comment '公告内容',
     status char(1) default '0' comment '公告状态（0正常 1关闭）',
     create_by varchar(64) default '' comment '创建者',
@@ -4814,6 +5384,9 @@ create table
     update_time datetime comment '更新时间',
     remark varchar(255) default null comment '备注',
     del_flag char(1) default '0' comment '删除标志（0代表存在 1代表删除）',
+    -- 定向接收人：null 全员公告；非 null 仅该用户可见的私密通知（举报反馈等，业务侧程序写入）；
+    -- 列置末尾以保持既有位置式种子兼容
+    user_id int default null comment '定向接收人用户ID（null 全员公告，非 null 仅该用户可见）',
     primary key (notice_id)
   ) engine = innodb auto_increment = 10 comment = '通知公告表';
 
@@ -4834,7 +5407,8 @@ values
     '',
     null,
     '管理员',
-    '0'
+    '0',
+    null
   );
 
 insert into
@@ -4851,7 +5425,8 @@ values
     '',
     null,
     '管理员',
-    '0'
+    '0',
+    null
   );
 
 -- ----------------------------
@@ -5081,3 +5656,34 @@ create table
     unique key uk_follower_following (follower_id, following_id),
     key idx_following_id (following_id)
   ) engine = innodb comment = '关注库';
+
+-- ----------------------------
+-- 28、举报库
+-- ----------------------------
+drop table if exists post_report;
+
+create table
+  post_report (
+    id int not null auto_increment comment '举报 id',
+    target_type varchar(8) not null comment '举报目标类型（post 文章 / user 用户）',
+    target_id int not null comment '举报目标ID（post=文章 id，user=用户 id）',
+    -- 举报时快照（文章标题+简介 / 用户昵称）：目标编辑/删除后管理端仍可还原被举报内容
+    target_snapshot varchar(500) default null comment '举报时的目标快照（文章标题+简介 / 用户昵称）',
+    reporter_id int not null comment '举报人用户ID',
+    reason_type varchar(32) not null comment '举报理由（字典 post_report_reason 的 dictValue）',
+    reason_content varchar(500) default null comment '补充说明（可空，抄袭出处等）',
+    status char(1) default '0' comment '处理状态（0 待处理 1 成立 2 驳回）',
+    handle_action varchar(16) default null comment '处置动作（unpublish 下架文章 / disableUser 停用用户，无动作 null）',
+    handle_remark varchar(255) default null comment '处理备注',
+    handler_id int default null comment '处理人用户ID',
+    -- 待处理标记：待处理=1、处理完成置 NULL。MySQL 唯一索引对含 NULL 的行不查重，
+    -- 与 (reporter, target) 组成 uk_reporter_pending 即「同一目标同时至多一条待处理举报」——
+    -- 待处理中不可重复举报（服务端 INSERT IGNORE 兜底并发），处理完成后可再次举报、历史多行共存
+    pending_flag int default null comment '待处理标记（待处理=1，处理完成置 NULL）',
+    handle_time datetime(3) default null comment '处理时间（毫秒粒度）',
+    create_time datetime(3) default current_timestamp(3) comment '举报时间（毫秒粒度，24h 频控统计列）',
+    primary key (id),
+    unique key uk_reporter_pending (reporter_id, target_type, target_id, pending_flag),
+    key idx_target_status (target_type, target_id, status),
+    key idx_reporter_create (reporter_id, create_time)
+  ) engine = innodb comment = '举报库';

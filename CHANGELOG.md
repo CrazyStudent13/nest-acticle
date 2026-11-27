@@ -2,6 +2,113 @@
 
 更细粒度的过程记录（审查 → 修复 → 验收全程）见 [CODE-REVIEW-2026-11-20.md](./CODE-REVIEW-2026-11-20.md)。
 
+## v1.4.1（2026-11-28）
+
+一次以打磨为主的小版本：关注 feed、文章预览共享化、Markdown 拖入导入、文章类型自选与展示、字典公开与模块化、管理端字典页重构、分页统一沉底，另修复编辑器发布丢标题与发布后 404。
+
+> 升级提示：本版本含数据库增量——`sys_dict_type` 增 `is_public`（Y 公开游客可读 / N 不公开）与 `dict_module`（仅管理端树分组，不参与接口读取）两列；新增字典类型 `sys_dict_public`（21 字典公开状态）与字典数据 67/68（公开/不公开）；并将 `post_article_source` / `sys_user_sex` / `sys_normal_disable` 标记为公开字典。种子 SQL 见 `apps/server/db/init.sql`，全新导入无需处理。存量环境执行后需清理 Redis `sys_dict:all` 缓存并 touch 字典行推进版本号；`dict_module` 回填语句在 `init.sql` 字典区末尾（按 系统管理/内容管理/社区互动 分组，不执行则管理端归入「未分类」）。
+>
+> ```sql
+> alter table sys_dict_type
+>   add column is_public char(1) default 'N' comment '是否公开（Y 公开游客可读 N 不公开）' after status,
+>   add column dict_module varchar(50) default '' comment '所属模块（仅管理端分类展示）' after is_public;
+>
+> insert into sys_dict_type
+>   (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
+> values
+>   (21, '字典公开状态', 'sys_dict_public', '0', 'admin', sysdate(), '', null, '字典公开状态列表（文案/颜色可在管理端字典维护）', '0');
+>
+> insert into sys_dict_data
+>   (dict_code, dict_sort, dict_label, dict_value, dict_type, css_class, list_class, is_default, status, create_by, create_time, update_by, update_time, remark, del_flag)
+> values
+>   (67, 1, '公开', 'Y', 'sys_dict_public', '', 'success', 'Y', '0', 'admin', sysdate(), '', null, '字典公开状态-公开', '0'),
+>   (68, 2, '不公开', 'N', 'sys_dict_public', '', 'info', 'N', '0', 'admin', sysdate(), '', null, '字典公开状态-不公开', '0');
+>
+> update sys_dict_type
+> set
+>   is_public = 'Y'
+> where
+>   dict_type in ('post_article_source', 'sys_user_sex', 'sys_normal_disable');
+> ```
+
+### 新增
+
+- **关注 feed**：首页「关注」tab 接入我关注作者的已发布文章（publishTime DESC + id 倒序兜底，规避前端 orderByColumn 不生效）；未登录点击弹登录框、登录成功自动切入并加载；关注流缓存随登录态切换失效（退出/401 清空并回最新，换账号不残留）；服务端 `buildListQuery` 新增 followedBy 视角（innerJoin post_follow，唯一键不重复）与作者信息批查，补 3 条单测
+- **文章预览共享化**：`@nest-acticle/editor` 新增 `ArticlePreview`（内置作者卡/目录），client 写作预览与文章详情页改用共享组件，admin 列表行/修改抽屉/编辑器顶栏三处接入预览
+- **Markdown 拖入导入**：共享 `MarkdownEditor` 识别 .md/.markdown 拖入，剥离 YAML front matter 后按光标插入正文（前后补空行，单文件 1MB 上限），抛出 `markdown-import` 供宿主回填空标题（已有标题不覆盖）；`@nest-acticle/markdown` 新增 `parseMarkdownFrontMatter` / `stripMarkdownFrontMatter`（兼容 BOM/CRLF，纯 --- 分割线不误吞），预览渲染与目录提取统一忽略 front matter
+- **文章类型自选与展示**：`ArticleSourceEnum` 对齐字典 `post_article_source`（0 原创 / 1 转载 / 2 翻译 / 3 整理，服务端实体注释同步）；client 写作页与 admin 编辑器顶栏新增文章类型下拉（编辑按原值回填，随保存/发布提交），客户端信息流卡片标题前与详情页元信息行首展示类型标
+- **字典公开属性**：`sys_dict_type` 增 `is_public`，按类型查询接口改可选登录（`@NotRequireAuth`）——登录用户不限字典，游客仅可读公开字典、非公开返回 403（内部调用如举报理由不受影响）；公开类型白名单单独走 Redis 缓存并随字典缓存失效
+- **字典所属模块**：`sys_dict_type` 增 `dict_module`（仅管理端树分组展示，不参与任何接口读取；DTO 可选限长 50，导出列同步），现有字典按 系统管理/内容管理/社区互动 回填；新增 `sys_dict_public` 字典（公开/不公开，色调走 listClass），「是否公开」由 `sys_yes_no` 改用字典渲染
+- **创作者中心顶栏**：抽取 `CommonHeaderUser`（通知铃铛+未读红标与悬停四分类、头像昵称+悬停邮箱浮层、退出）供主站 `AppHeader` 与 creator 布局共用，主站删除重复模板/脚本/样式约 300 行，未登录两处均不渲染
+
+### 重构
+
+- **admin 字典管理页**：左侧树改为「全部字典项 → 所属模块 → 字典类型」三层（模块显示字典数量、当前节点高亮、名称筛选只作用于树），顶部新增公开范围筛选（全部/仅公开/仅不公开）与右侧表格联动；「全部字典项」与字典内容双表分页（类型表本地切片、内容表服务端分页，切类型/切筛选自动回第 1 页）；类型表新增模块列、公开列改 `dict-tag`、列宽紧凑化；详情标题改为「X字典详情」并与公开标签同行，所属模块与备注收进两行 tooltip
+- **分页统一沉底**：`Pagination` 改为父容器纵向 flex + `margin-top:auto` 贴卡片右下角，移除绝对定位/固定高度/白底；`.main-card`、`.fill-card` 内容区与 el-row 包裹层补 flex 布局，各列表页分页位置统一
+
+### 修复
+
+- admin 文章编辑器发布丢标题与发布后 404：保存改为以编辑器当前 `title`/`content` 为准（拖入 .md 程序赋值不触发 el-input 的 `@input`，`articleData.title` 停留旧值）；发布仅在保存成功后关闭编辑器并跳转 `/content/article`（列表是后端菜单动态路由，原硬编码 `/post/article` 未注册）
+- admin 编辑器文章类型下拉显示「无数据」：改由页面 `useDict('post_article_source')` 获取（此前从编辑器 composable 解构得到 undefined）
+- client 顶栏 SSR 报错（首页 500）：`CommonHeaderUser` 内 `watch(isLoggedIn)` 先于 `useUser` 解构声明执行导致 TDZ
+- `DictTag` 异步字典加载后标签类型切换残留旧标签：加 `disable-transitions`
+- admin 字典页：修复重置表单 ref 传值、新增/删除按钮禁用态、添加分类图标移到刷新左侧、编辑后刷新同步选中节点、已删除节点回退到「全部字典项」
+- 版本号全仓对齐（8 包 1.4.0→1.4.1）
+
+## v1.4.0（2026-11-27）
+
+用户举报模块全链路（文章/用户举报提交、去重与频控、管理端处理、自动下架、反馈通知）及 P1 加固（目标有效性校验、被举报内容快照、下架幂等、停用原因与登录拦截）。
+
+> 升级提示：本版本含数据库增量——新增 `post_report` 表（28 号表，含 `target_snapshot`）、`sys_user` 增 `stop_reason` / `stop_time` 两列、字典类型 18~20 与字典数据 54~63、`sys_menu` 212~214 举报管理菜单种子（种子 SQL 详见 `apps/server/db/init.sql`，全新导入无需手工处理）。存量环境执行后需清理 Redis `sys_dict:all` 缓存并 touch 字典行推进版本号，前端才会拉取新字典。
+>
+> ```sql
+> -- 停用原因/时间：停用用户无法登录、收不到站内信，登录拦截提示据此展示（重新启用时清空）
+> alter table sys_user
+>   add column stop_reason varchar(255) default null comment '停用原因（登录拦截展示）' after remark,
+>   add column stop_time datetime(3) default null comment '停用时间（登录拦截展示）' after stop_reason;
+>
+> -- 新增举报表（待处理唯一索引去重，含举报时快照）
+> create table
+>   post_report (
+>     id int not null auto_increment comment '举报 id',
+>     target_type varchar(8) not null comment '举报目标类型（post 文章 / user 用户）',
+>     target_id int not null comment '举报目标ID（post=文章 id，user=用户 id）',
+>     target_snapshot varchar(500) default null comment '举报时的目标快照（文章标题+简介 / 用户昵称）',
+>     reporter_id int not null comment '举报人用户ID',
+>     reason_type varchar(32) not null comment '举报理由（字典 post_report_reason 的 dictValue）',
+>     reason_content varchar(500) default null comment '补充说明（可空，抄袭出处等）',
+>     status char(1) default '0' comment '处理状态（0 待处理 1 成立 2 驳回）',
+>     handle_action varchar(16) default null comment '处置动作（unpublish 下架文章 / disableUser 停用用户，无动作 null）',
+>     handle_remark varchar(255) default null comment '处理备注',
+>     handler_id int default null comment '处理人用户ID',
+>     pending_flag int default null comment '待处理标记（待处理=1，处理完成置 NULL）',
+>     handle_time datetime(3) default null comment '处理时间（毫秒粒度）',
+>     create_time datetime(3) default current_timestamp(3) comment '举报时间（毫秒粒度，24h 频控统计列）',
+>     primary key (id),
+>     unique key uk_reporter_pending (reporter_id, target_type, target_id, pending_flag),
+>     key idx_target_status (target_type, target_id, status),
+>     key idx_reporter_create (reporter_id, create_time)
+>   ) engine = innodb comment = '举报库';
+> ```
+
+### 新增
+
+- **举报模块（文章/用户举报全链路）**：`post_report` 联合表（target_type 区分文章/用户），`uk_reporter_pending` 唯一索引 + `INSERT IGNORE` 兜底并发（同一目标同时至多一条待处理举报，处理完成后可再次举报）；24h 内 10 次频控、自查拦截、举报理由/目标类型走数据字典校验；同一文章待处理举报达阈值（`AUTO_OFFLINE_REPORTERS`）事务内自动下架并通知作者；处理结论（成立/驳回）与处置动作（下架文章/停用用户）按目标类型校验，处理完成定向反馈通知（`sys_notice` type=3，通知中心「系统通知」承接）
+- **admin**：举报管理页（菜单 212~214，目标类型/理由/状态/举报人/时间筛选 + 批量删除）；处理弹窗展示举报目标、理由与补充说明，停用用户时可填写停用原因（默认「举报核实成立，内容违规」）
+- **client**：文章页与空间页举报入口（登录守卫、自查/重复举报置灰），举报弹窗字典驱动；举报反馈接入通知中心
+- **docs**：新增举报模块约定页（接口契约、三态重复举报、通知分类与挂点）
+
+### 加固
+
+- **举报目标有效性**：仅已发布文章与未删除用户可被举报（文章下架/删除、用户注销后提交返回目标不存在）；举报时落 `target_snapshot`（文章标题+简介 / 用户昵称），目标后续编辑或删除后管理端仍可还原被举报内容
+- **下架幂等**：处置下架改为条件更新（仅 PUBLISHED 且未删除），未实际下架时不通知作者、不重复计数；成立结论与已下架状态并发安全
+- **停用原因与登录拦截**：`sys_user` 新增 `stop_reason` / `stop_time`（重新启用清空），停用即踢下线；密码校验通过后按专属业务码 `ACCOUNT_DISABLED_CODE=603` 返回（HTTP 403，信封 data 携带停用时间/原因），客户端登录弹窗内常驻展示处置说明与申诉指引（不做 toast）；管理端停用用户改为填写原因弹窗
+
+### 修复
+
+- `init.sql` 的 `sys_user` 种子改为显式列名（新增尾部列后位置插入列数不匹配，全新导入会失败）
+- 版本号全仓对齐（8 包 1.3.0→1.4.0）
+
 ## v1.3.0（2026-11-25）
 
 关注模块全链路（用户互关：前台交互 + 通知红标 + 管理端管理页 + 用户列表粉丝量列），文档站进容器栈，通知已读水位毫秒化修复。

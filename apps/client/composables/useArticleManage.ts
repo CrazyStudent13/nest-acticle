@@ -4,8 +4,10 @@
 import type { Article, PageResult } from '@nest-acticle/shared'
 
 export const useArticleManage = () => {
-  // 文章列表（登录接口）：创作者中心按 userId 只查自己的；状态 tab（publishStatus/auditStatus）、
-  // 标题模糊搜索、排序、分页全部 query 透传
+  // 我的文章列表（创作者中心数据源）：走 /my/list（服务端强制只查当前登录人，不挂权限串）——
+  // 注册用户角色（member）没有 post:article:list，管理端 /list 不能用；
+  // 状态 tab（publishStatus/auditStatus）、标题模糊搜索、排序、分页全部 query 透传，
+  // userId 参数保留透传但服务端会强制覆盖为登录人
   const fetchArticles = async (params: {
     userId: number
     pageNum?: number
@@ -16,7 +18,7 @@ export const useArticleManage = () => {
     publishStatus?: string
     auditStatus?: string
   }): Promise<PageResult<Article>> => {
-    const res = await apiFetch<PageResult<Article>>('/api/post/article/list', {
+    const res = await apiFetch<PageResult<Article>>('/api/post/article/my/list', {
       query: { ...params }
     })
     return res.data ?? { list: [], total: 0 }

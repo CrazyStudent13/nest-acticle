@@ -1,5 +1,5 @@
 <!-- 写文章页（独立全屏流程）：编辑区为 @nest-acticle/editor 共享 MarkdownEditor（工具栏/快捷键/预览/粘贴上传在包内，与 admin 编辑体验同源）；上传经回调走"先裁剪再上传"，插入时机由组件在回调前捕获的选区决定；草稿箱 localStorage 自动保存（800ms 防抖、按 userId 隔离：新建写草稿箱草稿，编辑线上文章按 articleId 写本地快照并在载入时提示恢复）；发布弹窗：封面 16:9 裁剪/选专栏/简介自动取正文前 100 字；带 ?id= 为编辑模式（按钮变"保存"），未登录原地弹登录框。
-     职责拆分：工具栏操作/字数统计/预览 → @nest-acticle/editor；草稿箱 → useDraftBox + EditorDraftPanel；发布弹窗 → usePublish + EditorPublishModal；发布前预览遮罩 → Editor/PreviewOverlay；本页保留主流程编排（初始化/编辑模式加载与快照恢复/图片上传回调）。 -->
+     职责拆分：工具栏操作/字数统计/预览 → @nest-acticle/editor；草稿箱 → useDraftBox + EditorDraftPanel；发布弹窗 → usePublish + EditorPublishModal；发布前预览遮罩 → 共享 ArticlePreview（作者卡/目录内置，统计由本页按 userId 拉取）；本页保留主流程编排（初始化/编辑模式加载与快照恢复/图片上传回调）。 -->
 <template>
   <div class="editor-page">
     <!-- 顶栏：返回站点 + 标题 + 草稿箱 + 发布 -->
@@ -12,6 +12,11 @@
         </span>
         <span class="brand-name">游戏速递</span>
       </NuxtLink>
+
+      <!-- 文章类型：字典 post_article_source（原创/转载/翻译/整理），与发布弹窗共用同一表单值 -->
+      <select v-model="publish.publishForm.source" class="type-select" aria-label="文章类型" title="文章类型">
+        <option v-for="item in sourceOptions" :key="item.dictValue" :value="item.dictValue">{{ item.dictLabel }}</option>
+      </select>
 
       <input
         v-model="title"
@@ -57,7 +62,8 @@
       <MarkdownEditor
         v-model="content"
         :upload-image="handleUploadImage"
-        placeholder="输入文章内容，支持 Markdown 语法，可直接粘贴图片…"
+        placeholder="输入文章内容，支持 Markdown 语法，可直接粘贴/拖入 .md 文件或图片…"
+        @markdown-import="handleMarkdownImport"
       >
         <template v-if="!editId" #status-extra>
           <span class="status-hint">文章将自动保存至草稿箱</span>
@@ -68,14 +74,17 @@
     <!-- 发布弹窗（显隐 v-model，状态/动作来自 usePublish store） -->
     <EditorPublishModal v-model="publish.open" :publish="publish" :edit-id="editId" />
 
-    <!-- 发布前预览遮罩（Editor/PreviewOverlay.vue：详情页版式 + ESC/锁滚动随组件走） -->
-    <EditorPreviewOverlay
+    <!-- 发布前预览遮罩（共享 ArticlePreview：详情页版式 + 作者卡/目录 + ESC/锁滚动均在组件内） -->
+    <ArticlePreview
       v-model:open="previewOpen"
       :title="title"
       :content="content"
       :cover-url="previewCoverUrl"
       :subject-title="previewSubjectTitle"
-      :author="previewAuthor"
+      :author-name="previewAuthor.nickName"
+      :author-avatar="previewAuthorAvatar"
+      :author-href="previewAuthorHref"
+      :author-stats="previewStats"
     />
   </div>
 </template>
@@ -83,8 +92,10 @@
 <script setup lang="ts">
 import type { Article } from '@nest-acticle/shared'
 import dayjs from 'dayjs'
-import { MarkdownEditor } from '@nest-acticle/editor'
+import { ArticlePreview, MarkdownEditor } from '@nest-acticle/editor'
+import type { PreviewAuthorStats } from '@nest-acticle/editor'
 import '@nest-acticle/editor/style.css'
+import '@nest-acticle/markdown/style.css'
 
 // 写文章是独立全屏流程：ssr 关闭（依赖 token），使用 editor 布局（无站头站脚）
 // 登录守卫走 auth middleware：未登录原地弹登录框不跳页（authNoToken: 'stay'，掘金式），恢复失败回首页
@@ -147,6 +158,16 @@ const handleUploadImage = (file: File): Promise<string> => {
     })
 }
 
+// 拖入 .md：正文已由共享编辑器按光标插入（front matter 已剥离），这里只用其 title 回填空标题
+const handleMarkdownImport = ({ title: importedTitle, fileName }: { title: string; fileName: string }) => {
+  if (importedTitle && !title.value.trim()) {
+    title.value = importedTitle.slice(0, 64)
+    showToast(`已导入 ${fileName}，并从文件解析标题`, 'success')
+    return
+  }
+  showToast(`已导入 ${fileName}`, 'success')
+}
+
 // ---------- 草稿箱（localStorage 自动保存） ----------
 const draft = useDraftBox({ title, content, editId })
 
@@ -190,21 +211,48 @@ watch([title, content], () => {
 // ---------- 发布弹窗（校验/专栏/封面/提交） ----------
 const publish = usePublish({ title, content, editId, setTopTip, clearCurrentDraft: draft.clearCurrentDraft })
 
-// ---------- 发布前预览（遮罩版式/ESC/锁滚动/定格时间在 EditorPreviewOverlay 内，本页只备展示数据） ----------
+// 顶栏文章类型下拉：选项走字典（拉取失败按空字典兜底，已选值仍原样提交）；
+// 登录后才拉取，避免未登录落地页的字典 401 再触发一次登录弹窗
+const sourceOptions = useDict('post_article_source', { enabled: computed(() => !!user.value) })
+
+// ---------- 发布前预览（遮罩版式/ESC/锁滚动/定格时间在共享 ArticlePreview 内，本页只备展示数据） ----------
 const previewOpen = ref(false)
 const previewCoverUrl = computed(() => toCoverUrl(config.public.apiBase, publish.publishForm.cover || ''))
 const previewSubjectTitle = computed(
   () => publish.subjects.find((s) => String(s.id) === publish.publishForm.subjectId)?.title || ''
 )
-// 作者卡片入参（组件内自取 guest 列表聚合 文章/阅读/获赞 统计）
+// 作者卡片入参（头像补全为绝对地址，空间链接走前台路由）
 const previewAuthor = computed(() => ({
   userId: user.value?.userId,
   nickName: user.value?.nickName || user.value?.userName || '佚名',
   avatar: user.value?.avatar || ''
 }))
+const previewAuthorAvatar = computed(() => toCoverUrl(config.public.apiBase, previewAuthor.value.avatar))
+const previewAuthorHref = computed(() => (previewAuthor.value.userId ? `/user/space?id=${previewAuthor.value.userId}` : ''))
+const previewStats = ref<PreviewAuthorStats | null>(null)
 
-const openPreview = () => {
+// 统计数据与详情页作者卡同口径：guest 文章列表按 userId 过滤，total 即文章数，readNum/likeNum 求和
+const openPreview = async () => {
   previewOpen.value = true
+  previewStats.value = null
+  const userId = previewAuthor.value.userId
+  if (!userId) {
+    return
+  }
+  try {
+    const res = await $fetch<{ data?: { list?: Array<{ readNum?: number; likeNum?: number }>; total?: number } | null }>(
+      `${config.public.apiBase}/api/post/article/guest/list`,
+      { query: { userId, pageNum: 1, pageSize: 100 } }
+    )
+    const list = res?.data?.list || []
+    previewStats.value = {
+      total: res?.data?.total || 0,
+      reads: list.reduce((sum, item) => sum + (item.readNum || 0), 0),
+      likes: list.reduce((sum, item) => sum + (item.likeNum || 0), 0)
+    }
+  } catch {
+    previewStats.value = null
+  }
 }
 
 // ---------- 初始化：登录守卫已由 auth middleware 先行（未登录会原地弹登录框、token 失效已回首页） ----------
@@ -264,6 +312,7 @@ const loadArticle = async (id: string) => {
     publish.publishForm.subjectId = model.subjectId ? String(model.subjectId) : ''
     publish.publishForm.cover = model.cover || ''
     publish.publishForm.desc = model.desc || ''
+    publish.publishForm.source = model.source || '0'
     // 载入完成记录基线（防载入动作本身产生等值快照），有本地快照则亮出恢复横幅
     draft.markSavedBaseline()
     restoreFingerprint.value = `${title.value}\u0000${content.value}`
@@ -331,6 +380,26 @@ const loadArticle = async (id: string) => {
 
     &::placeholder {
       color: var(--color-text-3);
+    }
+  }
+
+  // 标题左侧的文章类型下拉：比放标题右侧更显眼，窄屏保持可见
+  .type-select {
+    flex-shrink: 0;
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-bg);
+    font-size: 13px;
+    color: var(--color-text-2);
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s ease;
+
+    &:hover,
+    &:focus {
+      border-color: var(--color-primary);
     }
   }
 

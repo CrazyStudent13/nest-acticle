@@ -13,6 +13,8 @@
           <h2 class="profile-name">
             {{ profileName }}
             <span v-if="sexTag" class="sex-suffix">（{{ sexTag }}）</span>
+            <!-- 账号被举报处置停用：昵称右侧对外可见的状态标识，内容仍可浏览 -->
+            <span v-if="spaceStopped" class="profile-stopped">该用户已被停用</span>
           </h2>
           <!-- 他人空间：公开统计（自己/他人同一套展示） -->
           <div v-if="!isSelf" class="profile-stats">
@@ -31,9 +33,10 @@
         <div v-if="isSelf" class="profile-actions">
           <button class="btn ghost" type="button" @click="goSettings">编辑资料</button>
         </div>
-        <!-- 他人空间（且已登录）：关注按钮三态；未登录不渲染，关注动作入口由文章页作者卡承接游客 -->
+        <!-- 他人空间（且已登录）：关注按钮三态 + 举报入口（存在待处理举报时置灰）；未登录不渲染，关注动作入口由文章页作者卡承接游客 -->
         <div v-else-if="isLoggedIn" class="profile-actions">
           <FollowButton :target-user-id="targetUserId!" @change="onProfileFollowChange" />
+          <button class="btn ghost" :disabled="userReported" type="button" @click="openReport">{{ userReported ? '已举报' : '举报' }}</button>
         </div>
       </div>
     </div>
@@ -261,6 +264,15 @@
 
     <!-- 新建/编辑收藏集弹窗（父条件渲染，同创作者中心专栏弹窗模式） -->
     <CollectCollectionEditModal v-if="collectEditOpen" :collection="editingCollection" @close="collectEditOpen = false" @saved="onCollectSaved" />
+    <!-- 举报用户弹窗（文章/用户共用组件，user 口径）：理由选项走字典；提交成功回写已举报置灰态 -->
+    <ReportDialog
+      v-if="reportOpen"
+      target-type="user"
+      :target-id="targetUserId!"
+      :target-label="spaceProfile.nickName || `用户 ${targetUserId}`"
+      @close="reportOpen = false"
+      @done="onReportDone"
+    />
   </div>
 </template>
 
@@ -298,7 +310,7 @@ const isSelf = computed(() => !!user.value?.userId && user.value.userId === targ
 
 // 他人资料：公开资料接口取昵称头像（不依赖文章行捎带——零文章用户的空间此前
 // 只能显示占位名）；加载失败或用户不存在时保留空值走占位
-const spaceProfile = ref<{ nickName?: string; avatar?: string }>({})
+const spaceProfile = ref<{ nickName?: string; avatar?: string; status?: string }>({})
 const spaceStats = ref({ total: 0, reads: 0, likes: 0 })
 
 const loadGuestProfile = async (userId: number) => {
@@ -309,7 +321,7 @@ const loadGuestProfile = async (userId: number) => {
       return
     }
     if (profile) {
-      spaceProfile.value = { nickName: profile.nickName, avatar: profile.avatar ?? undefined }
+      spaceProfile.value = { nickName: profile.nickName, avatar: profile.avatar ?? undefined, status: profile.status }
     }
   } catch {
     /* 静默：保留占位名 */
@@ -346,14 +358,49 @@ const initSpace = () => {
 onMounted(() => {
   // middleware 已保证：登录态就绪（自己的空间）或 guest 旁路放行（他人空间）
   initSpace()
+  syncUserReportStatus()
 })
 
 // SPA 内切换不同用户空间时重载
 watch(targetUserId, (val, old) => {
   if (val !== old && val) {
     initSpace()
+    syncUserReportStatus()
   }
 })
+
+// ---------- 举报用户（仅他人空间渲染入口）：登录态下查询已举报态，已举报置灰；提交成功回写并提示 ----------
+const { fetchReportStatus } = useReport()
+const userReported = ref(false)
+const reportOpen = ref(false)
+
+const syncUserReportStatus = () => {
+  const userId = targetUserId.value
+  if (!isLoggedIn.value || !userId || isSelf.value) {
+    userReported.value = false
+    return
+  }
+  fetchReportStatus('user', userId)
+    .then((value) => {
+      // 切换空间时旧请求可能后到，只回写当前空间的结果
+      if (value && userId === targetUserId.value) {
+        userReported.value = value.reported
+      }
+    })
+    .catch(() => {})
+}
+
+const openReport = () => {
+  if (!userReported.value) {
+    reportOpen.value = true
+  }
+}
+
+const onReportDone = () => {
+  reportOpen.value = false
+  userReported.value = true
+  showToast('举报已提交，感谢你帮助维护社区环境', 'success')
+}
 
 // ---------- 资料展示 ----------
 const profileName = computed(() =>
@@ -364,6 +411,8 @@ const avatarUrl = computed(() => {
   return toCoverUrl(config.public.apiBase, raw)
 })
 const avatarFallback = computed(() => profileName.value.slice(0, 1))
+// 账号状态（StatusEnum：0 正常 / 1 停用）：停用来自举报处置，他人空间对外标示
+const spaceStopped = computed(() => !isSelf.value && spaceProfile.value.status === '1')
 // 性别标签走数据字典（0男 1女 2未知），字典未加载或未设置时不在昵称后展示；
 // 字典接口只要求登录态，挂在 isSelf 上按需拉取——游客/过期会话不发这条请求（401 会弹登录框）
 const sexOptions = useDict('sys_user_sex', { enabled: isSelf })
@@ -795,6 +844,20 @@ const goColumn = (item: any) => {
       }
     }
 
+    // 停用标识：昵称右侧灰底小胶囊，与昵称同排、弱于正文
+    .profile-stopped {
+      display: inline-block;
+      vertical-align: middle;
+      margin-left: 8px;
+      padding: 0 8px;
+      border-radius: var(--radius-full);
+      background-color: var(--color-bg);
+      color: var(--color-text-3);
+      font-size: 12px;
+      font-weight: 400;
+      line-height: 20px;
+    }
+
     .profile-fields {
       display: grid;
       grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -853,11 +916,17 @@ const goColumn = (item: any) => {
 
   .profile-actions {
     flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 
+    // 与 FollowButton 默认尺寸对齐（padding/字号/行高/最小宽一致），两钮等高同宽、间距由 gap 统一
     .btn.ghost {
-      padding: 6px 14px;
+      min-width: 84px;
+      padding: 7px 18px;
       border-radius: var(--radius-sm);
-      font-size: 12px;
+      font-size: 13px;
+      line-height: 18px;
       border: 1px solid var(--color-border);
       background-color: var(--color-surface);
       color: var(--color-text-2);

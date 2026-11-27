@@ -128,9 +128,9 @@ const onToggle = async () => {
     border-color 0.2s ease,
     color 0.2s ease;
 
-  // 未关注：实底主色（掘金同款主行动钮）
+  // 未关注：实底主色（掘金同款主行动钮）；透明描边占位，与描边态等高
   &.is-none {
-    border: 0;
+    border: 1px solid transparent;
     background-color: var(--color-primary);
     color: #fff;
 
@@ -139,15 +139,15 @@ const onToggle = async () => {
     }
   }
 
-  // 已关注/互相关注：描边弱化态，hover 变 danger 提示可取关
+  // 已关注/互相关注：灰底实心弱化（B 站口径，与未关注的主色实底形成区分），hover 提示可取关
   &.is-following,
   &.is-mutual {
-    border: 1px solid var(--color-border);
-    background-color: var(--color-surface);
-    color: var(--color-text-2);
+    border: 1px solid transparent;
+    background-color: var(--color-bg);
+    color: var(--color-text-3);
 
     &:hover:not(:disabled) {
-      border-color: #d1242f;
+      background-color: var(--color-border-light);
       color: #d1242f;
     }
   }

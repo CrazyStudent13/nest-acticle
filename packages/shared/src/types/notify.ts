@@ -9,13 +9,16 @@
 
 /**
  * 未读计数（头部铃铛红标）
- * comment=收到的评论 like=收到的赞 collect=收到的收藏 follow=收到的关注 total=互动分类合计；系统通知未建不计
+ * comment=收到的评论 like=收到的赞 collect=收到的收藏 follow=收到的关注
+ * system=系统通知（sys_notice 生效中的全员公告 + 发给我的定向通知，如举报反馈）
+ * total=以上五类合计
  */
 export interface NotifyUnreadCount {
   comment: number;
   like: number;
   collect: number;
   follow: number;
+  system: number;
   total: number;
 }
 

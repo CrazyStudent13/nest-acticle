@@ -91,12 +91,16 @@
       </div>
     </div>
 
+    <!-- 文件拖入提示（图片走上传，.md 走正文导入） -->
+    <div v-if="dragging" class="na-md-editor-drop-hint">松开导入 Markdown 文件或图片</div>
+
     <!-- 状态栏：字数/行数/阅读时长内置，其余状态（如草稿保存提示）经 status-extra 插槽追加 -->
     <footer class="na-md-editor-status">
       <span>字数 {{ charCount }}</span>
       <span>行数 {{ lineCount }}</span>
       <span v-if="readingMinutes">约 {{ readingMinutes }} 分钟</span>
       <slot name="status-extra" />
+      <span v-if="importNotice" class="na-md-editor-notice">{{ importNotice }}</span>
     </footer>
 
     <!-- 链接插入弹窗（Teleport 到 body，替代原生 window.prompt） -->
@@ -135,7 +139,7 @@
 import ClipboardJS from 'clipboard';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
-import { bindImageLightbox, createMarkdownRenderer, renderMermaidDiagrams } from '@nest-acticle/markdown';
+import { bindImageLightbox, createMarkdownRenderer, parseMarkdownFrontMatter, renderMermaidDiagrams } from '@nest-acticle/markdown';
 
 import { useMarkdownEditor } from './composables/useMarkdownEditor';
 
@@ -162,6 +166,8 @@ const props = withDefaults(
 
 const emit = defineEmits<{
   (e: 'update:modelValue', value: string): void;
+  /** 拖入 .md 并插入后触发：title 取自 YAML front matter，宿主可在标题为空时回填 */
+  (e: 'markdown-import', payload: { title: string; fileName: string }): void;
 }>();
 
 // 双向绑定桥：包内读写都走这个可写 computed，宿主侧只依赖 v-model
@@ -308,6 +314,10 @@ onBeforeUnmount(() => {
     clearTimeout(previewTimer);
     previewTimer = null;
   }
+  if (importNoticeTimer) {
+    clearTimeout(importNoticeTimer);
+    importNoticeTimer = null;
+  }
   unbindLightbox?.();
   unbindLightbox = null;
   clipboard?.destroy();
@@ -377,7 +387,7 @@ const insertText = (text: string) => {
 
 defineExpose({ insertText });
 
-// ---------- 拖拽上传图片：拖入文件高亮提示，松手与粘贴/按钮共用 uploadAndInsert 链路 ----------
+// ---------- 拖拽文件：图片走上传链路，.md/.markdown 读取后剥 front matter、按光标插入正文并抛出标题 ----------
 const dragging = ref(false);
 let dragDepth = 0;
 
@@ -408,6 +418,59 @@ const handleDragLeave = () => {
   }
 };
 
+// Markdown 文件导入：先捕获选区（读取文件/解析期间焦点与光标可能变化），正文去掉 front matter 后
+// 按光标插入；前后补空行避免与相邻内容粘连，title 交给宿主决定是否回填
+// 上限 1MB：整段读进 textarea，超大导出文件会卡死编辑器，状态栏即时提示被拒
+const MAX_MARKDOWN_FILE_SIZE = 1024 * 1024;
+const importNotice = ref('');
+let importNoticeTimer: ReturnType<typeof setTimeout> | null = null;
+
+const showImportNotice = (message: string) => {
+  importNotice.value = message;
+  if (importNoticeTimer) {
+    clearTimeout(importNoticeTimer);
+  }
+  importNoticeTimer = setTimeout(() => {
+    importNoticeTimer = null;
+    importNotice.value = '';
+  }, 3500);
+};
+
+const importMarkdownFile = (file: File) => {
+  if (file.size > MAX_MARKDOWN_FILE_SIZE) {
+    console.warn('[MarkdownEditor] Markdown 文件超过 1MB，已取消导入:', file.name);
+    showImportNotice(`文件超过 1MB，未导入：${file.name}`);
+    return;
+  }
+  const el = taRef.value;
+  const start = el ? el.selectionStart : content.value.length;
+  const end = el ? el.selectionEnd : content.value.length;
+  file
+    .text()
+    .then((raw) => {
+      const { data, content: body } = parseMarkdownFrontMatter(raw);
+      const text = body.replace(/^(?:\r?\n)+/, '').replace(/\s+$/, '');
+      if (!text) {
+        console.warn('[MarkdownEditor] Markdown 文件正文为空:', file.name);
+        return;
+      }
+      const max = content.value.length;
+      const safeStart = Math.min(start, max);
+      const safeEnd = Math.min(end, max);
+      const before = content.value.slice(0, safeStart);
+      const after = content.value.slice(safeEnd);
+      const prefix = before && !before.endsWith('\n') ? '\n\n' : '';
+      const suffix = after && !after.startsWith('\n') ? '\n\n' : '';
+      const caret = safeStart + prefix.length + text.length;
+      replaceRange(safeStart, safeEnd, `${prefix}${text}${suffix}`, caret, caret);
+      const title = typeof data.title === 'string' ? data.title.trim() : '';
+      emit('markdown-import', { title, fileName: file.name });
+    })
+    .catch(() => {
+      console.warn('[MarkdownEditor] Markdown 文件读取失败:', file.name);
+    });
+};
+
 const handleDrop = (event: DragEvent) => {
   dragDepth = 0;
   dragging.value = false;
@@ -415,11 +478,16 @@ const handleDrop = (event: DragEvent) => {
   if (files.length === 0) {
     return;
   }
-  // 有文件时阻止浏览器默认打开文件；非图片文件静默忽略
+  // 有文件时阻止浏览器默认打开文件；非 Markdown/图片文件静默忽略
   event.preventDefault();
-  const file = files.find((f) => /^image\//.test(f.type));
-  if (file) {
-    uploadAndInsert(file);
+  const markdownFile = files.find((f) => /\.(md|markdown)$/i.test(f.name) || f.type === 'text/markdown');
+  if (markdownFile) {
+    importMarkdownFile(markdownFile);
+    return;
+  }
+  const imageFile = files.find((f) => /^image\//.test(f.type));
+  if (imageFile) {
+    uploadAndInsert(imageFile);
   }
 };
 
@@ -439,6 +507,7 @@ const handleScrollSync = () => {
 // 颜色走宿主 CSS 变量并提供回退默认值（参照 @nest-acticle/markdown 的做法）：client 深浅主题经
 // tokens 切换生效；admin 无该变量体系，回退值即浅色主题。样式以 .na-md-editor 命名空间隔离。
 .na-md-editor {
+  position: relative;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -553,6 +622,24 @@ const handleScrollSync = () => {
     border-left: 1px solid var(--color-border-light, #f0f1f3);
   }
 
+  // 文件拖入时覆盖编辑区（不挡事件，松手仍落在根节点）
+  &-drop-hint {
+    position: absolute;
+    top: 45px;
+    right: 0;
+    bottom: 29px;
+    left: 0;
+    z-index: 5;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-primary, #4f6bff);
+    background-color: rgba(79, 107, 255, 0.08);
+  }
+
   // ---------- 状态栏 ----------
   &-status {
     flex-shrink: 0;
@@ -565,6 +652,11 @@ const handleScrollSync = () => {
     border-top: 1px solid var(--color-border-light, #f0f1f3);
     font-size: 12px;
     color: var(--color-text-3, #86909c);
+  }
+
+  &-notice {
+    margin-left: auto;
+    color: var(--color-danger, #e5484d);
   }
 }
 

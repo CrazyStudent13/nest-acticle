@@ -333,39 +333,7 @@ const confirmSubmit = async () => {
     gap: 10px;
     margin-top: 18px;
 
-    .btn {
-      padding: 7px 18px;
-      border-radius: var(--radius-sm);
-      font-size: 13px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-
-      &.ghost {
-        border: 1px solid var(--color-border);
-        background-color: transparent;
-        color: var(--color-text-2);
-
-        &:hover {
-          border-color: var(--color-text-3);
-          color: var(--color-text-1);
-        }
-      }
-
-      &.primary {
-        border: 0;
-        background-color: var(--color-primary);
-        color: #fff;
-
-        &:hover:not(:disabled) {
-          background-color: var(--color-primary-hover);
-        }
-
-        &:disabled {
-          opacity: 0.6;
-          cursor: not-allowed;
-        }
-      }
-    }
+    // 按钮样式走全局 .btn/.btn.ghost/.btn.primary（base.less），此处只管布局
   }
 }
 </style>

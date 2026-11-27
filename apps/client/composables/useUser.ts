@@ -162,12 +162,12 @@ export const useUser = () => {
     await apiFetch('/api/system/user/profile/updatePwd', { method: 'PUT', body: payload })
   }
 
-  // 他人空间公开资料（guest 免登录，仅昵称与头像，与文章列表携带的 userInfo 同口径）；
-  // 用户不存在/已删除返回 null，调用方降级占位展示
+  // 他人空间公开资料（guest 免登录，昵称/头像/账号状态，与文章列表携带的 userInfo 同口径）；
+  // status='1' 表示账号已停用，供空间页展示对外可见的停用标识；用户不存在/已删除返回 null，调用方降级占位展示
   const fetchGuestProfile = async (
     userId: number
-  ): Promise<{ userId: number; nickName: string; avatar?: string | null } | null> => {
-    const res = await apiFetch<{ userId: number; nickName: string; avatar?: string | null }>(
+  ): Promise<{ userId: number; nickName: string; avatar?: string | null; status?: string } | null> => {
+    const res = await apiFetch<{ userId: number; nickName: string; avatar?: string | null; status?: string }>(
       '/api/system/user/guest/profile',
       { query: { id: userId } }
     )

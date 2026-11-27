@@ -8,18 +8,34 @@
       :comment-num="commentCount"
       :collected="collected"
       :collect-num="collectCount"
+      :can-report="canReport"
+      :reported="reported"
       @like="onLike"
       @comment="scrollToComments"
       @collect="onCollect"
+      @report="onReport"
     />
     <!-- 收藏弹窗：勾选收藏集（含行内新建），确认后回抛高亮与计数变化 -->
     <CollectModal v-if="collectOpen" :article-id="article.id || ''" @close="collectOpen = false" @done="onCollectDone" />
+    <!-- 举报弹窗：文章/用户共用组件（post 口径），理由选项走字典；提交成功回写已举报置灰态 -->
+    <ReportDialog
+      v-if="reportOpen"
+      target-type="post"
+      :target-id="article.id || ''"
+      :target-label="article.title"
+      @close="reportOpen = false"
+      @done="onReportDone"
+    />
     <CommonReadingLayout :flush="!(article.title || article.content)">
       <template v-if="article.title || article.content">
+        <!-- 已下架提示：仅作者本人与后台角色能到达这里（服务端对其他访客仍返回不存在） -->
+        <div v-if="article.publishStatus === '3'" class="offline-banner">该文章已下架，仅作者与后台角色可见</div>
         <h1 class="title">{{ article.title || '无标题' }}</h1>
 
         <!-- 元信息行：作者 时间 阅读 专栏，编辑入口靠右（仅作者本人可见），掘金式单行 -->
         <div class="meta-line">
+          <!-- 文章类型标：原创/转载/翻译/整理，与列表卡片同源文案 -->
+          <span v-if="sourceLabel" class="meta-source">{{ sourceLabel }}</span>
           <span class="meta-author">{{ authorName }}</span>
           <span v-if="publishLabel" class="meta-item">{{ publishLabel }}</span>
           <span v-if="readLabel" class="meta-item">
@@ -76,8 +92,12 @@
 </template>
 
 <script setup lang="ts">
+import { ArticleToc } from '@nest-acticle/editor'
+import { extractMarkdownHeadings } from '@nest-acticle/markdown'
 import { formatDateTime } from '@nest-acticle/utils'
 import type { Article, Subject } from '@nest-acticle/shared'
+import { getArticleSourceLabel } from '~/utils/articleSource'
+import '@nest-acticle/editor/style.css'
 
 const config = useRuntimeConfig()
 const route = useRoute()
@@ -118,6 +138,8 @@ const { data: subjectRes } = await useFetch<{ data?: Subject | null }>(
 const subject = computed(() => subjectRes.value?.data || {})
 
 const authorName = computed(() => article.value.userInfo?.nickName || article.value.author || '佚名')
+// 文章类型标（guest 详情已下发 source，位置见元信息行）
+const sourceLabel = computed(() => getArticleSourceLabel(article.value.source))
 const coverUrl = computed(() => toCoverUrl(config.public.apiBase, article.value.cover))
 // publishTime 常为 null，回退 createTime
 const publishLabel = computed(() => article.value.publishTime || article.value.createTime)
@@ -219,6 +241,7 @@ watch(() => article.value.id, () => {
   collectNumLocal.value = null
   syncLikeStatus()
   syncCollectStatus()
+  syncReportStatus()
   recordRead()
 })
 
@@ -324,6 +347,48 @@ const canEdit = computed(
 )
 const goEdit = () => navigateTo({ path: '/editor/new', query: { id: String(article.value.id || '') } })
 
+// ---------- 举报：登录态下查询已举报态（登录/切文章后补查，时机同点赞态）；作者本人不显示入口（服务端亦拒绝自查举报），未登录点击引导登录；提交成功回写置灰态 ----------
+const { fetchReportStatus } = useReport()
+const reported = ref(false)
+const reportOpen = ref(false)
+
+const canReport = computed(() => !canEdit.value)
+
+const syncReportStatus = () => {
+  const id = article.value.id
+  if (!isLoggedIn.value || !id) {
+    reported.value = false
+    return
+  }
+  fetchReportStatus('post', id)
+    .then((value) => {
+      // 文章切换时旧请求可能后到，只回写当前文章的结果
+      if (value && article.value.id === id) {
+        reported.value = value.reported
+      }
+    })
+    .catch(() => {})
+}
+
+onMounted(syncReportStatus)
+watch(isLoggedIn, syncReportStatus)
+
+const onReport = () => {
+  if (!isLoggedIn.value) {
+    openLogin()
+    return
+  }
+  if (!reported.value) {
+    reportOpen.value = true
+  }
+}
+
+const onReportDone = () => {
+  reportOpen.value = false
+  reported.value = true
+  showToast('举报已提交，感谢你帮助维护社区环境', 'success')
+}
+
 // 删除后回首页（需 post:article:remove 权限，失败透传后端 msg）
 const deleting = ref(false)
 const removeArticle = async () => {
@@ -389,6 +454,17 @@ useHead(() => {
 </script>
 
 <style lang="less" scoped>
+// 已下架横幅：红色浅底，仅作者/后台角色可见（服务端拦访客）
+.offline-banner {
+  margin-bottom: 12px;
+  padding: 10px 14px;
+  border-radius: var(--radius-sm);
+  background-color: rgba(240, 65, 66, 0.08);
+  font-size: 13px;
+  line-height: 20px;
+  color: #d1242f;
+}
+
 .title {
   font-size: 28px;
   font-weight: 600;
@@ -412,6 +488,16 @@ useHead(() => {
   .meta-author {
     font-weight: 600;
     color: var(--color-text-1);
+  }
+
+  // 文章类型标：元信息行首的浅蓝小胶囊
+  .meta-source {
+    padding: 1px 8px;
+    border-radius: var(--radius-sm);
+    background-color: var(--color-primary-light);
+    font-size: 12px;
+    line-height: 18px;
+    color: var(--color-primary);
   }
 
   .meta-item {

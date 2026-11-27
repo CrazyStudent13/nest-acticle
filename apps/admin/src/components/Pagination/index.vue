@@ -83,19 +83,14 @@ function handleCurrentChange(val) {
 
 <style scoped>
 /* 原散落在 ruoyi.scss/index.scss 全局的容器样式收编于此；数值为历次层叠后的实际生效值 */
+/* 统一贴右下角：父容器为纵向 flex（.main-card / .fill-card 内容区）时，margin-top:auto 把分页推到底部 */
 .pagination-container {
+  display: flex;
+  flex-shrink: 0;
+  justify-content: flex-end;
   width: 100%;
-  position: relative;
-  height: 25px;
-  margin-top: 30px;
-  margin-bottom: 10px;
-  padding: 10px 20px;
-  background: #fff;
-
-  .el-pagination {
-    right: 0;
-    position: absolute;
-  }
+  margin-top: auto;
+  padding-top: 16px;
 }
 
 .pagination-container.hidden {

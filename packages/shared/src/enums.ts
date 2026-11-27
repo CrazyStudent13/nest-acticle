@@ -31,14 +31,23 @@ export enum AuditStatusEnum {
 }
 
 /**
- * 文章来源：0 原创 1 转载 2 投稿 3 翻译 4 整理
+ * 文章来源/文章类型：0 原创 1 转载 2 翻译 3 整理（与字典 post_article_source 保持一致）
  */
 export enum ArticleSourceEnum {
   ORIGINAL = '0',
   REPRINT = '1',
-  CONTRIBUTION = '2',
-  TRANSLATION = '3',
-  COMPILATION = '4',
+  TRANSLATION = '2',
+  COMPILATION = '3',
+}
+
+/**
+ * 举报处理状态：0 待处理 1 成立 2 驳回
+ * 举报理由/目标类型不走此枚举（运营可变数据，走字典 post_report_reason / post_report_target）
+ */
+export enum ReportStatusEnum {
+  PENDING = '0',
+  UPHELD = '1',
+  DISMISSED = '2',
 }
 
 /**

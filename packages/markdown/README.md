@@ -25,8 +25,13 @@ const html = renderer.render(source) // 兼容引号包裹内容与字面 \n
   - `options.mermaid`（默认 `true`）：```mermaid 代码块输出为待渲染的 `.mermaid` 容器（不产出普通代码块）。
 
 渲染器内置两条通用规则：站外 http(s) 链接 `target=_blank` + `rel=noopener noreferrer`（站内相对链接保持当前页跳转）；正文图片 `loading=lazy` + `decoding=async`。
+
+文档开头的 YAML front matter（`---` 包裹的 `title`/`date`/`tags` 等元数据，静态博客常见导出格式）在渲染前自动剥离，不作为正文展示；目录提取同样忽略。
 - `openImageLightbox(src)` / `bindImageLightbox(container)`：图片点击放大。bind 以事件委托挂在壳容器上（返回解绑函数，卸载时调用），v-html 重渲染无需重绑；遮罩样式随包 style.css（`.na-markdown-lightbox`）。
 - `renderMermaidDiagrams(root: Element)` → `Promise<number>`：把 root 下所有 `.mermaid` 容器渲染为 SVG。内部动态 import mermaid（约 3MB 依赖闭包独立分包），宿主在挂载/内容更新后按需调用；重复调用幂等（`data-processed` 跳过）。典型用法见两端 MdViewer 壳。
+- `extractMarkdownHeadings(content?)` → `TocHeading[]`：从 Markdown 源码提取 ATX 标题大纲（剔除围栏代码块、front matter 与行内标记），供 `@nest-acticle/editor` 的共享目录组件使用。
+- `parseMarkdownFrontMatter(source?)` → `{ data, content }`：解析文档头部的 YAML front matter（扁平 `key: value` 与 `[a, b]` 数组），返回元数据与去掉该块后的正文；没有合法 front matter 时 `data` 为空、`content` 原样返回。
+- `stripMarkdownFrontMatter(source?)` → `string`：只取去掉 front matter 后的正文。
 
 ## 样式
 

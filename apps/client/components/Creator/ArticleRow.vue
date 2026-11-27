@@ -17,7 +17,7 @@
 
     <div class="actions">
       <button v-if="canEdit" class="act-btn primary" type="button" @click="emit('edit')">编辑</button>
-      <button class="act-btn" type="button" @click="emit('toggle')">{{ status === '2' ? '下架' : '发布' }}</button>
+      <button v-if="status === '2' || status === '3'" class="act-btn" type="button" @click="emit('toggle')">{{ status === '2' ? '下架' : '发布' }}</button>
       <button class="act-btn danger" type="button" @click="emit('remove')">删除</button>
     </div>
   </article>

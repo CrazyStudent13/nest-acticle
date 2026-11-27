@@ -4,6 +4,7 @@ import { Repository, In } from 'typeorm';
 import { ResultData } from 'src/common/utils/result';
 import { applyLike } from 'src/common/query';
 import { SysNoticeEntity } from './entities/notice.entity';
+import { NOTICE_READ_PREFIX, PostNotifyReadEntity } from 'src/module/post/notify/entities/notify-read.entity';
 import { CreateNoticeDto, UpdateNoticeDto, ListNoticeDto } from './dto/index';
 
 @Injectable()
@@ -11,18 +12,27 @@ export class NoticeService {
   constructor(
     @InjectRepository(SysNoticeEntity)
     private readonly sysNoticeEntityRep: Repository<SysNoticeEntity>,
+    @InjectRepository(PostNotifyReadEntity)
+    private readonly notifyReadRepo: Repository<PostNotifyReadEntity>,
   ) {}
   async create(createNoticeDto: CreateNoticeDto) {
     await this.sysNoticeEntityRep.save(createNoticeDto);
     return ResultData.ok();
   }
 
-  async findAll(query: ListNoticeDto) {
+  async findAll(query: ListNoticeDto, viewerId?: number) {
     const entity = this.sysNoticeEntityRep.createQueryBuilder('entity');
     entity.where('entity.delFlag = :delFlag', { delFlag: '0' });
 
     applyLike(entity, 'entity.noticeTitle', query.noticeTitle);
     applyLike(entity, 'entity.createBy', query.createBy);
+
+    // 定向可见性：scope=mine（前台通知中心）或按 noticeId 直取详情时，只回「全员公告 + 发给我的定向通知」，
+    // 私密通知不能越权可见；管理端列表（无 scope）不过滤，便于管理全部定向通知
+    const scoped = query.scope === 'mine' || !!query.noticeId;
+    if (scoped && viewerId) {
+      entity.andWhere('(entity.userId IS NULL OR entity.userId = :viewerId)', { viewerId });
+    }
 
     if (query.noticeId) {
       // 前台通知详情页按 id 直取（复用 list 权限，见 ListNoticeDto 注释）：服务端强制只回生效公告，
@@ -45,6 +55,23 @@ export class NoticeService {
 
     entity.skip(query.pageSize * (query.pageNum - 1)).take(query.pageSize);
     const [list, total] = await entity.getManyAndCount();
+
+    // scope=mine（前台通知中心）附行级 unread 标记：查本页通知在该用户下的逐条已读标记
+    // （post_notify_read category='n:<noticeId>'，与 PostNotifyService 的未读口径同源），
+    // 管理端列表（无 scope）不附——管理视角没有「未读」概念
+    if (query.scope === 'mine' && viewerId && list.length) {
+      const readMarks = await this.notifyReadRepo.find({
+        where: {
+          userId: viewerId,
+          category: In(list.map((notice) => `${NOTICE_READ_PREFIX}${notice.noticeId}`)),
+        },
+        select: ['category'],
+      });
+      const readSet = new Set(readMarks.map((row) => Number(row.category.slice(NOTICE_READ_PREFIX.length))));
+      for (const notice of list) {
+        (notice as SysNoticeEntity & { unread: boolean }).unread = !readSet.has(notice.noticeId);
+      }
+    }
 
     return ResultData.ok({
       list,

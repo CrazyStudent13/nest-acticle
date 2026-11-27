@@ -2540,10 +2540,122 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/post/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 举报-提交 */
+        post: operations["PostReportController_create"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/report/status/{targetType}/{targetId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 举报-是否已举报过 */
+        get: operations["PostReportController_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/report/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 举报-管理列表 */
+        get: operations["PostReportController_findAdminList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/report/handle/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** 举报-处理 */
+        put: operations["PostReportController_handle"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/report/batch/{ids}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 举报-批量删除 */
+        delete: operations["PostReportController_removeByIds"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        CreateReportDto: {
+            /**
+             * @description 举报目标类型（post 文章 / user 用户）
+             * @enum {string}
+             */
+            targetType: "post" | "user";
+            /** @description 举报目标ID */
+            targetId: number;
+            /** @description 举报理由（字典 post_report_reason 的 dictValue，服务端按字典缓存校验合法性） */
+            reasonType: string;
+            /** @description 补充说明（可空，抄袭出处链接等） */
+            reasonContent?: string;
+        };
+        HandleReportDto: {
+            /**
+             * @description 处理结论（1 成立 2 驳回）
+             * @enum {string}
+             */
+            status: "1" | "2";
+            /**
+             * @description 处置动作（unpublish 下架文章 / disableUser 停用用户，须与目标类型匹配）
+             * @enum {string}
+             */
+            handleAction?: "unpublish" | "disableUser";
+            /** @description 处理备注 */
+            handleRemark?: string;
+        };
         FileUploadDto: {
             /** Format: binary */
             file: string;
@@ -6684,6 +6796,123 @@ export interface operations {
             header?: never;
             path: {
                 userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostReportController_create: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateReportDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostReportController_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                targetType: string;
+                targetId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostReportController_findAdminList: {
+        parameters: {
+            query?: {
+                /** @description 当前分页 */
+                pageNum?: number;
+                /** @description 每页数量 */
+                pageSize?: number;
+                /** @description 排序字段 */
+                orderByColumn?: string;
+                /** @description 排序规则 */
+                isAsc?: string;
+                /** @description 举报目标类型（post/user） */
+                targetType?: string;
+                /** @description 举报理由（dictValue 精确匹配） */
+                reasonType?: string;
+                /** @description 处理状态（0 待处理 1 成立 2 驳回） */
+                status?: string;
+                /** @description 举报人昵称（模糊搜索，联 sys_user） */
+                reporterName?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostReportController_handle: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["HandleReportDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostReportController_removeByIds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ids: string;
             };
             cookie?: never;
         };

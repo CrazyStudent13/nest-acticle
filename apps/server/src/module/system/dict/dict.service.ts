@@ -6,6 +6,7 @@ import { ResultData } from 'src/common/utils/result';
 import { applyLike, paginate } from 'src/common/query';
 import { CacheEnum } from 'src/common/enum/index';
 import { ExportTable } from 'src/common/utils/export';
+import { BusinessException } from 'src/common/exceptions/business.exception';
 import { SysDictTypeEntity } from './entities/dict.type.entity';
 import { SysDictDataEntity } from './entities/dict.data.entity';
 import { CreateDictTypeDto, UpdateDictTypeDto, ListDictType, CreateDictDataDto, UpdateDictDataDto, ListDictData } from './dto/index';
@@ -13,6 +14,8 @@ import { RedisService } from 'src/module/common/redis/redis.service';
 
 // 全部字典共用一个缓存 key，value 为 { dictType: dictDataList }
 const DICT_ALL_CACHE_KEY = `${CacheEnum.SYS_DICT_KEY}all`;
+// 公开字典类型列表（is_public=Y），游客可读白名单
+const DICT_PUBLIC_TYPES_CACHE_KEY = `${CacheEnum.SYS_DICT_KEY}public-types`;
 
 @Injectable()
 export class DictService {
@@ -125,12 +128,25 @@ export class DictService {
 
   /**
    * 根据字典类型查询字典数据
-   * 缓存只有“有/无”两种状态，缺失或强制刷新时重建全部字典
+   * 缓存只有“有/无”两种状态，缺失或强制刷新时重建全部字典；
+   * 不做访问控制：管理端/服务端内部调用（如举报理由）走这里；游客入口见 findOneDataTypeForGuest
    */
   async findOneDataType(dictType: string, fresh = false) {
     const cached = fresh ? null : await this.readDictCache();
     const dicts = cached || (await this.rebuildDictCache());
     return ResultData.ok(dicts[dictType] || []);
+  }
+
+  /**
+   * 游客视角查询字典：仅公开字典（is_public=Y）可读，其余返回 403；
+   * 登录用户的查询不限字典，仍走 findOneDataType
+   */
+  async findOneDataTypeForGuest(dictType: string, fresh = false) {
+    const publicTypes = await this.readPublicDictTypes();
+    if (!publicTypes.includes(dictType)) {
+      throw new BusinessException(403, '该字典未公开');
+    }
+    return this.findOneDataType(dictType, fresh);
   }
 
   /**
@@ -186,6 +202,16 @@ export class DictService {
     return await this.redisService.get(DICT_ALL_CACHE_KEY);
   }
 
+  /** 读取公开字典类型列表（游客读字典的类型白名单），未命中先重建缓存 */
+  private async readPublicDictTypes(): Promise<string[]> {
+    const cached = await this.redisService.get(DICT_PUBLIC_TYPES_CACHE_KEY);
+    if (cached) {
+      return cached;
+    }
+    await this.rebuildDictCache();
+    return (await this.redisService.get(DICT_PUBLIC_TYPES_CACHE_KEY)) || [];
+  }
+
   async findOneDictData(dictCode: number) {
     const data = await this.sysDictDataEntityRep.findOne({
       where: {
@@ -212,6 +238,8 @@ export class DictService {
         { title: '字典名称', dataIndex: 'dictName' },
         { title: '字典类型', dataIndex: 'dictType' },
         { title: '状态', dataIndex: 'status' },
+        { title: '是否公开', dataIndex: 'isPublic' },
+        { title: '所属模块', dataIndex: 'dictModule' },
       ],
     };
     ExportTable(options, res);
@@ -253,6 +281,7 @@ export class DictService {
    */
   async clearDictCache() {
     await this.redisService.del(DICT_ALL_CACHE_KEY);
+    await this.redisService.del(DICT_PUBLIC_TYPES_CACHE_KEY);
   }
 
   /** 重建中的任务，避免冷启动时并发重复查库 */
@@ -286,13 +315,18 @@ export class DictService {
     const list = await entity.getMany();
 
     const result: Record<string, any[]> = {};
+    const publicTypes: string[] = [];
     list.forEach((item: any) => {
       if (item.dictType) {
         result[item.dictType] = item.dictTypeList || [];
+        if (item.isPublic === 'Y') {
+          publicTypes.push(item.dictType);
+        }
       }
     });
 
     await this.redisService.set(DICT_ALL_CACHE_KEY, result);
+    await this.redisService.set(DICT_PUBLIC_TYPES_CACHE_KEY, publicTypes);
     return result;
   }
 }

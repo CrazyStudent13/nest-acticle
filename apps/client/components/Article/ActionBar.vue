@@ -34,8 +34,16 @@
       </svg>
     </button>
 
-    <!-- 举报：占位 -->
-    <button class="action-btn" type="button" title="举报" @click="showTip('举报功能即将上线')">
+    <!-- 举报：文章作者本人不显示（服务端亦拒绝自查举报），已举报（存在待处理举报）置灰，点击由父组件开举报弹窗 -->
+    <button
+      v-if="canReport"
+      class="action-btn"
+      :class="{ 'is-reported': reported }"
+      type="button"
+      :disabled="reported"
+      :title="reported ? '已举报，等待处理' : '举报'"
+      @click="emit('report')"
+    >
       <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z" />
         <line x1="12" y1="9" x2="12" y2="13" />
@@ -66,13 +74,19 @@ const props = withDefaults(
     collected?: boolean
     /** 文章收藏总数（被收进收藏集次数） */
     collectNum?: number
+    /** 是否展示举报入口（文章作者本人为 false，游客/其他用户可见，登录拦截由父组件处理） */
+    canReport?: boolean
+    /** 当前用户是否已举报过该文章（置灰态，由父组件登录后补查传入） */
+    reported?: boolean
   }>(),
   {
     likeNum: 0,
     commentNum: 0,
     liked: false,
     collected: false,
-    collectNum: 0
+    collectNum: 0,
+    canReport: true,
+    reported: false
   }
 )
 
@@ -80,6 +94,7 @@ const emit = defineEmits<{
   (e: 'like'): void
   (e: 'comment'): void
   (e: 'collect'): void
+  (e: 'report'): void
 }>()
 
 // 占位功能的轻提示，2 秒自动消失
@@ -207,6 +222,18 @@ onBeforeUnmount(() => {
     &.collected {
       color: var(--color-primary);
       box-shadow: 0 2px 10px rgba(79, 107, 255, 0.25);
+    }
+
+    // 已举报态（有待处理举报）：置灰禁点，处理完成后恢复可点
+    &.is-reported {
+      color: var(--color-text-3);
+      cursor: not-allowed;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+
+      &:hover {
+        color: var(--color-text-3);
+        box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
+      }
     }
   }
 

@@ -100,35 +100,7 @@ onBeforeUnmount(() => {
     gap: 10px;
     margin-top: 20px;
 
-    .btn {
-      padding: 7px 20px;
-      border-radius: var(--radius-sm);
-      font-size: 13px;
-      cursor: pointer;
-      transition: all 0.2s ease;
-
-      &.ghost {
-        border: 1px solid var(--color-border);
-        background-color: transparent;
-        color: var(--color-text-2);
-
-        &:hover {
-          border-color: var(--color-text-3);
-          color: var(--color-text-1);
-        }
-      }
-
-      // 删除类操作确定钮红色（danger 在 modal 根元素），普通操作主色
-      &.primary {
-        border: 0;
-        background-color: var(--color-primary);
-        color: #fff;
-
-        &:hover {
-          background-color: var(--color-primary-hover);
-        }
-      }
-    }
+    // 按钮样式走全局 .btn/.btn.ghost/.btn.primary（base.less），此处只管布局
   }
 
   // 删除类操作：确定钮红色

@@ -1,4 +1,4 @@
-import { IsString, IsJSON, IsEnum, IsPhoneNumber, Min, Length, IsOptional, IsBoolean, IsNumber, IsInt } from 'class-validator';
+import { IsString, IsJSON, IsEnum, IsIn, IsPhoneNumber, Min, Length, IsOptional, IsBoolean, IsNumber, IsInt } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty } from '@nestjs/swagger';
 
@@ -11,6 +11,8 @@ export enum StatusEnum {
 export enum TypeEnum {
   Instruct = '1',
   Notice = '2',
+  /** 举报反馈（定向私密通知，业务侧程序写入，管理端通知公告页同样可管理） */
+  Report = '3',
 }
 export class CreateNoticeDto {
   @IsString()
@@ -73,4 +75,11 @@ export class ListNoticeDto extends PagingDto {
   @IsOptional()
   @IsString()
   createBy?: string;
+
+  // 可见性范围：mine=前台通知中心视角，只回「全员公告 + 发给我的定向通知」；
+  // 缺省=管理端视角不过滤（管理端要能管理全部定向通知）；noticeId 直取详情时无论是否带 scope 都强制过滤
+  @IsOptional()
+  @IsString()
+  @IsIn(['mine'])
+  scope?: 'mine';
 }

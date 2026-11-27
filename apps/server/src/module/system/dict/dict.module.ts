@@ -14,5 +14,7 @@ import { RedisModule } from 'src/module/common/redis/redis.module';
   ],
   controllers: [DictController],
   providers: [DictService],
+  // 导出 DictService：post/report 模块按字典缓存校验举报理由/目标类型的合法性（跨模块复用走导出，不绕过缓存直查表）
+  exports: [DictService],
 })
 export class DictModule {}

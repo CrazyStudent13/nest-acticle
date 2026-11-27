@@ -2,6 +2,13 @@ import { Column, CreateDateColumn, Entity, PrimaryColumn } from 'typeorm';
 import { ApiProperty } from '@nestjs/swagger';
 
 /**
+ * 系统通知逐条已读标记的 category 前缀：'n:<noticeId>'（varchar(16) 内）。
+ * 与互动分类的水位行同表共存（category 是联合主键，命名空间隔离互不干扰）；
+ * 定义在实体文件避免两个 service 为常量互相引用
+ */
+export const NOTICE_READ_PREFIX = 'n:';
+
+/**
  * 通知已读水位实体类
  * 对应数据库表：post_notify_read
  * 每用户每分类一行（联合主键），记录该分类「最后已读时刻」——未读数 = 互动记录

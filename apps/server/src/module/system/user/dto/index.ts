@@ -84,6 +84,13 @@ export class ChangeStatusDto {
   @IsString()
   @IsEnum(StatusEnum)
   status: string;
+
+  // 停用原因：展示在用户登录拦截提示中（启用时不传，服务端清空）
+  @ApiProperty({ required: false, description: '停用原因（展示在登录拦截提示中）' })
+  @IsOptional()
+  @IsString()
+  @Length(0, 255)
+  stopReason?: string;
 }
 
 export class ListUserDto extends PagingDto {

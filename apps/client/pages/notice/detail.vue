@@ -79,6 +79,7 @@ definePageMeta({
 
 const route = useRoute()
 const { fetchNotices } = useNotice()
+const { markNoticesRead, refreshBadge } = useNotify()
 
 const noticeId = computed(() => {
   const id = Number(route.query.id)
@@ -101,6 +102,11 @@ const loadNotice = async () => {
   try {
     const data = await fetchNotices({ noticeId: noticeId.value, pageNum: 1, pageSize: 1, status: '0' })
     notice.value = data.list?.[0] || null
+    // 进详情即标该条已读（逐条已读模型），角标随之回落——从铃铛下拉直达详情也算看过
+    if (notice.value) {
+      markNoticesRead([noticeId.value]).catch(() => {})
+      refreshBadge()
+    }
   } catch (error: any) {
     notice.value = null
     errorMsg.value = error?.message || '通知加载失败'

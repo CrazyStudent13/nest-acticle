@@ -1,4 +1,4 @@
-<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知，互动三分类带未读数红标）+ 右侧列表；系统通知接 /api/system/notice/list（列表行收成徽标/标题/时间，点击进入独立详情页阅读 Markdown 正文，分页）；评论栏双子栏——「收到的评论」接 /api/post/comment/received/list（他人评论我的文章/回复我的评论，掘金式四行结构：动作短句/内容/文章引用行/时间），「我发表的」接 /api/post/comment/my/list（类型徽标区分，支持删除）；赞和收藏栏双子栏——「收到的赞」接 /api/post/like/received/list、「收到的收藏」接 /api/post/collection/received/list（他人把我的文章收进 ta 的公开收藏集，同款结构）；新增粉丝接 /api/post/follow/received/list（谁关注了我，行尾回关按钮三态）；进入互动分类栏即逐栏清该栏红标（赞和收藏栏一次推平 like+collect 两水位）；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
+<!-- 通知中心页：左侧四分类竖栏（评论/赞和收藏/新增粉丝/系统通知，均带未读数红标）+ 右侧列表；系统通知接 /api/system/notice/list（scope=mine 只回全员公告+发给我的定向通知，行级 unread 区分已读未读——未读标题深色带红点/已读变淡不加粗；严格逐条已读：进列表不标，点进详情页才标那一条（notice/detail.vue 调 /post/notify/read-notices）；举报反馈是 type=3 定向私密通知，红色「举报反馈」徽标区分）；评论栏双子栏——「收到的评论」接 /api/post/comment/received/list（他人评论我的文章/回复我的评论，掘金式四行结构：动作短句/内容/文章引用行/时间），「我发表的」接 /api/post/comment/my/list（类型徽标区分，支持删除）；赞和收藏栏双子栏——「收到的赞」接 /api/post/like/received/list、「收到的收藏」接 /api/post/collection/received/list（他人把我的文章收进 ta 的公开收藏集，同款结构）；新增粉丝接 /api/post/follow/received/list（谁关注了我，行尾回关按钮三态）；互动三分类进入即逐栏清红标（赞和收藏栏一次推平 like+collect 两水位），系统通知不清；tab 状态同步 ?query，全站唯一通知入口（头部铃铛同款分类） -->
 <template>
   <div class="notification-page">
     <div class="notice-panel">
@@ -24,6 +24,12 @@
         <!-- 系统通知：真实列表 -->
         <template v-if="activeTab === 'system'">
           <template v-if="notices.length">
+            <div class="system-bar">
+              <!-- 全部已读：严格逐条模型的补充动作，一键清掉所有可见通知的未读 -->
+              <button class="read-all-btn" type="button" :disabled="markingAll || !unread.system" @click="markAllRead">
+                {{ markingAll ? '标记中…' : unread.system > 0 ? `全部已读（${unread.system}）` : '全部已读' }}
+              </button>
+            </div>
             <NuxtLink
               v-for="item in notices"
               :key="item.noticeId"
@@ -31,10 +37,12 @@
               :to="{ path: '/notice/detail', query: { id: String(item.noticeId) } }"
             >
               <div class="notice-head">
-                <span class="notice-badge" :class="item.noticeType === '2' ? 'is-announce' : 'is-info'">
-                  {{ item.noticeType === '2' ? '公告' : '通知' }}
+                <span class="notice-badge" :class="item.noticeType === '3' ? 'is-report' : item.noticeType === '2' ? 'is-announce' : 'is-info'">
+                  {{ item.noticeType === '3' ? '举报反馈' : item.noticeType === '2' ? '公告' : '通知' }}
                 </span>
-                <h3 class="notice-title">{{ item.noticeTitle || '系统消息' }}</h3>
+                <!-- 已读/未读行级区分：未读=标题深色+行尾红点（服务端按逐条已读标记回传 unread），本次访问可见、下次进入转已读 -->
+                <h3 class="notice-title" :class="{ 'is-unread': item.unread }">{{ item.noticeTitle || '系统消息' }}</h3>
+                <i v-if="item.unread" class="notice-dot" />
                 <time class="notice-time">{{ formatTime(item.createTime) }}</time>
                 <svg class="notice-arrow" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
                   <polyline points="9 18 15 12 9 6" />
@@ -310,13 +318,14 @@ const switchCat = (key: NoticeTab) => {
 
 // ---------- 系统通知列表：分页拉取，服务端按 status='0' 过滤已关闭公告；403 等业务错误降级为空态提示 ----------
 const { fetchNotices, fetchMyComments } = useNotice()
-const { unread, markRead, fetchReceivedComments } = useNotify()
+// markNoticesRead 不在本页使用：系统通知严格逐条已读，仅详情页标单条（notice/detail.vue）；本页「全部已读」走 markAllNoticesRead
+const { unread, markRead, markAllNoticesRead, refreshBadge, fetchReceivedComments } = useNotify()
 const { user } = useUser()
 
 // 当前登录人 id：收到的评论行判定「回复了我的评论」用
 const currentUserId = computed(() => user.value?.userId ?? null)
 
-// 菜单未读数：与铃铛同源（赞和收藏栏合并展示赞+收藏未读，新增粉丝栏单独计 follow）
+// 菜单未读数：与铃铛同源（赞和收藏栏合并展示赞+收藏未读，新增粉丝/系统通知栏各自单独计）
 const catUnread = (key: NoticeTab) => {
   if (key === 'comment') {
     return unread.value.comment
@@ -327,10 +336,14 @@ const catUnread = (key: NoticeTab) => {
   if (key === 'follower') {
     return unread.value.follow
   }
+  if (key === 'system') {
+    return unread.value.system
+  }
   return 0
 }
 
-// 分类栏进入即清该栏红标（水位推至当前）：评论/赞和收藏/新增粉丝逐栏清，系统通知无计数
+// 分类栏进入即清该栏红标（水位推至当前）：评论/赞和收藏/新增粉丝逐栏清；
+// 系统通知是逐条已读模型——进栏不清，加载本页后按行标已读（见 loadSystemPage），角标随刷新回落
 // 赞和收藏栏同时推平 like 与 collect 两个水位（红标为两者合计，进入即全清）
 const onTabEnter = (tab: NoticeTab) => {
   if (tab === 'comment') {
@@ -351,10 +364,30 @@ const PAGE_SIZE = 10
 // 翻页走分页器的 update:page → load(页码)，切分类/子栏走 reload()（回第一页）；不再 watch 页码自动加载，
 // 所以「重置页码 + 显式加载」每次切换只发一发请求。解构出的名字与模板一一对应
 
-// 系统通知列表：服务端按 status='0' 过滤已关闭公告；403 等业务错误降级为空态提示
+// 系统通知列表：服务端按 status='0' 过滤已关闭公告 + scope=mine 逐条回传 unread；403 等业务错误降级为空态提示。
+// 严格逐条已读：进列表页不标已读，只有点进详情页才标那一条（见 notice/detail.vue）
 const noticeList = usePagedList<NoticeItem>((params) => fetchNotices({ ...params, status: '0' }), { pageSize: PAGE_SIZE, errorMsg: '通知加载失败' })
 const { page, total, list: notices, loading, error: errorMsg } = noticeList
 const loadNotices = noticeList.load
+
+// 一键全部已读：清掉所有可见通知（全员公告 + 发给我的定向通知）的未读，成功后刷新角标并重拉列表
+const markingAll = ref(false)
+const markAllRead = async () => {
+  if (markingAll.value) {
+    return
+  }
+  markingAll.value = true
+  try {
+    await markAllNoticesRead()
+    showToast('已全部标为已读', 'success')
+    refreshBadge()
+    noticeList.reload()
+  } catch (error: any) {
+    showToast(error?.message || '操作失败，请稍后再试', 'error')
+  } finally {
+    markingAll.value = false
+  }
+}
 
 // ---------- 收到的评论（评论栏默认子页）：他人评论我的文章/回复我的评论，掘金式接收流 ----------
 const commentBox = ref<'received' | 'mine'>('received')
@@ -746,6 +779,11 @@ onMounted(() => {
       color: var(--color-primary);
       transition: color 0.2s ease;
 
+      // 目标用户已删除时无链接可跳，降级灰字
+      &.is-missing {
+        color: var(--color-text-3);
+      }
+
       &:hover {
         text-decoration: underline;
         text-underline-offset: 2px;
@@ -824,6 +862,35 @@ onMounted(() => {
   }
 }
 
+// 系统通知栏头：右侧「全部已读」文字钮（严格逐条模型的补充动作）
+.system-bar {
+  display: flex;
+  justify-content: flex-end;
+  align-items: center;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--color-border-light);
+
+  .read-all-btn {
+    padding: 0;
+    border: 0;
+    background-color: transparent;
+    font-size: 13px;
+    color: var(--color-primary);
+    cursor: pointer;
+    transition: color 0.2s ease;
+
+    &:hover:not(:disabled) {
+      text-decoration: underline;
+      text-underline-offset: 2px;
+    }
+
+    &:disabled {
+      color: var(--color-text-3);
+      cursor: not-allowed;
+    }
+  }
+}
+
 .notice-head {
   display: flex;
   align-items: center;
@@ -836,8 +903,22 @@ onMounted(() => {
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 15px;
-    font-weight: 600;
-    color: var(--color-text-1);
+    // 已读行标题变淡 + 不加粗；未读行深色加粗（行级已读区分，红点见 .notice-dot）
+    font-weight: 400;
+    color: var(--color-text-2);
+
+    &.is-unread {
+      font-weight: 600;
+      color: var(--color-text-1);
+    }
+  }
+
+  .notice-dot {
+    flex-shrink: 0;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background-color: #f04142;
   }
 
   .notice-time {
@@ -854,7 +935,7 @@ onMounted(() => {
   }
 }
 
-// 徽标（列表行）：通知=品牌蓝浅底；公告=橙色浅底
+// 徽标（列表行）：通知=品牌蓝浅底；公告=橙色浅底；举报成立=红色浅底；举报驳回=灰底
 .notice-badge {
   flex-shrink: 0;
   padding: 1px 8px;
@@ -870,6 +951,12 @@ onMounted(() => {
   &.is-announce {
     background-color: rgba(230, 132, 41, 0.12);
     color: #e68429;
+  }
+
+  // 举报反馈（noticeType=3 定向私密通知）：红色浅底，同举报成立徽标色系
+  &.is-report {
+    background-color: rgba(240, 65, 66, 0.1);
+    color: #f04142;
   }
 }
 

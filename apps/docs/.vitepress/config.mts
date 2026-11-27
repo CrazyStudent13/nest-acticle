@@ -54,6 +54,7 @@ export default defineConfig({
             { text: '概览', link: '/client/overview' },
             { text: '开发约定', link: '/client/conventions' },
             { text: '关注模块约定', link: '/client/follow' },
+            { text: '举报模块约定', link: '/client/report' },
           ],
         },
       ],
@@ -67,6 +68,8 @@ export default defineConfig({
         {
           text: '发布记录',
           items: [
+            { text: 'v1.4.1 · 2026-11-28', link: '/releases#v1-4-1' },
+            { text: 'v1.4.0 · 2026-11-27', link: '/releases#v1-4-0' },
             { text: 'v1.3.0 · 2026-11-25', link: '/releases#v1-3-0' },
             { text: 'v1.2.1 · 2026-11-23', link: '/releases#v1-2-1' },
             { text: 'v1.2.0 · 2026-11-17', link: '/releases#v1-2-0' },
