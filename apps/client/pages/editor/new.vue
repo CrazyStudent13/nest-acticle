@@ -22,9 +22,10 @@
         v-model="title"
         class="title-input"
         type="text"
-        maxlength="64"
         placeholder="输入文章标题..."
-        @input="topTip = ''"
+        @input="onTitleInput"
+        @compositionstart="onTitleCompositionStart"
+        @compositionend="onTitleCompositionEnd"
       />
 
       <span class="save-hint">{{ draft.saveHint }}</span>
@@ -117,6 +118,30 @@ const title = ref('')
 const content = ref('')
 const topTip = ref('')
 
+// 标题上限 35 字：超限截断并轻提示；中文输入法组合期间先放行，合成结束统一校正
+const TITLE_MAX = 35
+let titleComposing = false
+const clampTitle = () => {
+  if (title.value.length <= TITLE_MAX) {
+    return
+  }
+  title.value = title.value.slice(0, TITLE_MAX)
+  showToast(`标题最多 ${TITLE_MAX} 个字`, 'warning')
+}
+const onTitleInput = () => {
+  topTip.value = ''
+  if (!titleComposing) {
+    clampTitle()
+  }
+}
+const onTitleCompositionStart = () => {
+  titleComposing = true
+}
+const onTitleCompositionEnd = () => {
+  titleComposing = false
+  clampTitle()
+}
+
 let topTipTimer: ReturnType<typeof setTimeout> | null = null
 const setTopTip = (message: string) => {
   topTip.value = message
@@ -161,7 +186,7 @@ const handleUploadImage = (file: File): Promise<string> => {
 // 拖入 .md：正文已由共享编辑器按光标插入（front matter 已剥离），这里只用其 title 回填空标题
 const handleMarkdownImport = ({ title: importedTitle, fileName }: { title: string; fileName: string }) => {
   if (importedTitle && !title.value.trim()) {
-    title.value = importedTitle.slice(0, 64)
+    title.value = importedTitle.slice(0, TITLE_MAX)
     showToast(`已导入 ${fileName}，并从文件解析标题`, 'success')
     return
   }
