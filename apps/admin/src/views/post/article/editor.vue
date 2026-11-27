@@ -2,6 +2,10 @@
   <div class="article-editor-container">
     <!-- 顶部标题栏 -->
     <div class="editor-header">
+      <!-- 文章类型：字典 post_article_source（原创/转载/翻译/整理），与前台写作一致放在标题左侧 -->
+      <el-select v-model="articleData.source" class="type-select" placeholder="文章类型">
+        <el-option v-for="dict in post_article_source" :key="dict.value" :label="dict.label" :value="dict.value" />
+      </el-select>
       <el-input v-model="title" class="title-input" placeholder="输入文章标题..." @input="handleTitleInput" />
       <div class="header-actions">
         <span class="auto-save-tip">{{ isEdit ? '编辑模式' : '新建文章' }}</span>
@@ -38,12 +42,6 @@
 
             <el-form-item label="封面图片">
               <ImageUploadCover v-model="articleData.cover" path="article" :max-size="5" :quality="0.85" width="100%" aspect-ratio="16 / 9" />
-            </el-form-item>
-
-            <el-form-item label="文章来源">
-              <el-select v-model="articleData.source" clearable placeholder="请选择文章来源" style="width: 100%">
-                <el-option v-for="dict in post_article_source" :key="dict.value" :label="dict.label" :value="dict.value" />
-              </el-select>
             </el-form-item>
 
             <el-form-item label="定时发布">
@@ -235,6 +233,12 @@ onBeforeUnmount(() => {
           color: #c0c4cc;
         }
       }
+    }
+
+    // 标题左侧的文章类型下拉（字典驱动，窄屏也保留）
+    .type-select {
+      flex-shrink: 0;
+      width: 112px;
     }
 
     .header-actions {

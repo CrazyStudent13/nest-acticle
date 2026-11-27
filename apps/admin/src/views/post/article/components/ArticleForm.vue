@@ -34,8 +34,8 @@
       </el-form-item>
       <el-row :gutter="20">
         <el-col :span="12">
-          <el-form-item label="文章来源" prop="source">
-            <el-select v-model="formData.source" clearable placeholder="请选择文章来源" style="width: 100%">
+          <el-form-item label="文章类型" prop="source">
+            <el-select v-model="formData.source" clearable placeholder="请选择文章类型" style="width: 100%">
               <el-option v-for="dict in post_article_source" :key="dict.value" :label="dict.label" :value="dict.value" />
             </el-select>
           </el-form-item>
