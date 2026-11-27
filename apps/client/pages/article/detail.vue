@@ -35,7 +35,7 @@
         <!-- 元信息行：作者 时间 阅读 专栏，编辑入口靠右（仅作者本人可见），掘金式单行 -->
         <div class="meta-line">
           <!-- 文章类型标：原创/转载/翻译/整理，与列表卡片同源文案 -->
-          <span v-if="sourceLabel" class="meta-source">{{ sourceLabel }}</span>
+          <span v-if="sourceLabel" class="meta-source" :class="`source-${article.source}`">{{ sourceLabel }}</span>
           <span class="meta-author">{{ authorName }}</span>
           <span v-if="publishLabel" class="meta-item">{{ publishLabel }}</span>
           <span v-if="readLabel" class="meta-item">
@@ -490,14 +490,32 @@ useHead(() => {
     color: var(--color-text-1);
   }
 
-  // 文章类型标：元信息行首的浅蓝小胶囊
+  // 文章类型标：按来源区分配色（原创蓝/转载橙/翻译绿/整理紫），与列表卡片一致
   .meta-source {
     padding: 1px 8px;
     border-radius: var(--radius-sm);
-    background-color: var(--color-primary-light);
     font-size: 12px;
     line-height: 18px;
-    color: var(--color-primary);
+
+    &.source-0 {
+      color: var(--color-primary);
+      background-color: var(--color-primary-light);
+    }
+
+    &.source-1 {
+      color: #e6832d;
+      background-color: rgba(230, 131, 45, 0.12);
+    }
+
+    &.source-2 {
+      color: #3fb060;
+      background-color: rgba(63, 176, 96, 0.12);
+    }
+
+    &.source-3 {
+      color: #7c5cff;
+      background-color: rgba(124, 92, 255, 0.12);
+    }
   }
 
   .meta-item {

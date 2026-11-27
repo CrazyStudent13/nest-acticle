@@ -3,7 +3,7 @@
   <article class="article-item" :title="title">
     <div class="body">
       <h3 class="title">
-        <span v-if="sourceLabel" class="source-tag">{{ sourceLabel }}</span>{{ title }}
+        <span v-if="sourceLabel" class="source-tag" :class="`source-${cardInfo.source}`">{{ sourceLabel }}</span>{{ title }}
         <!-- 已下架标：仅本人视角的空间文章列表会出现（服务端对访客不下发下架行），信息流场景恒不渲染 -->
         <span v-if="offline" class="offline-tag">已下架</span>
       </h3>
@@ -93,18 +93,36 @@ const publishTime = computed(() => {
       -webkit-box-orient: vertical;
       -webkit-line-clamp: 2;
 
-      // 文章类型标：标题前的浅蓝小胶囊，与详情页元信息标一致
+      // 文章类型标：按来源区分配色（原创蓝/转载橙/翻译绿/整理紫），与详情页一致
       .source-tag {
         display: inline-block;
         margin-right: 6px;
         padding: 0 6px;
         border-radius: var(--radius-sm);
-        background-color: var(--color-primary-light);
         font-size: 11px;
         font-weight: 400;
         line-height: 18px;
-        color: var(--color-primary);
         vertical-align: 2px;
+
+        &.source-0 {
+          color: var(--color-primary);
+          background-color: var(--color-primary-light);
+        }
+
+        &.source-1 {
+          color: #e6832d;
+          background-color: rgba(230, 131, 45, 0.12);
+        }
+
+        &.source-2 {
+          color: #3fb060;
+          background-color: rgba(63, 176, 96, 0.12);
+        }
+
+        &.source-3 {
+          color: #7c5cff;
+          background-color: rgba(124, 92, 255, 0.12);
+        }
       }
 
       // 已下架行标：红字小标（仅本人空间列表出现）
