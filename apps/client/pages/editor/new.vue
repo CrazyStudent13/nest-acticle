@@ -57,7 +57,8 @@
       <MarkdownEditor
         v-model="content"
         :upload-image="handleUploadImage"
-        placeholder="输入文章内容，支持 Markdown 语法，可直接粘贴图片…"
+        placeholder="输入文章内容，支持 Markdown 语法，可直接粘贴/拖入 .md 文件或图片…"
+        @markdown-import="handleMarkdownImport"
       >
         <template v-if="!editId" #status-extra>
           <span class="status-hint">文章将自动保存至草稿箱</span>
@@ -150,6 +151,16 @@ const handleUploadImage = (file: File): Promise<string> => {
       }
       return Promise.reject(error)
     })
+}
+
+// 拖入 .md：正文已由共享编辑器按光标插入（front matter 已剥离），这里只用其 title 回填空标题
+const handleMarkdownImport = ({ title: importedTitle, fileName }: { title: string; fileName: string }) => {
+  if (importedTitle && !title.value.trim()) {
+    title.value = importedTitle.slice(0, 64)
+    setTopTip(`已导入 ${fileName}，并从文件解析标题`)
+    return
+  }
+  setTopTip(`已导入 ${fileName}`)
 }
 
 // ---------- 草稿箱（localStorage 自动保存） ----------

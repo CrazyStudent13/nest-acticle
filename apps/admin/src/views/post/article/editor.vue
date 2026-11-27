@@ -15,7 +15,7 @@
     <div class="editor-main">
       <!-- 左侧编辑器（共享 MarkdownEditor：与前台写作同一编辑体验，预览渲染与前台文章页同源） -->
       <div class="editor-content" v-loading="loading">
-        <MarkdownEditor v-model="content" height="100%" :upload-image="handleUploadImage" />
+        <MarkdownEditor v-model="content" height="100%" :upload-image="handleUploadImage" @markdown-import="handleMarkdownImport" />
       </div>
 
       <!-- 右侧属性面板 -->
@@ -144,6 +144,16 @@ const openPreview = () => {
   if (articleData.userId) {
     void loadPreviewStats(Number(articleData.userId));
   }
+};
+
+// 拖入 .md：正文已由共享编辑器按光标插入（front matter 已剥离），这里只用其 title 回填空标题
+const handleMarkdownImport = ({ title: importedTitle, fileName }) => {
+  if (importedTitle && !title.value.trim()) {
+    title.value = importedTitle.slice(0, 100);
+    ElMessage.success(`已导入 ${fileName}，并从文件解析标题`);
+    return;
+  }
+  ElMessage.success(`已导入 ${fileName}`);
 };
 
 // 与共享编辑器对接的图片上传回调：走统一上传端点回填 URL（对齐 ImageUploadCover / 原 MdEditor 封装的链路）

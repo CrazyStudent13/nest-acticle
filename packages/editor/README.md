@@ -1,6 +1,6 @@
 # @nest-acticle/editor
 
-Markdown 编辑器共享包：client（Nuxt）与 admin（Vue3）共用的编辑与预览组件——`MarkdownEditor`（textarea + 工具栏 + Ctrl+B/I 快捷键 + 字数/行数统计 + 左写右预览 + 粘贴/按钮图片上传）与 `ArticlePreview`（发布前整页预览：详情页版式 + 正文渲染 + ESC/锁滚动）。编辑体验与前台写作完全一致；预览渲染走 `@nest-acticle/markdown`（预览即前台呈现）。
+Markdown 编辑器共享包：client（Nuxt）与 admin（Vue3）共用的编辑与预览组件——`MarkdownEditor`（textarea + 工具栏 + Ctrl+B/I 快捷键 + 字数/行数统计 + 左写右预览 + 粘贴/按钮/拖拽图片上传 + 拖入 .md 导入）与 `ArticlePreview`（发布前整页预览：详情页版式 + 正文渲染 + ESC/锁滚动）。编辑体验与前台写作完全一致；预览渲染走 `@nest-acticle/markdown`（预览即前台呈现）。
 
 ## 使用
 
@@ -34,7 +34,12 @@ props：
 - `height?: string` — 编辑器整体高度，默认 `100%`；
 - `preview?: boolean` — 左写右预览开关，默认 `true`（≤900px 窄屏自动隐藏预览）。
 
-emits：`update:modelValue`。
+emits：
+
+- `update:modelValue`；
+- `markdown-import` — 拖入 `.md` / `.markdown` 文件并插入后触发，载荷 `{ title: string; fileName: string }`。正文已按光标位置插入（YAML front matter 已剥离，不进入正文），`title` 取自 front matter，宿主可在标题为空时回填。
+
+拖入文件时编辑器高亮并显示「松开导入 Markdown 文件或图片」：图片走 `uploadImage` 上传链路，`.md` 文件读取后按当前光标插入正文，不覆盖已有内容。`.md` 单文件上限 1MB，超限不导入并在状态栏提示文件名。
 
 slots：
 

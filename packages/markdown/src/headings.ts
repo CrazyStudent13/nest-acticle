@@ -1,5 +1,7 @@
+import { stripMarkdownFrontMatter } from './frontmatter';
+
 // 从 Markdown 源码提取标题大纲（文章目录用）
-// 与渲染约定一致：只认 ATX 标题（# ~ ######，# 后必须有空格）
+// 与渲染约定一致：只认 ATX 标题（# ~ ######，# 后必须有空格），front matter 不参与
 export interface TocHeading {
   level: number; // 1-6
   text: string; // 纯文本标题（去掉行内标记，供目录展示）
@@ -10,7 +12,7 @@ export const extractMarkdownHeadings = (content?: string): TocHeading[] => {
     return [];
   }
   // 剥离围栏代码块，避免 ``` 内的 # 注释被误认为标题
-  const stripped = content
+  const stripped = stripMarkdownFrontMatter(content)
     .replace(/```[\s\S]*?```/g, '')
     .replace(/~~~[\s\S]*?~~~/g, '')
     .replace(/`[^`]*`/g, (m) => m.replace(/`/g, ''));

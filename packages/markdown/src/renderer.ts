@@ -2,6 +2,8 @@ import MarkdownIt from 'markdown-it'
 import hljs from 'highlight.js'
 import { katex as katexPlugin } from '@mdit/plugin-katex'
 
+import { stripMarkdownFrontMatter } from './frontmatter'
+
 export interface MarkdownRendererOptions {
   /** 代码块右上角是否生成复制按钮（默认 true）；按钮的点击事件由组件壳用 ClipboardJS 绑定，包只产出带 data 属性的 HTML */
   copyButton?: boolean
@@ -172,7 +174,8 @@ export function createMarkdownRenderer(options: MarkdownRendererOptions = {}): M
 
   return {
     render(source: string) {
-      return md.render(stripHtmlComments(normalizeContent(source)))
+      // 静态博客导出的 YAML front matter 属于元数据，不作为正文渲染
+      return md.render(stripHtmlComments(stripMarkdownFrontMatter(normalizeContent(source))))
     }
   }
 }
