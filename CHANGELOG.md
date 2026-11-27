@@ -2,6 +2,59 @@
 
 更细粒度的过程记录（审查 → 修复 → 验收全程）见 [CODE-REVIEW-2026-11-20.md](./CODE-REVIEW-2026-11-20.md)。
 
+## v1.4.1（2026-11-28）
+
+一次以打磨为主的小版本：关注 feed、文章预览共享化、Markdown 拖入导入、文章类型自选与展示、字典公开与模块化、管理端字典页重构、分页统一沉底，另修复编辑器发布丢标题与发布后 404。
+
+> 升级提示：本版本含数据库增量——`sys_dict_type` 增 `is_public`（Y 公开游客可读 / N 不公开）与 `dict_module`（仅管理端树分组，不参与接口读取）两列；新增字典类型 `sys_dict_public`（21 字典公开状态）与字典数据 67/68（公开/不公开）；并将 `post_article_source` / `sys_user_sex` / `sys_normal_disable` 标记为公开字典。种子 SQL 见 `apps/server/db/init.sql`，全新导入无需处理。存量环境执行后需清理 Redis `sys_dict:all` 缓存并 touch 字典行推进版本号；`dict_module` 回填语句在 `init.sql` 字典区末尾（按 系统管理/内容管理/社区互动 分组，不执行则管理端归入「未分类」）。
+>
+> ```sql
+> alter table sys_dict_type
+>   add column is_public char(1) default 'N' comment '是否公开（Y 公开游客可读 N 不公开）' after status,
+>   add column dict_module varchar(50) default '' comment '所属模块（仅管理端分类展示）' after is_public;
+>
+> insert into sys_dict_type
+>   (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
+> values
+>   (21, '字典公开状态', 'sys_dict_public', '0', 'admin', sysdate(), '', null, '字典公开状态列表（文案/颜色可在管理端字典维护）', '0');
+>
+> insert into sys_dict_data
+>   (dict_code, dict_sort, dict_label, dict_value, dict_type, css_class, list_class, is_default, status, create_by, create_time, update_by, update_time, remark, del_flag)
+> values
+>   (67, 1, '公开', 'Y', 'sys_dict_public', '', 'success', 'Y', '0', 'admin', sysdate(), '', null, '字典公开状态-公开', '0'),
+>   (68, 2, '不公开', 'N', 'sys_dict_public', '', 'info', 'N', '0', 'admin', sysdate(), '', null, '字典公开状态-不公开', '0');
+>
+> update sys_dict_type
+> set
+>   is_public = 'Y'
+> where
+>   dict_type in ('post_article_source', 'sys_user_sex', 'sys_normal_disable');
+> ```
+
+### 新增
+
+- **关注 feed**：首页「关注」tab 接入我关注作者的已发布文章（publishTime DESC + id 倒序兜底，规避前端 orderByColumn 不生效）；未登录点击弹登录框、登录成功自动切入并加载；关注流缓存随登录态切换失效（退出/401 清空并回最新，换账号不残留）；服务端 `buildListQuery` 新增 followedBy 视角（innerJoin post_follow，唯一键不重复）与作者信息批查，补 3 条单测
+- **文章预览共享化**：`@nest-acticle/editor` 新增 `ArticlePreview`（内置作者卡/目录），client 写作预览与文章详情页改用共享组件，admin 列表行/修改抽屉/编辑器顶栏三处接入预览
+- **Markdown 拖入导入**：共享 `MarkdownEditor` 识别 .md/.markdown 拖入，剥离 YAML front matter 后按光标插入正文（前后补空行，单文件 1MB 上限），抛出 `markdown-import` 供宿主回填空标题（已有标题不覆盖）；`@nest-acticle/markdown` 新增 `parseMarkdownFrontMatter` / `stripMarkdownFrontMatter`（兼容 BOM/CRLF，纯 --- 分割线不误吞），预览渲染与目录提取统一忽略 front matter
+- **文章类型自选与展示**：`ArticleSourceEnum` 对齐字典 `post_article_source`（0 原创 / 1 转载 / 2 翻译 / 3 整理，服务端实体注释同步）；client 写作页与 admin 编辑器顶栏新增文章类型下拉（编辑按原值回填，随保存/发布提交），客户端信息流卡片标题前与详情页元信息行首展示类型标
+- **字典公开属性**：`sys_dict_type` 增 `is_public`，按类型查询接口改可选登录（`@NotRequireAuth`）——登录用户不限字典，游客仅可读公开字典、非公开返回 403（内部调用如举报理由不受影响）；公开类型白名单单独走 Redis 缓存并随字典缓存失效
+- **字典所属模块**：`sys_dict_type` 增 `dict_module`（仅管理端树分组展示，不参与任何接口读取；DTO 可选限长 50，导出列同步），现有字典按 系统管理/内容管理/社区互动 回填；新增 `sys_dict_public` 字典（公开/不公开，色调走 listClass），「是否公开」由 `sys_yes_no` 改用字典渲染
+- **创作者中心顶栏**：抽取 `CommonHeaderUser`（通知铃铛+未读红标与悬停四分类、头像昵称+悬停邮箱浮层、退出）供主站 `AppHeader` 与 creator 布局共用，主站删除重复模板/脚本/样式约 300 行，未登录两处均不渲染
+
+### 重构
+
+- **admin 字典管理页**：左侧树改为「全部字典项 → 所属模块 → 字典类型」三层（模块显示字典数量、当前节点高亮、名称筛选只作用于树），顶部新增公开范围筛选（全部/仅公开/仅不公开）与右侧表格联动；「全部字典项」与字典内容双表分页（类型表本地切片、内容表服务端分页，切类型/切筛选自动回第 1 页）；类型表新增模块列、公开列改 `dict-tag`、列宽紧凑化；详情标题改为「X字典详情」并与公开标签同行，所属模块与备注收进两行 tooltip
+- **分页统一沉底**：`Pagination` 改为父容器纵向 flex + `margin-top:auto` 贴卡片右下角，移除绝对定位/固定高度/白底；`.main-card`、`.fill-card` 内容区与 el-row 包裹层补 flex 布局，各列表页分页位置统一
+
+### 修复
+
+- admin 文章编辑器发布丢标题与发布后 404：保存改为以编辑器当前 `title`/`content` 为准（拖入 .md 程序赋值不触发 el-input 的 `@input`，`articleData.title` 停留旧值）；发布仅在保存成功后关闭编辑器并跳转 `/content/article`（列表是后端菜单动态路由，原硬编码 `/post/article` 未注册）
+- admin 编辑器文章类型下拉显示「无数据」：改由页面 `useDict('post_article_source')` 获取（此前从编辑器 composable 解构得到 undefined）
+- client 顶栏 SSR 报错（首页 500）：`CommonHeaderUser` 内 `watch(isLoggedIn)` 先于 `useUser` 解构声明执行导致 TDZ
+- `DictTag` 异步字典加载后标签类型切换残留旧标签：加 `disable-transitions`
+- admin 字典页：修复重置表单 ref 传值、新增/删除按钮禁用态、添加分类图标移到刷新左侧、编辑后刷新同步选中节点、已删除节点回退到「全部字典项」
+- 版本号全仓对齐（8 包 1.4.0→1.4.1）
+
 ## v1.4.0（2026-11-27）
 
 用户举报模块全链路（文章/用户举报提交、去重与频控、管理端处理、自动下架、反馈通知）及 P1 加固（目标有效性校验、被举报内容快照、下架幂等、停用原因与登录拦截）。
