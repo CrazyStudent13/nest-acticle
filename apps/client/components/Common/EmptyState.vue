@@ -1,4 +1,4 @@
-<!-- 通用空态插画：掘金式单图 + 提示文案，文案走默认插槽 -->
+<!-- 通用空态插画：掘金式单图 + 提示文案，文案优先走默认插槽，也可用 text 属性 -->
 <template>
   <div class="empty-state">
     <svg class="illus" viewBox="0 0 160 120" fill="none" aria-hidden="true">
@@ -16,9 +16,15 @@
       <circle cx="134" cy="42" r="2.5" fill="#F5C542" />
       <circle cx="112" cy="18" r="2" fill="#B9C6F5" />
     </svg>
-    <p class="text"><slot /></p>
+    <p class="text"><slot>{{ text }}</slot></p>
   </div>
 </template>
+
+<script setup lang="ts">
+defineProps<{
+  text?: string
+}>()
+</script>
 
 <style lang="less" scoped>
 .empty-state {
