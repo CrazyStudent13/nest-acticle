@@ -287,8 +287,15 @@ const initEditor = () => {
     loadArticle(editId.value)
   } else {
     draft.loadDrafts()
-    // 头部创作者中心「草稿箱」入口直达：带 ?drafts=1 时载入后自动展开面板
-    if (route.query.drafts) {
+    // 管理页本地草稿「编辑」直达：按 draft id 载入对应草稿
+    const draftId = String(route.query.draft || '')
+    if (draftId) {
+      const item = draft.myDrafts.find((d) => d.id === draftId)
+      if (item) {
+        draft.loadDraft(item)
+      }
+    } else if (route.query.drafts) {
+      // 头部创作者中心「草稿箱」入口直达：带 ?drafts=1 时载入后自动展开面板
       draft.open = true
     }
   }

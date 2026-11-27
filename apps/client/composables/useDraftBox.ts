@@ -16,11 +16,32 @@ export interface DraftItem {
   updateTime: number
 }
 
+export const ARTICLE_DRAFT_KEY = 'article-drafts'
+
+// 管理页等非编辑器场景直接读写本地草稿；SSR 无 localStorage 时按空处理
+export const readDrafts = (): DraftItem[] => {
+  if (!import.meta.client) {
+    return []
+  }
+  try {
+    const raw = JSON.parse(localStorage.getItem(ARTICLE_DRAFT_KEY) || '[]')
+    return Array.isArray(raw) ? raw : []
+  } catch {
+    return []
+  }
+}
+
+export const writeDrafts = (items: DraftItem[]) => {
+  if (!import.meta.client) {
+    return
+  }
+  localStorage.setItem(ARTICLE_DRAFT_KEY, JSON.stringify(items))
+}
+
 export const useDraftBox = (options: { title: Ref<string>; content: Ref<string>; editId: Ref<string> }) => {
   const { title, content, editId } = options
   const { user } = useUser()
 
-  const DRAFT_KEY = 'article-drafts'
   const drafts = ref<DraftItem[]>([])
   const currentDraftId = ref('')
   const draftOpen = ref(false)
@@ -49,16 +70,11 @@ export const useDraftBox = (options: { title: Ref<string>; content: Ref<string>;
   }
 
   const loadDrafts = () => {
-    try {
-      const raw = JSON.parse(localStorage.getItem(DRAFT_KEY) || '[]')
-      drafts.value = Array.isArray(raw) ? raw : []
-    } catch {
-      drafts.value = []
-    }
+    drafts.value = readDrafts()
   }
 
   const persistDrafts = () => {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify(drafts.value))
+    writeDrafts(drafts.value)
   }
 
   const saveCurrentDraft = () => {

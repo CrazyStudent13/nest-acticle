@@ -25,11 +25,12 @@
         </div>
       </div>
 
-      <div v-if="rows.length" class="row-list">
+      <div v-if="displayRows.length" class="row-list">
         <CreatorArticleRow
-          v-for="row in rows"
-          :key="row.id"
+          v-for="row in displayRows"
+          :key="rowKey(row)"
           :article="row"
+          :local="isLocalRow(row)"
           :subject-name="subjectMap[row.subjectId ?? 0]"
           @edit="goEdit(row)"
           @toggle="togglePublish(row)"
@@ -45,6 +46,7 @@
 
 <script setup lang="ts">
 import type { Article } from '@nest-acticle/shared'
+import { readDrafts, writeDrafts, type DraftItem } from '~/composables/useDraftBox'
 
 definePageMeta({
   layout: 'creator',
@@ -82,11 +84,44 @@ const pageNum = ref(1)
 const loading = ref(false)
 const loadError = ref('')
 
+// 本地草稿：编辑器 localStorage 自动保存的未落库内容，草稿箱 tab 置顶合并展示（仅本机，跨设备不同步）
+type LocalRow = Article & { localDraftId: string }
+const localDrafts = ref<DraftItem[]>([])
+const refreshLocalDrafts = () => {
+  const userId = user.value?.userId
+  localDrafts.value = userId
+    ? readDrafts()
+        .filter((d) => d.userId === userId && !d.articleId)
+        .sort((a, b) => b.updateTime - a.updateTime)
+    : []
+}
+const localRows = computed<LocalRow[]>(() => {
+  if (activeTab.value !== '0' || pageNum.value !== 1) {
+    return []
+  }
+  const kw = searchKeyword.value.trim().toLowerCase()
+  return localDrafts.value
+    .filter((d) => !kw || (d.title || '').toLowerCase().includes(kw))
+    .map((d) => ({
+      title: d.title || '无标题',
+      publishStatus: '0',
+      createTime: new Date(d.updateTime).toISOString(),
+      localDraftId: d.id
+    }))
+})
+const displayRows = computed(() => (activeTab.value === '0' && pageNum.value === 1 ? [...localRows.value, ...rows.value] : rows.value))
+const isLocalRow = (row: Article) => !!(row as LocalRow).localDraftId
+const rowKey = (row: Article) => (row as LocalRow).localDraftId || row.id
+
 // 各 tab 的文章数量：进页与写操作后刷新（只取 total，pageSize=1 最小开销）；审核中 = 审核中 + 审核失败 之和
 const counts = ref<Record<TabKey, number> | null>(null)
 const countText = (key: TabKey) => {
   const value = counts.value?.[key]
-  return value === undefined ? '' : `（${value}）`
+  if (value === undefined) {
+    return ''
+  }
+  // 草稿箱数量含本机自动保存的本地草稿
+  return `（${key === '0' ? value + localDrafts.value.length : value}）`
 }
 const loadCounts = async () => {
   if (!user.value) {
@@ -223,6 +258,7 @@ watch(
   isLoggedIn,
   (val) => {
     if (val) {
+      refreshLocalDrafts()
       loadList()
       loadSubjects()
       loadCounts()
@@ -242,7 +278,7 @@ const emptyText = computed(() => {
     return '还没有已发布的文章，去写一篇吧'
   }
   if (activeTab.value === '0') {
-    return '草稿箱是空的，写文章时的内容会自动保存在这里'
+    return '草稿箱是空的，在编辑器里写的内容会自动保存到本机'
   }
   if (activeTab.value === 'auditing') {
     return '没有审核中的文章'
@@ -253,8 +289,12 @@ const emptyText = computed(() => {
   return '还没有文章，去写一篇吧'
 })
 
-// 编辑：进编辑器载入（guest 详情只开放已发布文章，编辑入口由行卡控制）
+// 编辑：本地草稿回编辑器按 draft id 载入；线上文章走 guest 详情（编辑入口由行卡控制）
 const goEdit = (row: Article) => {
+  const localId = (row as LocalRow).localDraftId
+  if (localId) {
+    return navigateTo({ path: '/editor/new', query: { draft: localId } })
+  }
   return navigateTo({ path: '/editor/new', query: { id: String(row.id) } })
 }
 
@@ -270,8 +310,24 @@ const togglePublish = async (row: Article) => {
   }
 }
 
-// 删除：软删除，确认弹窗后刷新当前页
+// 删除：本地草稿只清本机存储；线上文章软删除后刷新当前页
 const removeRow = async (row: Article) => {
+  const localId = (row as LocalRow).localDraftId
+  if (localId) {
+    const ok = await confirmAction({
+      title: '删除本地草稿',
+      message: `确定删除本地草稿「${row.title}」吗？删除后不可恢复。`,
+      confirmText: '删除',
+      danger: true
+    })
+    if (!ok) {
+      return
+    }
+    writeDrafts(readDrafts().filter((d) => d.id !== localId))
+    refreshLocalDrafts()
+    showToast('已删除本地草稿', 'success')
+    return
+  }
   const ok = await confirmAction({
     title: '删除文章',
     message: `确定删除文章「${row.title}」吗？删除后不可恢复。`,
