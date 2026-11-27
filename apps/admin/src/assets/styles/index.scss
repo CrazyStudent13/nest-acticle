@@ -151,7 +151,24 @@ h6 {
     min-height: var(--page-card-height);
     height: var(--page-card-height); // 撑满当前窗口，随窗口高度动态伸缩
     overflow: auto; // 内容超出时显示滚动条
+    // 纵向 flex：让 <pagination> 的 margin-top:auto 生效，分页统一沉到卡片右下角
+    display: flex;
+    flex-direction: column;
+
+    // 分页被 el-row/el-col 等包裹时，让包裹层撑满卡片剩余高度
+    > .el-row:has(.pagination-container) {
+      flex: 1;
+      min-height: 0;
+    }
   }
+}
+
+// 分页统一沉底：分页的直接父容器改为纵向 flex（兼容 el-col / 普通 div 包裹层），
+// 配合 Pagination 组件的 margin-top:auto 把分页推到容器右下角
+.main-card *:has(> .pagination-container),
+.fill-card > .el-card__body *:has(> .pagination-container) {
+  display: flex;
+  flex-direction: column;
 }
 
 .text-center {

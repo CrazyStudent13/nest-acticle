@@ -518,6 +518,14 @@ dictGroup.request();
     position: relative;
     flex: 1;
     min-width: 0;
+
+    // 两个视图分支都改为纵向 flex，让分页的 margin-top:auto 把分页沉到卡片右下角
+    :deep(.el-card__body) > div {
+      display: flex;
+      flex: 1;
+      flex-direction: column;
+      min-height: 0;
+    }
   }
 }
 
