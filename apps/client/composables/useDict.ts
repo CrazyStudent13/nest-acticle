@@ -1,6 +1,6 @@
 // 数据字典：按类型拉取字典项，供下拉/标签展示使用（对齐 admin 端 useDict 的用法）
-// 接口 GET /system/dict/data/type/:dictType 只要求登录态、无权限串，注册用户可读——
-// guest 页不要无条件调用（游客 401 会触发统一出口弹登录框），需要时传 enabled 挂在登录态上
+// 接口 GET /system/dict/data/type/:dictType 游客可读公开字典（is_public=Y，如文章来源/用户性别），
+// 非公开字典游客返回 403、登录用户不限——guest 页按需调用即可，失败静默为空数组，登录后 watch(enabled) 可重试
 // useState 全局缓存：单页会话内同类型只请求一次；失败静默保持空数组，调用方按空字典兜底
 import type { Ref } from 'vue'
 

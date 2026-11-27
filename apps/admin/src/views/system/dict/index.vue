@@ -74,6 +74,13 @@
               <dict-tag type="sys_normal_disable" :value="scope.row.status" />
             </template>
           </el-table-column>
+          <!-- 公开字典允许未登录游客读取（如文章来源、用户性别），其余字典仍需登录 -->
+          <el-table-column align="center" label="公开" prop="isPublic" width="80">
+            <template #default="scope">
+              <el-tag v-if="scope.row.isPublic === 'Y'" size="small" type="success">是</el-tag>
+              <span v-else>否</span>
+            </template>
+          </el-table-column>
           <el-table-column align="center" label="备注" prop="remark" :show-overflow-tooltip="true" />
           <el-table-column align="center" label="创建时间" prop="createTime" width="180">
             <template #default="scope">
@@ -94,6 +101,7 @@
           <el-descriptions-item label="字典项">{{ dictGroup.selectNode.dictName }}</el-descriptions-item>
           <el-descriptions-item label="字典编号">{{ dictGroup.selectNode.dictType }}</el-descriptions-item>
           <el-descriptions-item label="状态"><dict-tag type="sys_normal_disable" :value="dictGroup.selectNode.status" /></el-descriptions-item>
+          <el-descriptions-item label="公开">{{ dictGroup.selectNode.isPublic === 'Y' ? '是' : '否' }}</el-descriptions-item>
         </el-descriptions>
 
         <el-divider content-position="left">数据字典详情</el-divider>

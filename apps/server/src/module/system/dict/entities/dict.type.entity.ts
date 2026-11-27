@@ -16,4 +16,8 @@ export class SysDictTypeEntity extends BaseEntity {
 
   @Column({ type: 'varchar', name: 'dict_type', unique: true, length: 100, comment: '字典类型' })
   public dictType: string;
+
+  @ApiProperty({ type: String, description: '是否公开（Y 公开，游客可读；N 不公开）' })
+  @Column({ type: 'char', name: 'is_public', default: 'N', length: 1, comment: '是否公开（Y 公开游客可读 N 不公开）' })
+  public isPublic: string;
 }

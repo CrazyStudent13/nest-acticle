@@ -3257,6 +3257,7 @@ create table
     dict_name varchar(100) default '' comment '字典名称',
     dict_type varchar(100) default '' comment '字典类型',
     status char(1) default '0' comment '状态（0正常 1停用）',
+    is_public char(1) default 'N' comment '是否公开（Y 公开游客可读 N 不公开）',
     create_by varchar(64) default '' comment '创建者',
     create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
@@ -3269,6 +3270,7 @@ create table
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     1,
@@ -3285,6 +3287,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     2,
@@ -3301,6 +3304,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     3,
@@ -3317,6 +3321,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     4,
@@ -3333,6 +3338,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     5,
@@ -3349,6 +3355,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     6,
@@ -3365,6 +3372,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     7,
@@ -3381,6 +3389,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     8,
@@ -3397,6 +3406,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     9,
@@ -3413,6 +3423,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     10,
@@ -3429,6 +3440,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     11,
@@ -3445,6 +3457,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     12,
@@ -3461,6 +3474,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     13,
@@ -3477,6 +3491,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     14,
@@ -3493,6 +3508,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     15,
@@ -3509,6 +3525,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     18,
@@ -3525,6 +3542,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     19,
@@ -3541,6 +3559,7 @@ values
 
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     20,
@@ -3554,6 +3573,13 @@ values
     '举报处理状态列表',
     '0'
   );
+
+-- 公开字典：游客（未登录）可读，其余字典仍要求登录
+update sys_dict_type
+set
+  is_public = 'Y'
+where
+  dict_type in ('post_article_source', 'sys_user_sex', 'sys_normal_disable');
 
 -- ----------------------------
 -- 12、字典数据表
@@ -4617,6 +4643,7 @@ values
 -- 收藏集可见性字典（post_collection.visibility：0 公开 1 私密，文案/颜色可在管理端字典维护）
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     16,
@@ -4676,6 +4703,7 @@ values
 -- 收藏集类型字典（is_default 推导：'1' 默认 / '0' 自建，文案/颜色可在管理端字典维护）
 insert into
   sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
 values
   (
     17,

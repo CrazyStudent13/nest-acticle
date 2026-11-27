@@ -13,6 +13,12 @@
           <el-radio v-for="dict in sys_normal_disable" :key="dict.value" :label="dict.value">{{ dict.label }}</el-radio>
         </el-radio-group>
       </el-form-item>
+      <el-form-item label="公开" prop="isPublic">
+        <el-radio-group v-model="form.model.isPublic">
+          <el-radio v-for="dict in sys_yes_no" :key="dict.value" :label="dict.value">{{ dict.label }}</el-radio>
+        </el-radio-group>
+        <div class="form-item-tip">公开后未登录游客也能读取该字典（适用于文章来源、用户性别等展示类字典）</div>
+      </el-form-item>
       <el-form-item label="备注" prop="remark">
         <el-input v-model="form.model.remark" placeholder="请输入内容" type="textarea" />
       </el-form-item>
@@ -32,7 +38,7 @@ import { addType, updateType } from '@/api/system/dict/type';
 import { useDict } from '@/composables/useDict';
 import { resetForm } from '@/composables/useForm';
 
-const { sys_normal_disable } = useDict('sys_normal_disable') as any;
+const { sys_normal_disable, sys_yes_no } = useDict('sys_normal_disable', 'sys_yes_no') as any;
 
 const dialogTableVisible = ref(false);
 const formRef = ref();
@@ -46,6 +52,7 @@ const form = reactive({
     dictName: '',
     dictType: '',
     status: '0',
+    isPublic: 'N',
     remark: ''
   },
   rules: {
@@ -102,3 +109,12 @@ defineExpose({
   handleDialogOpen
 });
 </script>
+
+<style lang="scss" scoped>
+.form-item-tip {
+  margin-top: 2px;
+  font-size: 12px;
+  line-height: 18px;
+  color: #909399;
+}
+</style>
