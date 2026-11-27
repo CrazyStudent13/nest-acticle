@@ -239,6 +239,7 @@ export class DictService {
         { title: '字典类型', dataIndex: 'dictType' },
         { title: '状态', dataIndex: 'status' },
         { title: '是否公开', dataIndex: 'isPublic' },
+        { title: '所属模块', dataIndex: 'dictModule' },
       ],
     };
     ExportTable(options, res);

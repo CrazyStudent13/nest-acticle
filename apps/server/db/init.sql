@@ -3258,6 +3258,7 @@ create table
     dict_type varchar(100) default '' comment '字典类型',
     status char(1) default '0' comment '状态（0正常 1停用）',
     is_public char(1) default 'N' comment '是否公开（Y 公开游客可读 N 不公开）',
+    dict_module varchar(50) default '' comment '所属模块（仅管理端分类展示）',
     create_by varchar(64) default '' comment '创建者',
     create_time datetime default current_timestamp comment '创建时间',
     update_by varchar(64) default '' comment '更新者',
@@ -3571,6 +3572,23 @@ values
     '',
     null,
     '举报处理状态列表',
+    '0'
+  );
+
+insert into
+  sys_dict_type
+  (dict_id, dict_name, dict_type, status, create_by, create_time, update_by, update_time, remark, del_flag)
+values
+  (
+    21,
+    '字典公开状态',
+    'sys_dict_public',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '字典公开状态列表（文案/颜色可在管理端字典维护）',
     '0'
   );
 
@@ -5011,6 +5029,87 @@ values
     '举报状态-驳回',
     '0'
   );
+
+insert into
+  sys_dict_data
+values
+  (
+    67,
+    1,
+    '公开',
+    'Y',
+    'sys_dict_public',
+    '',
+    'success',
+    'Y',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '字典公开状态-公开',
+    '0'
+  );
+
+insert into
+  sys_dict_data
+values
+  (
+    68,
+    2,
+    '不公开',
+    'N',
+    'sys_dict_public',
+    '',
+    'info',
+    'N',
+    '0',
+    'admin',
+    sysdate(),
+    '',
+    null,
+    '字典公开状态-不公开',
+    '0'
+  );
+
+-- 字典模块：仅用于管理端左侧树分组展示，不参与任何接口读取；未命中的字典归入「未分类」
+update sys_dict_type
+set
+  dict_module = '系统管理'
+where
+  dict_type in (
+    'sys_user_sex',
+    'sys_show_hide',
+    'sys_normal_disable',
+    'sys_job_status',
+    'sys_job_group',
+    'sys_yes_no',
+    'sys_notice_type',
+    'sys_notice_status',
+    'sys_oper_type',
+    'sys_common_status',
+    'sys_dict_public'
+  );
+
+update sys_dict_type
+set
+  dict_module = '内容管理'
+where
+  dict_type in (
+    'post_article_publish_status',
+    'post_article_audit_status',
+    'post_article_source',
+    'post_subject_publish_status',
+    'post_subject_audit_status',
+    'sys_collection_visibility',
+    'sys_collection_type'
+  );
+
+update sys_dict_type
+set
+  dict_module = '社区互动'
+where
+  dict_type in ('post_report_target', 'post_report_reason', 'post_report_status');
 
 -- ----------------------------
 -- 13、参数配置表

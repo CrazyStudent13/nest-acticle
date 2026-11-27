@@ -53,6 +53,15 @@ export class CreateDictTypeDto {
   @IsString()
   @IsEnum(YesNoEnum)
   isPublic?: string;
+
+  @ApiProperty({
+    required: false,
+    description: '所属模块（仅管理端分组展示）',
+  })
+  @IsOptional()
+  @IsString()
+  @Length(0, 50)
+  dictModule?: string;
 }
 
 export class UpdateDictTypeDto extends CreateDictTypeDto {
