@@ -27,7 +27,7 @@ export const usePublish = (options: PublishOptions) => {
   const publishTip = ref('')
   const subjects = ref<Subject[]>([])
   const subjectsLoading = ref(false)
-  const publishForm = reactive({ subjectId: '', cover: '', desc: '' })
+  const publishForm = reactive({ subjectId: '', cover: '', desc: '', source: '0' })
   const coverUploading = ref(false)
 
   const coverPreview = computed(() => toCoverUrl(config.public.apiBase, publishForm.cover))
@@ -132,7 +132,8 @@ export const usePublish = (options: PublishOptions) => {
       desc: publishForm.desc.trim() || undefined,
       content: content.value,
       cover: publishForm.cover || undefined,
-      source: '0'
+      // 文章类型由用户自选（字典 post_article_source：原创/转载/翻译/整理），不再写死原创
+      source: publishForm.source || '0'
     }
     if (publishForm.subjectId) {
       body.subjectId = Number(publishForm.subjectId)

@@ -13,6 +13,11 @@
         <span class="brand-name">游戏速递</span>
       </NuxtLink>
 
+      <!-- 文章类型：字典 post_article_source（原创/转载/翻译/整理），与发布弹窗共用同一表单值 -->
+      <select v-model="publish.publishForm.source" class="type-select" aria-label="文章类型" title="文章类型">
+        <option v-for="item in sourceOptions" :key="item.dictValue" :value="item.dictValue">{{ item.dictLabel }}</option>
+      </select>
+
       <input
         v-model="title"
         class="title-input"
@@ -157,10 +162,10 @@ const handleUploadImage = (file: File): Promise<string> => {
 const handleMarkdownImport = ({ title: importedTitle, fileName }: { title: string; fileName: string }) => {
   if (importedTitle && !title.value.trim()) {
     title.value = importedTitle.slice(0, 64)
-    setTopTip(`已导入 ${fileName}，并从文件解析标题`)
+    showToast(`已导入 ${fileName}，并从文件解析标题`, 'success')
     return
   }
-  setTopTip(`已导入 ${fileName}`)
+  showToast(`已导入 ${fileName}`, 'success')
 }
 
 // ---------- 草稿箱（localStorage 自动保存） ----------
@@ -205,6 +210,10 @@ watch([title, content], () => {
 
 // ---------- 发布弹窗（校验/专栏/封面/提交） ----------
 const publish = usePublish({ title, content, editId, setTopTip, clearCurrentDraft: draft.clearCurrentDraft })
+
+// 顶栏文章类型下拉：选项走字典（拉取失败按空字典兜底，已选值仍原样提交）；
+// 登录后才拉取，避免未登录落地页的字典 401 再触发一次登录弹窗
+const sourceOptions = useDict('post_article_source', { enabled: computed(() => !!user.value) })
 
 // ---------- 发布前预览（遮罩版式/ESC/锁滚动/定格时间在共享 ArticlePreview 内，本页只备展示数据） ----------
 const previewOpen = ref(false)
@@ -303,6 +312,7 @@ const loadArticle = async (id: string) => {
     publish.publishForm.subjectId = model.subjectId ? String(model.subjectId) : ''
     publish.publishForm.cover = model.cover || ''
     publish.publishForm.desc = model.desc || ''
+    publish.publishForm.source = model.source || '0'
     // 载入完成记录基线（防载入动作本身产生等值快照），有本地快照则亮出恢复横幅
     draft.markSavedBaseline()
     restoreFingerprint.value = `${title.value}\u0000${content.value}`
@@ -370,6 +380,26 @@ const loadArticle = async (id: string) => {
 
     &::placeholder {
       color: var(--color-text-3);
+    }
+  }
+
+  // 标题左侧的文章类型下拉：比放标题右侧更显眼，窄屏保持可见
+  .type-select {
+    flex-shrink: 0;
+    height: 30px;
+    padding: 0 8px;
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius-sm);
+    background-color: var(--color-bg);
+    font-size: 13px;
+    color: var(--color-text-2);
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.2s ease;
+
+    &:hover,
+    &:focus {
+      border-color: var(--color-primary);
     }
   }
 
