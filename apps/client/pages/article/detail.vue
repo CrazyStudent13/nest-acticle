@@ -36,7 +36,15 @@
         <div class="meta-line">
           <!-- 文章类型标：原创/转载/翻译/整理，与列表卡片同源文案 -->
           <span v-if="sourceLabel" class="meta-source" :class="`source-${article.source}`">{{ sourceLabel }}</span>
-          <span class="meta-author">{{ authorName }}</span>
+          <!-- 作者名即空间入口：悬浮出作者卡，点击卡片新窗口进空间；无 userId 时退回纯文本 -->
+          <ArticleAuthorHoverCard
+            v-if="article.userInfo?.userId"
+            class="meta-author"
+            :user-id="article.userInfo.userId"
+            :nick-name="authorName"
+            :avatar="article.userInfo.avatar || ''"
+          />
+          <span v-else class="meta-author">{{ authorName }}</span>
           <span v-if="publishLabel" class="meta-item">{{ publishLabel }}</span>
           <span v-if="readLabel" class="meta-item">
             <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -335,10 +343,34 @@ const onCommentNumChange = (value: number) => {
   commentNumLocal.value = value
 }
 
-// 工具栏评论按钮：滚动定位到评论区
+// 工具栏评论按钮：滚动定位到评论区（按绝对位置滚窗口，兼容容器/平滑差异）
 const scrollToComments = () => {
-  commentSectionRef.value?.$el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const el = commentSectionRef.value?.$el
+  if (!el) {
+    return
+  }
+  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY, behavior: 'smooth' })
 }
+
+// 列表「评论」图标带 ?comment=1 进入：直接跳到评论区（到达即定位，不用平滑动画）
+const jumpToComments = () => {
+  const el = commentSectionRef.value?.$el
+  if (!el) {
+    return
+  }
+  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY })
+}
+// 正文图片可能晚到撑高页面，延时再校正一次落点
+const scrollToCommentsIfRequested = () => {
+  if (route.query.comment !== '1') {
+    return
+  }
+  nextTick(() => {
+    ;[60, 400].forEach((delay) => window.setTimeout(jumpToComments, delay))
+  })
+}
+onMounted(scrollToCommentsIfRequested)
+watch(() => route.query.comment, scrollToCommentsIfRequested)
 
 // 编辑/删除入口：仅当前登录用户是文章作者时可见
 const { user, ensureUserRestored } = useUser()
