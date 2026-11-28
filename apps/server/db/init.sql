@@ -3111,6 +3111,22 @@ insert into
 values
   ('2', '2013');
 
+-- 举报管理菜单权限（普通角色）：212 举报管理页（post:report:list）、213 处理（post:report:handle）、214 删除（post:report:remove）
+insert into
+  sys_role_menu
+values
+  ('2', '212');
+
+insert into
+  sys_role_menu
+values
+  ('2', '213');
+
+insert into
+  sys_role_menu
+values
+  ('2', '214');
+
 -- 普通角色补充个人中心自助权限（个人中心接口改用独立权限串，不再被 system:user:query/edit 覆盖）
 insert into
   sys_role_menu
