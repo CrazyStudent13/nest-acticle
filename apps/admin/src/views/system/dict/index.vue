@@ -283,8 +283,9 @@ const loading = ref(false);
 // 字典组
 const dictGroup = reactive({
   query: {
-    pageNum: 1,
-    pageSize: 1000,
+    // 类型列表不做服务端分页（服务端 paginate 在 pageNum/pageSize 缺省时返回全量）：
+    // 左侧树分组与右侧「全部字典项」表格都基于本地全量数据切片，
+    // 旧写法 pageSize=1000 恰好顶到服务端 @Max(1000)，字典超过 1000 条时会静默截断
     dictName: '',
     dictType: '',
     status: ''
@@ -460,6 +461,18 @@ const dictData = reactive({
   handleSelectionChange: (selection) => {
     dictData.selection = selection;
     dataMultiple.value = selection.length === 0;
+  }
+});
+
+// 公开范围变化后，原选中字典可能被筛出左侧树（孤儿节点）：仍在过滤后的树里则保留选中，
+// 否则回退「全部字典项」，避免右侧详情停在树上不可见的字典上
+watch(publicFilter, () => {
+  if (dictGroup.selectNode.dictId === 0) return;
+  const exists = treeData.value.some((moduleNode) => (moduleNode.children || []).some((item) => item.dictId === dictGroup.selectNode.dictId));
+  if (!exists) {
+    dictGroup.selectNode = { ...ROOT_NODE };
+    dictGroupRef.value?.setCurrentKey(0);
+    dictData.data = [];
   }
 });
 
