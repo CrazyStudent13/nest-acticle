@@ -996,6 +996,109 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/post/follow/guest/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 关注-指定用户的公开关注/粉丝列表 */
+        get: operations["PostFollowController_findGuestList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/follow/received/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 关注-收到的关注列表 */
+        get: operations["PostFollowController_findReceivedList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/follow/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 关注-管理列表 */
+        get: operations["PostFollowController_findAdminList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/follow/batch/{ids}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** 关注-批量删除 */
+        delete: operations["PostFollowController_removeByIds"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/follow/status/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 关注-状态 */
+        get: operations["PostFollowController_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/follow/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 关注-关注 */
+        post: operations["PostFollowController_follow"];
+        /** 关注-取消 */
+        delete: operations["PostFollowController_unfollow"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/monitor/logininfor/list": {
         parameters: {
             query?: never;
@@ -1213,7 +1316,7 @@ export interface paths {
         };
         /**
          * 字典数据-类型-详情【走缓存】
-         * @description 传 fresh=true 时跳过 Redis 缓存，直接查询数据库
+         * @description 传 fresh=true 时跳过 Redis 缓存，直接查询数据库；公开字典（is_public=Y）游客可读，非公开字典游客返回 403
          */
         get: operations["DictController_findOneDataType"];
         put?: never;
@@ -1786,6 +1889,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/post/article/my/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 文章-我的列表 */
+        get: operations["PostArticleController_findMyAll"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/article/follow/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** 文章-关注 feed */
+        get: operations["PostArticleController_findFollowAll"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/post/article/{id}": {
         parameters: {
             query?: never;
@@ -2230,6 +2367,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/post/notify/read-notices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 通知-系统通知标已读 */
+        post: operations["PostNotifyController_readNotices"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/post/notify/read-all-notices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** 通知-系统通知全部已读 */
+        post: operations["PostNotifyController_readAllNotices"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/post/collection/guest/list": {
         parameters: {
             query?: never;
@@ -2437,109 +2608,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/post/follow/guest/list": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 关注-指定用户的公开关注/粉丝列表 */
-        get: operations["PostFollowController_findGuestList"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/post/follow/received/list": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 关注-收到的关注列表 */
-        get: operations["PostFollowController_findReceivedList"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/post/follow/list": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 关注-管理列表 */
-        get: operations["PostFollowController_findAdminList"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/post/follow/batch/{ids}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** 关注-批量删除 */
-        delete: operations["PostFollowController_removeByIds"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/post/follow/status/{userId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** 关注-状态 */
-        get: operations["PostFollowController_status"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/post/follow/{userId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** 关注-关注 */
-        post: operations["PostFollowController_follow"];
-        /** 关注-取消 */
-        delete: operations["PostFollowController_unfollow"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/post/report": {
         parameters: {
             query?: never;
@@ -2629,33 +2697,6 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
-        CreateReportDto: {
-            /**
-             * @description 举报目标类型（post 文章 / user 用户）
-             * @enum {string}
-             */
-            targetType: "post" | "user";
-            /** @description 举报目标ID */
-            targetId: number;
-            /** @description 举报理由（字典 post_report_reason 的 dictValue，服务端按字典缓存校验合法性） */
-            reasonType: string;
-            /** @description 补充说明（可空，抄袭出处链接等） */
-            reasonContent?: string;
-        };
-        HandleReportDto: {
-            /**
-             * @description 处理结论（1 成立 2 驳回）
-             * @enum {string}
-             */
-            status: "1" | "2";
-            /**
-             * @description 处置动作（unpublish 下架文章 / disableUser 停用用户，须与目标类型匹配）
-             * @enum {string}
-             */
-            handleAction?: "unpublish" | "disableUser";
-            /** @description 处理备注 */
-            handleRemark?: string;
-        };
         FileUploadDto: {
             /** Format: binary */
             file: string;
@@ -2909,12 +2950,20 @@ export interface components {
             dictType: string;
             remark: string;
             status?: string;
+            /** @description 是否公开（Y 公开，游客可读；N 不公开） */
+            isPublic?: string;
+            /** @description 所属模块（仅管理端分组展示） */
+            dictModule?: string;
         };
         UpdateDictTypeDto: {
             dictName: string;
             dictType: string;
             remark: string;
             status?: string;
+            /** @description 是否公开（Y 公开，游客可读；N 不公开） */
+            isPublic?: string;
+            /** @description 所属模块（仅管理端分组展示） */
+            dictModule?: string;
         };
         CreateDictDataDto: Record<string, never>;
         UpdateDictDataDto: Record<string, never>;
@@ -3035,7 +3084,7 @@ export interface components {
              * @description 文章来源
              * @enum {string}
              */
-            source?: "0" | "1" | "2" | "3" | "4";
+            source?: "0" | "1" | "2" | "3";
             /**
              * Format: date-time
              * @description 定时发布时间
@@ -3061,7 +3110,7 @@ export interface components {
              * @description 文章来源
              * @enum {string}
              */
-            source?: "0" | "1" | "2" | "3" | "4";
+            source?: "0" | "1" | "2" | "3";
             /**
              * Format: date-time
              * @description 定时发布时间
@@ -3071,6 +3120,16 @@ export interface components {
             sort?: number;
             /** @description 文章ID */
             id: number;
+            /**
+             * @description 发布状态（0 草稿 1 待发布 2 已发布 3 已下架），按权限校验后生效
+             * @enum {string}
+             */
+            publishStatus?: "0" | "1" | "2" | "3";
+            /**
+             * @description 审核状态（0 未提交 1 审核中 2 通过 3 拒绝），仅 post:article:audit 权限生效
+             * @enum {string}
+             */
+            auditStatus?: "0" | "1" | "2" | "3";
         };
         AuditPostArticleDto: {
             /** @description 文章ID */
@@ -3152,7 +3211,11 @@ export interface components {
              * @description 通知分类（缺省标记全部互动分类）
              * @enum {string}
              */
-            category?: "comment" | "like" | "collect";
+            category?: "comment" | "like" | "collect" | "follow";
+        };
+        MarkNoticesDto: {
+            /** @description 系统通知 id 列表（最多 100 条） */
+            noticeIds: number[];
         };
         SaveCollectionDto: {
             /** @description 收藏集 id（更新时必传） */
@@ -3163,6 +3226,35 @@ export interface components {
             desc?: string;
             /** @description 可见性（0 公开 1 私密） */
             visibility?: string;
+        };
+        CreateReportDto: {
+            /**
+             * @description 举报目标类型（post 文章 / user 用户）
+             * @enum {string}
+             */
+            targetType: "post" | "user";
+            /** @description 举报目标ID */
+            targetId: number;
+            /** @description 举报理由（字典 post_report_reason 的 dictValue，服务端按字典缓存校验合法性） */
+            reasonType: string;
+            /** @description 补充说明（可空，抄袭出处链接等） */
+            reasonContent?: string;
+        };
+        HandleReportDto: {
+            /**
+             * @description 处理结论（1 成立 2 驳回）
+             * @enum {string}
+             */
+            status: "1" | "2";
+            /**
+             * @description 处置动作（unpublish 下架文章 / disableUser 停用用户，须与目标类型匹配）
+             * @enum {string}
+             */
+            handleAction?: "unpublish" | "disableUser";
+            /** @description 处理备注 */
+            handleRemark?: string;
+            /** @description 停用原因（disableUser 动作生效，展示在登录拦截提示中） */
+            stopReason?: string;
         };
     };
     responses: never;
@@ -4562,6 +4654,168 @@ export interface operations {
             };
         };
     };
+    PostFollowController_findGuestList: {
+        parameters: {
+            query: {
+                /** @description 当前分页 */
+                pageNum?: number;
+                /** @description 每页数量 */
+                pageSize?: number;
+                /** @description 排序字段 */
+                orderByColumn?: string;
+                /** @description 排序规则 */
+                isAsc?: string;
+                /** @description 空间主人的用户ID */
+                userId: number;
+                /** @description 列表方向（following 关注列表 / fans 粉丝列表） */
+                type: "following" | "fans";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostFollowController_findReceivedList: {
+        parameters: {
+            query?: {
+                /** @description 当前分页 */
+                pageNum?: number;
+                /** @description 每页数量 */
+                pageSize?: number;
+                /** @description 排序字段 */
+                orderByColumn?: string;
+                /** @description 排序规则 */
+                isAsc?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostFollowController_findAdminList: {
+        parameters: {
+            query?: {
+                /** @description 当前分页 */
+                pageNum?: number;
+                /** @description 每页数量 */
+                pageSize?: number;
+                /** @description 排序字段 */
+                orderByColumn?: string;
+                /** @description 排序规则 */
+                isAsc?: string;
+                /** @description 关注人昵称（模糊搜索，联 sys_user） */
+                followerName?: string;
+                /** @description 被关注人昵称（模糊搜索，联 sys_user） */
+                followingName?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostFollowController_removeByIds: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                ids: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostFollowController_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostFollowController_follow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostFollowController_unfollow: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     LoginlogController_findAll: {
         parameters: {
             query?: {
@@ -5574,7 +5828,7 @@ export interface operations {
                 /** @description 审核状态 */
                 auditStatus?: "0" | "1" | "2" | "3";
                 /** @description 文章来源 */
-                source?: "0" | "1" | "2" | "3" | "4";
+                source?: "0" | "1" | "2" | "3";
             };
             header?: never;
             path?: never;
@@ -5650,7 +5904,83 @@ export interface operations {
                 /** @description 审核状态 */
                 auditStatus?: "0" | "1" | "2" | "3";
                 /** @description 文章来源 */
-                source?: "0" | "1" | "2" | "3" | "4";
+                source?: "0" | "1" | "2" | "3";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostArticleController_findMyAll: {
+        parameters: {
+            query?: {
+                /** @description 当前分页 */
+                pageNum?: number;
+                /** @description 每页数量 */
+                pageSize?: number;
+                /** @description 排序字段 */
+                orderByColumn?: string;
+                /** @description 排序规则 */
+                isAsc?: string;
+                /** @description 文章标题（模糊搜索） */
+                title?: string;
+                /** @description 专栏ID */
+                subjectId?: number;
+                /** @description 作者用户ID */
+                userId?: number;
+                /** @description 发布状态 */
+                publishStatus?: "0" | "1" | "2" | "3";
+                /** @description 审核状态 */
+                auditStatus?: "0" | "1" | "2" | "3";
+                /** @description 文章来源 */
+                source?: "0" | "1" | "2" | "3";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostArticleController_findFollowAll: {
+        parameters: {
+            query?: {
+                /** @description 当前分页 */
+                pageNum?: number;
+                /** @description 每页数量 */
+                pageSize?: number;
+                /** @description 排序字段 */
+                orderByColumn?: string;
+                /** @description 排序规则 */
+                isAsc?: string;
+                /** @description 文章标题（模糊搜索） */
+                title?: string;
+                /** @description 专栏ID */
+                subjectId?: number;
+                /** @description 作者用户ID */
+                userId?: number;
+                /** @description 发布状态 */
+                publishStatus?: "0" | "1" | "2" | "3";
+                /** @description 审核状态 */
+                auditStatus?: "0" | "1" | "2" | "3";
+                /** @description 文章来源 */
+                source?: "0" | "1" | "2" | "3";
             };
             header?: never;
             path?: never;
@@ -6307,6 +6637,44 @@ export interface operations {
             };
         };
     };
+    PostNotifyController_readNotices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkNoticesDto"];
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PostNotifyController_readAllNotices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     PostCollectionController_findGuestList: {
         parameters: {
             query: {
@@ -6634,168 +7002,6 @@ export interface operations {
             path: {
                 collectionId: number;
                 articleId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    PostFollowController_findGuestList: {
-        parameters: {
-            query: {
-                /** @description 当前分页 */
-                pageNum?: number;
-                /** @description 每页数量 */
-                pageSize?: number;
-                /** @description 排序字段 */
-                orderByColumn?: string;
-                /** @description 排序规则 */
-                isAsc?: string;
-                /** @description 空间主人的用户ID */
-                userId: number;
-                /** @description 列表方向（following 关注列表 / fans 粉丝列表） */
-                type: "following" | "fans";
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    PostFollowController_findReceivedList: {
-        parameters: {
-            query?: {
-                /** @description 当前分页 */
-                pageNum?: number;
-                /** @description 每页数量 */
-                pageSize?: number;
-                /** @description 排序字段 */
-                orderByColumn?: string;
-                /** @description 排序规则 */
-                isAsc?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    PostFollowController_findAdminList: {
-        parameters: {
-            query?: {
-                /** @description 当前分页 */
-                pageNum?: number;
-                /** @description 每页数量 */
-                pageSize?: number;
-                /** @description 排序字段 */
-                orderByColumn?: string;
-                /** @description 排序规则 */
-                isAsc?: string;
-                /** @description 关注人昵称（模糊搜索，联 sys_user） */
-                followerName?: string;
-                /** @description 被关注人昵称（模糊搜索，联 sys_user） */
-                followingName?: string;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    PostFollowController_removeByIds: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                ids: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    PostFollowController_status: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                userId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    PostFollowController_follow: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                userId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-        };
-    };
-    PostFollowController_unfollow: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                userId: number;
             };
             cookie?: never;
         };

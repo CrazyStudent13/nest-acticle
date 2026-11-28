@@ -27,7 +27,7 @@
   "scripts": {
     "build": "tsup",
     "dev": "tsup --watch",
-    "gen:api": "openapi-typescript ../../apps/server/openApi.json -o src/generated/openapi.d.ts"
+    "gen:api": "node scripts/check-openapi-freshness.cjs && openapi-typescript ../../apps/server/openApi.json -o src/generated/openapi.d.ts"
   },
   "devDependencies": {
     "openapi-typescript": "^7.5.0",
