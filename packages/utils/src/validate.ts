@@ -129,3 +129,35 @@ export function isNumeric(value: string | number): boolean {
 export function isEmpty(val: unknown): boolean {
   return val === null || typeof val === 'undefined' || val === '';
 }
+
+/**
+ * 邮箱格式（client 注册弹窗/改密表单等共用；此前 client 两处逐字双份靠注释同步）
+ */
+export const EMAIL_RE = /^[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)+[A-Za-z]{2,}$/;
+
+/**
+ * 密码字符种类判定：数字 / 字母 / 特殊字符
+ * 口径单一事实来源：server IsPasswordComplexEnough 装饰器壳与 client 强度条均消费此处
+ */
+const PASSWORD_KIND_RES = [/\d/, /[a-zA-Z]/, /[^a-zA-Z0-9]/];
+
+/**
+ * 统计密码包含的字符种类数（0-3）
+ */
+export function countPasswordKinds(pwd: string): number {
+  return PASSWORD_KIND_RES.filter((re) => re.test(pwd)).length;
+}
+
+/**
+ * 复杂度是否达标：至少两类（中等强度起；登录不校验，老账号弱密码需可正常登录）
+ */
+export function isPasswordComplexEnough(pwd: string): boolean {
+  return countPasswordKinds(pwd) >= 2;
+}
+
+/**
+ * 密码强度等级：0 太短（<6 位）/ 1 弱（1 类）/ 2 中（2 类）/ 3 强（3 类，必含特殊字符）
+ */
+export function passwordStrength(pwd: string): number {
+  return !pwd || pwd.length < 6 ? 0 : countPasswordKinds(pwd);
+}

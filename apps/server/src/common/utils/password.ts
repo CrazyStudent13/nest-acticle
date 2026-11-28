@@ -1,13 +1,10 @@
 import { ValidateBy, ValidationOptions, buildMessage } from 'class-validator';
 
-// 密码字符种类：数字 / 字母 / 特殊字符（与前台 apps/client/utils/password.ts 口径一致）
-const KIND_RES = [/\d/, /[a-zA-Z]/, /[^a-zA-Z0-9]/];
+import { isPasswordComplexEnough } from '@nest-acticle/utils';
 
-// 统计密码包含的字符种类数（0-3）
-export const countPasswordKinds = (pwd: string) => KIND_RES.filter((re) => re.test(pwd)).length;
-
-// 复杂度是否达标：至少两类（中等强度起）
-export const isPasswordComplexEnough = (pwd: string) => countPasswordKinds(pwd) >= 2;
+// 纯函数口径（KIND_RES/countPasswordKinds/isPasswordComplexEnough）单一事实来源在
+// @nest-acticle/utils/validate，与前台 client 强度条同源消费；server 侧只保留
+// class-validator 装饰器壳——装饰器依赖 reflect-metadata/class-validator，不进共享包
 
 /**
  * 密码复杂度校验装饰器：至少包含数字、字母、特殊字符中的两类
