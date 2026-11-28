@@ -1,7 +1,7 @@
 // 数据字典：按类型拉取字典项，供下拉/标签展示使用（对齐 admin 端 useDict 的用法）
 // 接口 GET /system/dict/data/type/:dictType 游客可读公开字典（is_public=Y，如文章来源/用户性别），
-// 非公开字典游客返回 403、登录用户不限——guest 页按需调用即可，失败静默为空数组，登录后 watch(enabled) 可重试
-// useState 全局缓存：单页会话内同类型只请求一次；失败静默保持空数组，调用方按空字典兜底
+// 非公开字典游客返回 403、登录用户不限——guest 页按需调用即可，失败静默为空数组并清除缓存键，
+// 登录后 watch(enabled) 再触发时可重试；useState 全局缓存：单页会话内同类型只请求一次
 import type { Ref } from 'vue'
 
 export interface DictDataItem {
@@ -23,7 +23,9 @@ export const useDict = (dictType: string, options?: { enabled?: Ref<boolean> }) 
         cache.value = { ...cache.value, [dictType]: (res.data as DictDataItem[]) || [] }
       })
       .catch(() => {
-        // 拉取失败保持空数组：下拉无选项、标签不展示
+        // 拉取失败移除占位键（消费方经 || [] 按空数组兜底）：保留键会因 cache 命中永久跳过重拉，
+        // 登录前 403（非公开字典）后登录成功 watch(enabled) 再触发也无法恢复——移除后下次触发即可重试
+        cache.value = Object.fromEntries(Object.entries(cache.value).filter(([key]) => key !== dictType))
       })
   }
 
