@@ -2,6 +2,37 @@
 
 更细粒度的过程记录（审查 → 修复 → 验收全程）见 [CODE-REVIEW-2026-11-20.md](./CODE-REVIEW-2026-11-20.md)。
 
+## 未发布（dev 分支，随下版本发布）
+
+2026-11-28 总览复审（覆盖 11-25~28 的关注/举报/字典公开/文章类型批次）修复包。**安全修复建议尽快发版**。
+
+### 安全
+
+- **通知定向可见性服务端闸门**：`/system/notice/list` 此前仅 scope=mine 或 noticeId 直取时过滤定向通知，member 等仅持 `system:notice:list` 的角色不带 scope 可读到全部用户的定向通知（举报反馈/文章标题/停用告知）；现 controller 按 `hasPermission(system:notice:query)`（`*:*:*` 通配感知）判定管理侧，非管理侧一律强制「全员公告 + 发给我」，前台通知中心与详情页行为不变
+
+### 修复
+
+- **管理端编辑器发布按钮状态值错位**：误传待发布（'1'）当已发布（'2'）——编辑已发布文章点「发布」会打成待发布、游客列表消失却提示成功；存草稿会把已发布/已下架文章打回草稿。现按 PublishStatusEnum 对齐，存草稿仅新建或草稿/待发布态落草稿、其余保状态只更内容；审核状态 radio 与枚举错位且会误提交，改 dict-tag 只读展示
+- **关注目标不过滤软删用户**：已注销用户凭旧 id 仍可被关注；关注/粉丝/新增粉丝/管理端四列表排序补 id 兜底（datetime(3) 同毫秒翻页漏/重）
+- **举报自动下架补软删过滤**：已软删文章达阈值不再触发下架与误通知，与人工下架口径对齐
+- **文章作者自恢复竞态**：无发布权限的自管理分支改条件更新（publish_status=读取值），并发自动下架/管理员流转时不再无条件覆写绕过举报拦截
+- **游客字典查询剥离 fresh 参数**：未登录传 fresh=true 不再绕过 Redis 缓存直打数据库
+- **停用用户会话兜底**：停用动作先改写会话快照 status 为停用态再删键（两步互为兜底），AuthStrategy 按快照拒绝——Redis 瞬时故障踢键失败时会话不再存活到 24h TTL
+- **useDict 失败后可重试**：拉取失败清缓存键（原先占位空数组占住 cache，登录后 watch(enabled) 也无法恢复文章类型下拉）
+
+### 种子
+
+- role 2（普通角色）补举报管理菜单 212/213/214 授权。**存量库增量**（勿重跑全量 init.sql）：
+  ```sql
+  INSERT INTO sys_role_menu (role_id, menu_id) VALUES (2, 212), (2, 213), (2, 214);
+  ```
+
+### 工程化
+
+- **openapi 契约收口**：补齐 fdf6f6f 以来的系统性滞后（MarkReadDto follow 枚举、/post/article/follow/list 与 /post/article/my/list、字典 isPublic/dictModule 等）；`gen:api` 前置新鲜度检查（openApi.json dump 早于 dist 构建即拒绝，根治"重生成跑在陈旧 dump 上"）
+- **E2E 冒烟固化入仓**：`scripts/e2e-smoke.mjs` 零依赖贯通注册→登录→getInfo→游客列表→清理（注册验证码从栈内 Redis 取明文；含 collation 对齐与 cmd.exe 引号坑注释）
+- **校验口径收口**：EMAIL_RE 与密码复杂度/强度纯函数迁入 `@nest-acticle/utils`，server 装饰器壳与 client 表单同源消费，消灭三端靠注释同步的双份实现
+
 ## v1.4.1（2026-11-28）
 
 一次以打磨为主的小版本：关注 feed、文章预览共享化、Markdown 拖入导入、文章类型自选与展示、字典公开与模块化、管理端字典页重构、分页统一沉底，另修复编辑器发布丢标题与发布后 404。
