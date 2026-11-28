@@ -20,7 +20,7 @@ export class NoticeService {
     return ResultData.ok();
   }
 
-  async findAll(query: ListNoticeDto, viewerId?: number) {
+  async findAll(query: ListNoticeDto, viewerId?: number, isManager = false) {
     const entity = this.sysNoticeEntityRep.createQueryBuilder('entity');
     entity.where('entity.delFlag = :delFlag', { delFlag: '0' });
 
@@ -28,10 +28,19 @@ export class NoticeService {
     applyLike(entity, 'entity.createBy', query.createBy);
 
     // 定向可见性：scope=mine（前台通知中心）或按 noticeId 直取详情时，只回「全员公告 + 发给我的定向通知」，
-    // 私密通知不能越权可见；管理端列表（无 scope）不过滤，便于管理全部定向通知
+    // 私密通知不能越权可见；管理端列表（isManager=true，无 scope）不过滤，便于管理全部定向通知
     const scoped = query.scope === 'mine' || !!query.noticeId;
     if (scoped && viewerId) {
       entity.andWhere('(entity.userId IS NULL OR entity.userId = :viewerId)', { viewerId });
+    } else if (!isManager) {
+      // 服务端可见性闸门：仅持 system:notice:list 的前台角色（member）不带 scope 拉列表时，
+      // 同样只回「全员公告 + 发给我的定向通知」——不能凭缺省 scope 读到全部用户的定向通知（越权读修复）；
+      // isManager 由 controller 按 system:notice:query/通配判定后传入
+      if (viewerId) {
+        entity.andWhere('(entity.userId IS NULL OR entity.userId = :viewerId)', { viewerId });
+      } else {
+        entity.andWhere('entity.userId IS NULL');
+      }
     }
 
     if (query.noticeId) {

@@ -3,6 +3,7 @@ import { ApiTags, ApiOperation, ApiBody, ApiConsumes, ApiQuery, ApiBearerAuth } 
 import { NoticeService } from './notice.service';
 import { CreateNoticeDto, UpdateNoticeDto, ListNoticeDto } from './dto/index';
 import { RequirePermission } from 'src/common/decorators/require-premission.decorator';
+import { hasPermission } from 'src/common/query';
 import { GetNowDate } from 'src/common/utils';
 
 @ApiTags('通知公告')
@@ -33,8 +34,11 @@ export class NoticeController {
   @RequirePermission('system:notice:list')
   @Get('/list')
   findAll(@Query() query: ListNoticeDto, @Request() req) {
+    // 管理侧判定：持 system:notice:query（或 *:*:* 通配）才视为管理端，列表可见全部定向通知；
+    // 仅持 system:notice:list 的前台角色（member）不带 scope 也强制「全员公告 + 发给我」过滤，堵越权读
+    const isManager = hasPermission(req.user, 'system:notice:query');
     // viewerId 用于定向通知可见性过滤（scope=mine / noticeId 直取时只回全员公告 + 发给本人的）
-    return this.noticeService.findAll(query, req.user?.userId);
+    return this.noticeService.findAll(query, req.user?.userId, isManager);
   }
 
   @ApiOperation({
