@@ -66,7 +66,24 @@ const form = reactive({
   },
   rules: {
     dictName: [{ required: true, message: '字典名称不能为空', trigger: 'blur' }],
-    dictType: [{ required: true, message: '字典类型不能为空', trigger: 'blur' }]
+    dictType: [{ required: true, message: '字典类型不能为空', trigger: 'blur' }],
+    dictModule: [
+      {
+        // 选填（不填归入「未分类」），但填了不能是纯空白、长度对齐服务端 @Length(0,50)；
+        // el-select(allow-create) 不支持 maxlength 透传到内部输入框，长度上限由校验兜底
+        validator: (_rule: unknown, value: string, callback: (error?: Error) => void) => {
+          const trimmed = (value ?? '').trim();
+          if (value && !trimmed) {
+            callback(new Error('所属模块不能为空白字符'));
+          } else if (trimmed.length > 50) {
+            callback(new Error('所属模块长度不能超过 50 个字符'));
+          } else {
+            callback();
+          }
+        },
+        trigger: ['blur', 'change']
+      }
+    ]
   },
   reset: () => {
     form.loading = false;
@@ -78,6 +95,8 @@ const form = reactive({
     formRef.value.validate((valid) => {
       if (valid) {
         form.loading = true;
+        // 手填模块去掉首尾空白再入库，避免树分组出现仅空格差异的重复模块
+        form.model.dictModule = (form.model.dictModule || '').trim();
         if (form.model.dictId != undefined) {
           updateType(form.model).then(() => {
             ElMessage.success('修改成功');
