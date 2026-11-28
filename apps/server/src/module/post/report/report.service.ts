@@ -198,12 +198,13 @@ export class PostReportService {
    * - 停用系统内置账号（userType=SYS）拒绝，同管理端用户启停口径
    * - 同事务写入 sys_notice 定向通知（type=3 举报反馈）：处理结果发给举报人，下架处置另发被下架文章作者——
    *   前台「系统通知」栏可见，scope 过滤保证私密通知只对本人可见
-   * - 停用后的会话清理在事务提交后执行（踢会话不可回滚，失败仅记日志不阻断处理结果）
-   */
+ * - 停用后的会话处置在事务提交后执行（改写会话快照为停用态 + 删键，两步互为兜底，失败仅记日志不阻断处理结果）
+ */
   async handle(id: number, dto: HandleReportDto, handlerUserId: number) {
     // 驳回强制无动作；成立时按勾选执行
     const action: string | null = dto.status === ReportStatusEnum.UPHELD ? dto.handleAction || null : null;
-    // 停用动作的事务后置步骤：提交后踢目标用户全部在线会话（身份验证只查 Redis 快照，不踢则停用在过期前不生效）
+    // 停用动作的事务后置步骤：提交后改写目标用户会话快照为停用态并删键（身份验证按快照 status 校验，
+    // 两步任一成功停用即生效，不依赖删键全部成功）
     let disableTargetId: number | null = null;
 
     const result = await this.userRepo.manager.transaction(async (manager) => {
@@ -321,9 +322,9 @@ export class PostReportService {
 
     if (disableTargetId) {
       try {
-        await this.userService.kickUserSessions([disableTargetId]);
+        await this.userService.disableUserSessions([disableTargetId]);
       } catch (error) {
-        this.logger.error(`举报处理停用用户 ${disableTargetId} 后踢会话失败`, error as Error);
+        this.logger.error(`举报处理停用用户 ${disableTargetId} 后处置会话失败`, error as Error);
       }
     }
 
@@ -364,9 +365,10 @@ export class PostReportService {
       return;
     }
 
+    // 条件更新补 delFlag='0'，与 handle() 人工下架口径对齐：已软删文章不再触发自动下架动作与作者通知
     const offline = await manager.update(
       PostArticleEntity,
-      { id: articleId, publishStatus: PublishStatusEnum.PUBLISHED },
+      { id: articleId, delFlag: '0', publishStatus: PublishStatusEnum.PUBLISHED },
       { publishStatus: PublishStatusEnum.OFFLINE },
     );
     if (!offline.affected) {

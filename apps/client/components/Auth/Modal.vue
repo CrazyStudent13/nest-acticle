@@ -198,6 +198,7 @@
 // 登录/注册弹窗：登录与注册共用一个弹窗，通过 mode 切换
 import dayjs from 'dayjs'
 import { ACCOUNT_DISABLED_CODE, ACCOUNT_EXISTS_CODE } from '@nest-acticle/shared'
+import { EMAIL_RE } from '@nest-acticle/utils'
 
 const { isOpen, mode, close } = useAuthModal()
 const { login, register, fetchCaptcha, fetchRegisterConfig, sendRegisterEmailCode } = useUser()
@@ -224,8 +225,7 @@ const touched = reactive<Record<FormField, boolean>>({
 // 在弹窗内常驻展示，不用 toast（文案较长且需要申诉指引）
 const blocked = ref<{ time: string; reason: string } | null>(null)
 
-// 邮箱格式：local 部分仅限常见字符（字母数字与 ._%+-），域名须为「标签.」+ 至少 2 位字母顶级域名
-const EMAIL_RE = /^[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)+[A-Za-z]{2,}$/
+// 邮箱格式正则收口 @nest-acticle/utils（EMAIL_RE，三端单一事实来源）
 
 // 后端「账号已存在」按专属业务码识别（ACCOUNT_EXISTS_CODE，见提交分支）；
 // 下面的文案特征仅作兜底：服务端未带专属码的旧形态下仍能转成登录引导

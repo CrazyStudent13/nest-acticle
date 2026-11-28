@@ -150,6 +150,7 @@
 
 <script setup lang="ts">
 import dayjs from 'dayjs'
+import { EMAIL_RE } from '@nest-acticle/utils'
 
 // 登录守卫走 auth middleware：未登录弹登录框并回首页，token 失效恢复失败同样回首页
 definePageMeta({
@@ -160,7 +161,6 @@ const config = useRuntimeConfig()
 const { user, updateProfile, updateAvatar, updatePassword } = useUser()
 const { mode, setMode } = useTheme()
 
-const EMAIL_RE = /^[A-Za-z0-9._%+-]+@([A-Za-z0-9-]+\.)+[A-Za-z]{2,}$/
 
 const menus = [
   {

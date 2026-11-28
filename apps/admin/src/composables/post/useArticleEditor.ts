@@ -4,6 +4,7 @@
  * 这个文件展示了如何将原有的文章编辑器页面重构为使用 useArticle 组合函数
  */
 
+import { PublishStatusEnum } from '@nest-acticle/shared';
 import { debounce } from 'radash';
 
 import { useArticle } from '@/composables/post/useArticle';
@@ -222,16 +223,28 @@ export function useArticleEditor() {
   };
 
   /**
-   * 保存草稿（带防抖）
+   * 保存草稿（带防抖）：仅新建或当前已是草稿/待发布的文章才落「草稿」；
+   * 编辑已发布/已下架文章时保持原状态只更新内容，避免"随手存草稿"把线上文章打回草稿（游客列表随即消失）
    */
-  const handleSaveDraft = debounce({ delay: 300 }, () => executeSave('0', '草稿保存成功'));
+  const handleSaveDraft = debounce({ delay: 300 }, () => {
+    const current = articleData.publishStatus || PublishStatusEnum.DRAFT;
+    const fallbackToDraft = !articleData.id || current === PublishStatusEnum.DRAFT || current === PublishStatusEnum.PENDING;
+    executeSave(fallbackToDraft ? PublishStatusEnum.DRAFT : current, '草稿保存成功');
+  });
 
   /**
    * 发布文章（带防抖）：保存成功后关闭编辑器回到文章列表；
    * 列表页由后端菜单动态生成（目录 content + 子菜单 article => /content/article），不要硬编码
+   *
+   * 走 update 端点而非闲置的 /post/article/publish/{id}：
+   * - 单请求原子完成内容+状态保存；publish 端点不带正文，得先存再发两跳，中间态语义含混
+   * - publish 端点每次无条件把 publishTime 刷成当前时间，编辑已发布文章再"发布"会重置原始发布时间；
+   *   update 仅在文章尚无发布时间时补落
+   * - publish 端点不校验当前状态，任意状态（含举报下架）都会直接打成已发布，
+   *   绕过 update 分支里"举报下架/大量举报待复核"的作者自恢复拦截；走 update 保持这些护栏
    */
   const handlePublish = debounce({ delay: 300 }, async () => {
-    const saved = await executeSave('1', '文章发布成功');
+    const saved = await executeSave(PublishStatusEnum.PUBLISHED, '文章发布成功');
     if (saved) {
       router.push('/content/article');
     }

@@ -58,9 +58,7 @@
             <div class="comment-meta">
               <span class="comment-time">{{ formatRelativeTime(thread.root.createTime) }}</span>
               <button class="meta-btn" type="button" @click="startReply(thread.root)">
-                <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                  <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                </svg>
+                <AppIcon name="comment" :size="14" />
                 回复
               </button>
               <button
@@ -103,9 +101,7 @@
               <div class="comment-meta">
                 <span class="comment-time">{{ formatRelativeTime(reply.createTime) }}</span>
                 <button class="meta-btn" type="button" @click="startReply(reply)">
-                  <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
+                  <AppIcon name="comment" :size="14" />
                   回复
                 </button>
                 <button

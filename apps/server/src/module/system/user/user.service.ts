@@ -306,7 +306,8 @@ export class UserService {
 
   /**
    * 踢掉指定用户的全部在线会话
-   * 删除/停用/重置密码后必须调用：身份验证只查 Redis 会话快照、不回查用户表，不踢则已登录会话在过期前持续有效
+   * 删除/重置密码后必须调用：身份验证只查 Redis 会话快照、不回查用户表，不踢则已登录会话在过期前持续有效
+   * （停用场景走 disableUserSessions：删键失败时快照改写兜底，停用不等 TTL 生效）
    * 放开为 public：post/report 模块举报处理「停用用户」动作在事务提交后复用（同 countFans 放开口径）
    * @param userIds
    */
@@ -319,6 +320,32 @@ export class UserService {
     if (delKeys.length) {
       await this.redisService.del(delKeys);
     }
+  }
+
+  /**
+   * 停用用户的会话处置：先改写快照 status 为停用态（AuthStrategy.validate 按快照校验即拒），再删除会话键
+   * 纯 kick（删键）在 Redis 瞬时故障下会漏删，被停用用户的会话可存活到 TTL（24h）继续操作；
+   * 快照改写与删键两步互为兜底——只要任一步成功，停用即刻生效（2026-11-28 总览复审 P2）
+   * 放开为 public：post/report 模块举报处理「停用用户」动作在事务提交后复用（同 kickUserSessions 口径）
+   */
+  async disableUserSessions(userIds: number[]) {
+    if (!userIds?.length) return;
+    const keys = await this.redisService.keys(`${CacheEnum.LOGIN_TOKEN_KEY}*`);
+    if (!keys.length) return;
+    const sessions = await this.redisService.mget(keys);
+    const matched = keys
+      .map((key, index) => ({ key, session: sessions[index] }))
+      .filter((item) => userIds.includes(item.session?.userId));
+    if (!matched.length) return;
+
+    // 快照改写尽力而为（个别键失败不阻断删键）；改写成功即被封禁态，后续删键失败也逃不过 validate 的 status 校验。
+    // 重写用全量 TTL 会把残留会话续期（仅发生在删键失败时），停用按 status 拒绝、续期无放行风险
+    await Promise.allSettled(
+      matched.map(({ key, session }) =>
+        this.redisService.set(key, { ...session, user: { ...session.user, status: StatusEnum.STOP } }, LOGIN_TOKEN_EXPIRESIN),
+      ),
+    );
+    await this.redisService.del(matched.map(({ key }) => key));
   }
 
   /**
@@ -472,9 +499,9 @@ export class UserService {
             stopTime: null,
           },
     );
-    // 停用用户的在线会话立即失效（启用无需处理）
+    // 停用用户的在线会话立即失效（启用无需处理）：先改写快照 status 再删键，删键失败时快照校验兜底
     if (isStop) {
-      await this.kickUserSessions([changeStatusDto.userId]);
+      await this.disableUserSessions([changeStatusDto.userId]);
     }
     return ResultData.ok(res);
   }

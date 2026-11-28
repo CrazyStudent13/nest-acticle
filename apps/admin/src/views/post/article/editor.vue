@@ -52,19 +52,17 @@
               <el-input-number v-model="articleData.sort" :min="0" controls-position="right" style="width: 100%" />
             </el-form-item>
 
+            <!-- 发布状态只读展示：状态流转由「存草稿/发布」按钮驱动，prepareSaveData 按入口覆盖状态值；
+                 原 radio 值/标签错位（'1' 实为待发布）且选中值被保存逻辑覆盖，是会误导操作的死控件 -->
             <el-form-item label="发布状态">
-              <el-radio-group v-model="articleData.publishStatus">
-                <el-radio label="0">草稿</el-radio>
-                <el-radio label="1">已发布</el-radio>
-              </el-radio-group>
+              <dict-tag type="post_article_publish_status" :value="articleData.publishStatus" />
             </el-form-item>
 
+            <!-- 审核状态只读展示：正式审核链路走 /audit 端点（带审核人/时间/备注，列表页 ArticleForm 抽屉维护）；
+                 原 radio '0/1/2' 与 AuditStatusEnum（1 审核中 2 通过 3 拒绝）错位，且 auditStatus 会随保存提交，
+                 误点「已拒绝」（实为 '2'=审核通过）会直接改掉审核状态 -->
             <el-form-item label="审核状态">
-              <el-radio-group v-model="articleData.auditStatus">
-                <el-radio label="0">待审核</el-radio>
-                <el-radio label="1">已通过</el-radio>
-                <el-radio label="2">已拒绝</el-radio>
-              </el-radio-group>
+              <dict-tag type="post_article_audit_status" :value="articleData.auditStatus" />
             </el-form-item>
           </el-form>
         </div>

@@ -6,6 +6,8 @@
         class="author-link"
         :title="`查看 ${authorName} 的空间`"
         :to="{ path: '/user/space', query: { id: String(props.author.userId || '') } }"
+        :target="linkTarget"
+        :rel="linkTarget === '_blank' ? 'noopener noreferrer' : undefined"
       >
         <span class="avatar">
           <img v-if="avatarUrl" :src="avatarUrl" :alt="authorName" />
@@ -45,9 +47,12 @@ interface AuthorInfo {
 const props = withDefaults(
   defineProps<{
     author?: AuthorInfo
+    /** 空间入口的打开方式：详情页侧栏默认当前页，列表悬浮卡用 _blank 新窗口 */
+    linkTarget?: '_self' | '_blank'
   }>(),
   {
-    author: () => ({})
+    author: () => ({}),
+    linkTarget: '_self'
   }
 )
 

@@ -139,14 +139,15 @@ export class DictService {
 
   /**
    * 游客视角查询字典：仅公开字典（is_public=Y）可读，其余返回 403；
-   * 登录用户的查询不限字典，仍走 findOneDataType
+   * 登录用户的查询不限字典，仍走 findOneDataType。
+   * 游客不接受 fresh 参数：强制走 Redis 缓存（未命中才重建），避免未登录请求传 fresh=true 绕过缓存直打数据库
    */
-  async findOneDataTypeForGuest(dictType: string, fresh = false) {
+  async findOneDataTypeForGuest(dictType: string) {
     const publicTypes = await this.readPublicDictTypes();
     if (!publicTypes.includes(dictType)) {
       throw new BusinessException(403, '该字典未公开');
     }
-    return this.findOneDataType(dictType, fresh);
+    return this.findOneDataType(dictType);
   }
 
   /**

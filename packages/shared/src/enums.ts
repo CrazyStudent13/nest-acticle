@@ -41,6 +41,17 @@ export enum ArticleSourceEnum {
 }
 
 /**
+ * 文章来源展示文案：与字典 post_article_source 的 dictLabel 对齐（单一事实来源——
+ * server init.sql 字典种子与 client 游客兜底映射均以此为准，改文案/增来源须同步 init.sql 字典区）
+ */
+export const ARTICLE_SOURCE_LABELS: Record<ArticleSourceEnum, string> = {
+  [ArticleSourceEnum.ORIGINAL]: '原创',
+  [ArticleSourceEnum.REPRINT]: '转载',
+  [ArticleSourceEnum.TRANSLATION]: '翻译',
+  [ArticleSourceEnum.COMPILATION]: '整理',
+}
+
+/**
  * 举报处理状态：0 待处理 1 成立 2 驳回
  * 举报理由/目标类型不走此枚举（运营可变数据，走字典 post_report_reason / post_report_target）
  */

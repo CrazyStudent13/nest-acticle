@@ -76,6 +76,7 @@ describe('PostArticleService.recordRead', () => {
  * 作者自管理上下架（举报处置的下游）：
  * - 无 post:article:publish 权限的作者只能在「已发布↔已下架」之间切换，草稿直发会绕过发布/审核端点
  * - 因举报成立被下架、或因大量举报自动下架的文章，作者不能自行恢复发布
+ * - 作者分支落库走条件更新（publish_status=读取值）：读取后状态被并发流转时 affected=0 直接失败，防 check-then-act 竞态
  */
 describe('PostArticleService.update（发布状态自管理）', () => {
   const articleRepo = { findOne: jest.fn(), update: jest.fn() };
@@ -107,7 +108,8 @@ describe('PostArticleService.update（发布状态自管理）', () => {
     await service.update({ id: 10, title: '文章', publishStatus: '3' } as any, author as any);
 
     expect(reportRepo.findOne).not.toHaveBeenCalled();
-    expect(articleRepo.update).toHaveBeenCalledWith({ id: 10 }, expect.objectContaining({ publishStatus: '3' }));
+    // 作者分支条件更新：where 带读取时的旧状态，防并发流转覆写
+    expect(articleRepo.update).toHaveBeenCalledWith({ id: 10, publishStatus: '2' }, expect.objectContaining({ publishStatus: '3' }));
   });
 
   it('因举报成立被下架：作者不能自行恢复发布', async () => {
@@ -139,7 +141,21 @@ describe('PostArticleService.update（发布状态自管理）', () => {
 
     await service.update({ id: 10, title: '文章', publishStatus: '2' } as any, author as any);
 
-    expect(articleRepo.update).toHaveBeenCalledWith({ id: 10 }, expect.objectContaining({ publishStatus: '2' }));
+    expect(articleRepo.update).toHaveBeenCalledWith({ id: 10, publishStatus: '3' }, expect.objectContaining({ publishStatus: '2' }));
+  });
+
+  it('作者自恢复竞态：读取后文章被并发下架（affected=0），报错且不落库', async () => {
+    articleRepo.findOne.mockResolvedValue({ ...article, publishStatus: '3' });
+    reportRepo.findOne.mockResolvedValue(null);
+    reportRepo.query.mockResolvedValue([{ cnt: '1' }]);
+    // 条件更新未命中：读取后 publish_status 已被并发流转（如自动下架重新触发、管理员流转）
+    articleRepo.update.mockResolvedValue({ affected: 0 });
+
+    await expect(service.update({ id: 10, title: '文章', publishStatus: '2' } as any, author as any)).rejects.toMatchObject({
+      msg: '文章状态已变化，请刷新后重试',
+    });
+    // 仅一次条件更新尝试，affected=0 即止（重试由调用方发起，会重新走上方举报拦截）
+    expect(articleRepo.update).toHaveBeenCalledTimes(1);
   });
 
   it('具备 post:article:publish 的管理角色：可任意流转（含草稿直发）', async () => {

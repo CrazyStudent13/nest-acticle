@@ -95,6 +95,7 @@
             v-for="item in articles"
             :key="item.id || item.title"
             :card-info="item"
+            :show-author="false"
             @click="goArticle(item)"
           />
         </template>

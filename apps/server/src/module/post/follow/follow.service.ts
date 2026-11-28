@@ -40,7 +40,9 @@ export class PostFollowService {
     }
 
     return this.userRepo.manager.transaction(async (manager) => {
-      const target = await manager.findOne(UserEntity, { where: { userId: followingId } });
+      // 软删用户不可被关注（同举报目标存在性校验口径）：已注销用户凭旧 id 关注会复活粉丝数；
+      // 不加 status 过滤——停用用户的空间页「内容仍可浏览」，仅对外挂停用标识（space.vue 产品语义），关注不在停用处置面内
+      const target = await manager.findOne(UserEntity, { where: { userId: followingId, delFlag: '0' } });
       if (!target) {
         throw new BusinessException(500, '用户不存在');
       }
@@ -108,7 +110,7 @@ export class PostFollowService {
 
     paginate(entity, query);
 
-    entity.orderBy('follow.createTime', 'DESC');
+    entity.orderBy('follow.createTime', 'DESC').addOrderBy('follow.id', 'DESC');
 
     const { raw } = await entity.getRawAndEntities();
     const total = await entity.getCount();
@@ -151,7 +153,7 @@ export class PostFollowService {
 
     paginate(entity, query);
 
-    entity.orderBy('follow.createTime', 'DESC');
+    entity.orderBy('follow.createTime', 'DESC').addOrderBy('follow.id', 'DESC');
 
     const { raw } = await entity.getRawAndEntities();
     const total = await entity.getCount();
@@ -199,7 +201,7 @@ export class PostFollowService {
 
     paginate(entity, query);
 
-    entity.orderBy('follow.createTime', 'DESC');
+    entity.orderBy('follow.createTime', 'DESC').addOrderBy('follow.id', 'DESC');
 
     const { raw } = await entity.getRawAndEntities();
     const total = await entity.getCount();

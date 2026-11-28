@@ -35,14 +35,19 @@
         <!-- 元信息行：作者 时间 阅读 专栏，编辑入口靠右（仅作者本人可见），掘金式单行 -->
         <div class="meta-line">
           <!-- 文章类型标：原创/转载/翻译/整理，与列表卡片同源文案 -->
-          <span v-if="sourceLabel" class="meta-source">{{ sourceLabel }}</span>
-          <span class="meta-author">{{ authorName }}</span>
+          <span v-if="sourceLabel" class="meta-source" :class="`source-${article.source}`">{{ sourceLabel }}</span>
+          <!-- 作者名即空间入口：悬浮出作者卡，点击卡片新窗口进空间；无 userId 时退回纯文本 -->
+          <ArticleAuthorHoverCard
+            v-if="article.userInfo?.userId"
+            class="meta-author"
+            :user-id="article.userInfo.userId"
+            :nick-name="authorName"
+            :avatar="article.userInfo.avatar || ''"
+          />
+          <span v-else class="meta-author">{{ authorName }}</span>
           <span v-if="publishLabel" class="meta-item">{{ publishLabel }}</span>
           <span v-if="readLabel" class="meta-item">
-            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-              <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
+            <AppIcon name="eye" :size="14" />
             {{ readLabel }} 阅读
           </span>
           <NuxtLink
@@ -335,10 +340,34 @@ const onCommentNumChange = (value: number) => {
   commentNumLocal.value = value
 }
 
-// 工具栏评论按钮：滚动定位到评论区
+// 工具栏评论按钮：滚动定位到评论区（按绝对位置滚窗口，兼容容器/平滑差异）
 const scrollToComments = () => {
-  commentSectionRef.value?.$el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  const el = commentSectionRef.value?.$el
+  if (!el) {
+    return
+  }
+  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY, behavior: 'smooth' })
 }
+
+// 列表「评论」图标带 ?comment=1 进入：直接跳到评论区（到达即定位，不用平滑动画）
+const jumpToComments = () => {
+  const el = commentSectionRef.value?.$el
+  if (!el) {
+    return
+  }
+  window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY })
+}
+// 正文图片可能晚到撑高页面，延时再校正一次落点
+const scrollToCommentsIfRequested = () => {
+  if (route.query.comment !== '1') {
+    return
+  }
+  nextTick(() => {
+    ;[60, 400].forEach((delay) => window.setTimeout(jumpToComments, delay))
+  })
+}
+onMounted(scrollToCommentsIfRequested)
+watch(() => route.query.comment, scrollToCommentsIfRequested)
 
 // 编辑/删除入口：仅当前登录用户是文章作者时可见
 const { user, ensureUserRestored } = useUser()
@@ -490,14 +519,32 @@ useHead(() => {
     color: var(--color-text-1);
   }
 
-  // 文章类型标：元信息行首的浅蓝小胶囊
+  // 文章类型标：按来源区分配色（原创蓝/转载橙/翻译绿/整理紫），与列表卡片一致
   .meta-source {
     padding: 1px 8px;
     border-radius: var(--radius-sm);
-    background-color: var(--color-primary-light);
     font-size: 12px;
     line-height: 18px;
-    color: var(--color-primary);
+
+    &.source-0 {
+      color: var(--color-primary);
+      background-color: var(--color-primary-light);
+    }
+
+    &.source-1 {
+      color: #e6832d;
+      background-color: rgba(230, 131, 45, 0.12);
+    }
+
+    &.source-2 {
+      color: #3fb060;
+      background-color: rgba(63, 176, 96, 0.12);
+    }
+
+    &.source-3 {
+      color: #7c5cff;
+      background-color: rgba(124, 92, 255, 0.12);
+    }
   }
 
   .meta-item {

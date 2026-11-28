@@ -125,7 +125,7 @@ export class DictController {
 
   @ApiOperation({
     summary: '字典数据-类型-详情【走缓存】',
-    description: '传 fresh=true 时跳过 Redis 缓存，直接查询数据库；公开字典（is_public=Y）游客可读，非公开字典游客返回 403',
+    description: '传 fresh=true 时跳过 Redis 缓存，直接查询数据库（仅登录态生效）；公开字典（is_public=Y）游客可读，非公开字典游客返回 403；游客强制走缓存，不接受 fresh',
   })
   @NotRequireAuth()
   @Get('/data/type/:id')
@@ -135,7 +135,8 @@ export class DictController {
     if (req?.user) {
       return this.dictService.findOneDataType(dictType, isFresh);
     }
-    return this.dictService.findOneDataTypeForGuest(dictType, isFresh);
+    // 游客分支剥离 fresh：缓存重建有单飞兜底，但逐请求强制重建仍是未登录可触发的数据库放大
+    return this.dictService.findOneDataTypeForGuest(dictType);
   }
 
   @ApiOperation({

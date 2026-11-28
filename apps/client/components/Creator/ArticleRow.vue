@@ -9,9 +9,11 @@
       <div class="meta">
         <span v-if="subjectName">专栏：{{ subjectName }}</span>
         <span>{{ timeLabel }} {{ timeText }}</span>
-        <span>阅读 {{ article.readNum ?? 0 }}</span>
-        <span>点赞 {{ article.likeNum ?? 0 }}</span>
-        <span>评论 {{ article.commentNum ?? 0 }}</span>
+        <template v-if="!local">
+          <span>阅读 {{ article.readNum ?? 0 }}</span>
+          <span>点赞 {{ article.likeNum ?? 0 }}</span>
+          <span>评论 {{ article.commentNum ?? 0 }}</span>
+        </template>
       </div>
     </div>
 
@@ -40,6 +42,8 @@ const STATUS_MAP: Record<string, string> = {
 const props = defineProps<{
   article: Article
   subjectName?: string
+  /** 本地草稿（浏览器 localStorage 自动保存，未落库）：可编辑/删除，无发布状态流转与互动数据 */
+  local?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -50,8 +54,11 @@ const emit = defineEmits<{
 
 const status = computed(() => props.article.publishStatus || '0')
 
-// 徽标：审核状态优先展示（审核中/审核失败），其余按发布状态
+// 徽标：审核状态优先展示（审核中/审核失败），其余按发布状态；本地草稿单独标注
 const badge = computed(() => {
+  if (props.local) {
+    return { label: '本地草稿', cls: 'status-0' }
+  }
   if (props.article.auditStatus === '1') {
     return { label: '审核中', cls: 'audit-auditing' }
   }
@@ -62,8 +69,8 @@ const badge = computed(() => {
   return { label, cls: `status-${status.value}` }
 })
 
-// 编辑入口：guest 详情只放行已发布文章，非已发布不给编辑
-const canEdit = computed(() => status.value === '2')
+// 编辑入口：guest 详情只放行已发布文章，非已发布不给编辑；本地草稿直接回编辑器
+const canEdit = computed(() => props.local || status.value === '2')
 
 // 悬停标题可见完整标题；审核失败时同时展示拒绝理由
 const rowTitle = computed(() => {
@@ -73,11 +80,11 @@ const rowTitle = computed(() => {
   return props.article.title
 })
 
-const timeLabel = computed(() => (status.value === '2' ? '发布于' : '创建于'))
+const timeLabel = computed(() => (props.local ? '保存于' : status.value === '2' ? '发布于' : '创建于'))
 
 const timeText = computed(() => {
   // 已发布优先展示发布时间（可能为空，退回创建时间），其余状态展示创建时间
-  const value = status.value === '2' ? props.article.publishTime || props.article.createTime : props.article.createTime
+  const value = status.value === '2' && !props.local ? props.article.publishTime || props.article.createTime : props.article.createTime
   return formatDateTime(value, 'YYYY-MM-DD HH:mm')
 })
 </script>
