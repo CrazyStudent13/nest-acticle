@@ -33,7 +33,7 @@ describe('PostReportService', () => {
   const articleRepo = { findOne: jest.fn(), find: jest.fn() };
   const userRepo = { findOne: jest.fn(), find: jest.fn(), manager: { transaction: jest.fn() } };
   const dictService = { findOneDataType: jest.fn() };
-  const userService = { kickUserSessions: jest.fn() };
+  const userService = { disableUserSessions: jest.fn() };
 
   let manager: ReturnType<typeof makeManager>;
   let service: PostReportService;
@@ -155,7 +155,7 @@ describe('PostReportService', () => {
 
       await service.create(baseDto, 7);
 
-      expect(manager.update).toHaveBeenCalledWith(PostArticleEntity, { id: 10, publishStatus: PublishStatusEnum.PUBLISHED }, { publishStatus: PublishStatusEnum.OFFLINE });
+      expect(manager.update).toHaveBeenCalledWith(PostArticleEntity, { id: 10, delFlag: '0', publishStatus: PublishStatusEnum.PUBLISHED }, { publishStatus: PublishStatusEnum.OFFLINE });
       expect(manager.insert).toHaveBeenCalledTimes(1);
       expect((manager.insert.mock.calls[0][1] as { userId: number }).userId).toBe(2);
     });
@@ -358,7 +358,8 @@ describe('PostReportService', () => {
         { userId: 9 },
         expect.objectContaining({ status: '1', stopReason: '发布违规内容', stopTime: expect.any(Date) }),
       );
-      expect(userService.kickUserSessions).toHaveBeenCalledWith([9]);
+      // 会话处置走 disableUserSessions：改写快照为停用态 + 删键，删键失败时 validate 按快照 status 拒绝
+      expect(userService.disableUserSessions).toHaveBeenCalledWith([9]);
     });
 
     it('停用用户未填原因：落到默认文案', async () => {

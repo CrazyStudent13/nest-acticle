@@ -3,7 +3,7 @@ import { Strategy, ExtractJwt } from 'passport-jwt';
 import { ConfigService } from '@nestjs/config';
 import { UnauthorizedException, Injectable } from '@nestjs/common';
 import { RedisService } from 'src/module/common/redis/redis.service';
-import { CacheEnum } from 'src/common/enum/index';
+import { CacheEnum, StatusEnum } from 'src/common/enum/index';
 
 @Injectable()
 export class AuthStrategy extends PassportStrategy(Strategy) {
@@ -31,6 +31,9 @@ export class AuthStrategy extends PassportStrategy(Strategy) {
     const user = await this.redisService.get(`${CacheEnum.LOGIN_TOKEN_KEY}${payload.uuid}`);
     // 如果用用户信息，代表 token 没有过期，没有则 token 已失效
     if (!user) throw new UnauthorizedException('登录已过期，请重新登录');
+    // 停用用户会话兜底：停用路径先改写会话快照的 user.status 为停用态再删键，
+    // 删键失败（Redis 瞬时故障）时快照仍在，这里按 status 拒绝，停用不等 TTL 即生效
+    if (user?.user?.status === StatusEnum.STOP) throw new UnauthorizedException('账号已被停用，请重新登录');
     return user;
   }
 }
