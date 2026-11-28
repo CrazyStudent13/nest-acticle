@@ -1,12 +1,10 @@
-// 文章类型展示文案：0 原创 1 转载 2 翻译 3 整理，与字典 post_article_source 保持一致。
-// 详情/列表对游客公开可见，而字典接口要求登录态，这里本地映射兜底，未知值不展示
-const ARTICLE_SOURCE_LABELS: Record<string, string> = {
-  '0': '原创',
-  '1': '转载',
-  '2': '翻译',
-  '3': '整理'
-}
+// 文章类型展示文案：单一事实来源收口到 @nest-acticle/shared（ARTICLE_SOURCE_LABELS，与字典
+// post_article_source 对齐），这里 re-export 维持既有导入路径。
+// 详情/列表对游客公开可见，而字典接口游客仅放行公开字典，本地映射兜底，未知值不展示
+import { ARTICLE_SOURCE_LABELS, ArticleSourceEnum } from '@nest-acticle/shared'
+
+export { ARTICLE_SOURCE_LABELS }
 
 export const getArticleSourceLabel = (source?: string | null) => {
-  return source ? ARTICLE_SOURCE_LABELS[source] || '' : ''
+  return source ? ARTICLE_SOURCE_LABELS[source as ArticleSourceEnum] || '' : ''
 }
