@@ -52,11 +52,10 @@
               <el-input-number v-model="articleData.sort" :min="0" controls-position="right" style="width: 100%" />
             </el-form-item>
 
+            <!-- 发布状态只读展示：状态流转由「存草稿/发布」按钮驱动，prepareSaveData 按入口覆盖状态值；
+                 原 radio 值/标签错位（'1' 实为待发布）且选中值被保存逻辑覆盖，是会误导操作的死控件 -->
             <el-form-item label="发布状态">
-              <el-radio-group v-model="articleData.publishStatus">
-                <el-radio label="0">草稿</el-radio>
-                <el-radio label="1">已发布</el-radio>
-              </el-radio-group>
+              <dict-tag type="post_article_publish_status" :value="articleData.publishStatus" />
             </el-form-item>
 
             <el-form-item label="审核状态">
