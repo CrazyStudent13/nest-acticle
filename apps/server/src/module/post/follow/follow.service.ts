@@ -110,7 +110,7 @@ export class PostFollowService {
 
     paginate(entity, query);
 
-    entity.orderBy('follow.createTime', 'DESC');
+    entity.orderBy('follow.createTime', 'DESC').addOrderBy('follow.id', 'DESC');
 
     const { raw } = await entity.getRawAndEntities();
     const total = await entity.getCount();
@@ -153,7 +153,7 @@ export class PostFollowService {
 
     paginate(entity, query);
 
-    entity.orderBy('follow.createTime', 'DESC');
+    entity.orderBy('follow.createTime', 'DESC').addOrderBy('follow.id', 'DESC');
 
     const { raw } = await entity.getRawAndEntities();
     const total = await entity.getCount();
@@ -201,7 +201,7 @@ export class PostFollowService {
 
     paginate(entity, query);
 
-    entity.orderBy('follow.createTime', 'DESC');
+    entity.orderBy('follow.createTime', 'DESC').addOrderBy('follow.id', 'DESC');
 
     const { raw } = await entity.getRawAndEntities();
     const total = await entity.getCount();
