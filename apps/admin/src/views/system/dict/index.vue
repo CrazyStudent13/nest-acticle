@@ -409,11 +409,18 @@ const dictData = reactive({
       dictData.query.dictType = nextType;
       dictData.query.pageNum = 1;
     }
-    listData(dictData.query).then((res) => {
-      dictData.data = res.data.list;
-      dictData.total = res.data.total;
-      loading.value = false;
-    });
+    listData(dictData.query)
+      .then((res) => {
+        dictData.data = res.data.list;
+        dictData.total = res.data.total;
+      })
+      .catch((e) => {
+        // 失败提示由 useRequest 拦截器统一弹出（同 dictGroup.request 口径），这里只记录并复位 loading
+        console.error('加载字典内容失败:', e);
+      })
+      .finally(() => {
+        loading.value = false;
+      });
   },
   handleAdd: () => {
     dictDataEditRef.value.handleDialogOpen('add', dictGroup.selectNode);
