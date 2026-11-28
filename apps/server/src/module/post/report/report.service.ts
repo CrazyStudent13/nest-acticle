@@ -364,9 +364,10 @@ export class PostReportService {
       return;
     }
 
+    // 条件更新补 delFlag='0'，与 handle() 人工下架口径对齐：已软删文章不再触发自动下架动作与作者通知
     const offline = await manager.update(
       PostArticleEntity,
-      { id: articleId, publishStatus: PublishStatusEnum.PUBLISHED },
+      { id: articleId, delFlag: '0', publishStatus: PublishStatusEnum.PUBLISHED },
       { publishStatus: PublishStatusEnum.OFFLINE },
     );
     if (!offline.affected) {
