@@ -444,8 +444,8 @@ export class PostArticleService {
     // - auditStatus：仅 post:article:audit 权限可改
     // publishTime 依旧服务端落值（重新发布时补当前时间），不接受请求体指定
     const statusUpdate: Partial<PostArticleEntity> = {};
+    const hasPublishPerm = hasPermission(user, 'post:article:publish');
     if (publishStatus !== undefined && publishStatus !== article.publishStatus) {
-      const hasPublishPerm = hasPermission(user, 'post:article:publish');
       if (!hasPublishPerm) {
         const isOwner = article.userId === user.user?.userId;
         if (!isOwner) {
@@ -493,7 +493,20 @@ export class PostArticleService {
       safeUpdateData.desc = safeUpdateData.desc.substring(0, 255);
     }
 
-    await this.postArticleRepository.update({ id }, { ...safeUpdateData, ...statusUpdate });
+    // 无 publish 权限的作者自管理分支（发布↔下架自流转）：条件更新防 check-then-act 竞态——
+    // 读取后文章被并发自动下架/管理员流转（publish_status 已非读取值）时 affected=0 直接失败，
+    // 重试会重新走上方举报拦截与阈值检查，不会绕过（有 publish 权限的管理分支维持通用更新）
+    if (statusUpdate.publishStatus !== undefined && !hasPublishPerm) {
+      const res = await this.postArticleRepository.update(
+        { id, publishStatus: article.publishStatus },
+        { ...safeUpdateData, ...statusUpdate },
+      );
+      if (!res.affected) {
+        throw new BusinessException(500, '文章状态已变化，请刷新后重试');
+      }
+    } else {
+      await this.postArticleRepository.update({ id }, { ...safeUpdateData, ...statusUpdate });
+    }
 
     // 恢复上架通知：管理端角色把已下架文章重新发布时，定向通知作者（sys_notice type=3 举报反馈通道）。
     // 作者自行恢复（无 publish 权限的自管理路径）不发——自己的动作自己知道
